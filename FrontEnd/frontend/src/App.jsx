@@ -10,11 +10,16 @@ import ResetPassword from "./ResetPassword";
 import PublicRoute from "./PublicRoute";
 import ProtectedRoute from "./ProtectedRoute";
 
+//SuperAdmin
 import AdminRoute from "./SuperAdmin/AdminRoute";
 import AdminLayout from "./SuperAdmin/AdminLayout";
 import State from "./SuperAdmin/State";
 import District from "./SuperAdmin/District";
 import City from "./SuperAdmin/City";
+import PendingHotels from "./SuperAdmin/PendingHotels";
+
+//Admin
+import SignupAdmin from './Admin/SignupAdmin'
 
 function App() {
   return (
@@ -26,6 +31,15 @@ function App() {
           element={
             <PublicRoute>
               <Signup />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/adminSignup"
+          element={
+            <PublicRoute>
+              <SignupAdmin />
             </PublicRoute>
           }
         />
@@ -93,6 +107,12 @@ function App() {
             path="city"
             element={<City />}
           />
+
+          <Route
+            path="pendingHotels"
+            element={<PendingHotels />}
+          />
+
         </Route>
       </Routes>
     </BrowserRouter>

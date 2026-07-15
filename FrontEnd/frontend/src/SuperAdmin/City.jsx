@@ -398,7 +398,7 @@ const City = () => {
                       <td className="p-3.5">
                         <span className="inline-flex items-center gap-1.5 text-[13px]">
                           <span
-                            className="w-[6px] h-[6px] rounded-full"
+                            className="w-1.5 h-1.5 rounded-full"
                             style={{
                               background: activeTab === "active" ? "#4C8B5B" : "#A39B8B",
                             }}
@@ -450,7 +450,7 @@ const City = () => {
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-[#1A1712]/45 backdrop-blur-[3px] flex justify-center items-center z-50 px-4">
-          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-[420px] border border-[#E3E0D4]">
+          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-105 border border-[#E3E0D4]">
             <h2 className="text-[18px] font-medium text-[#201F19] mb-5">
               {isEdit ? "Update city" : "Add city"}
             </h2>
@@ -506,14 +506,14 @@ const City = () => {
       {/* View Modal */}
       {showViewModal && viewData && (
         <div className="fixed inset-0 bg-[#1A1712]/45 backdrop-blur-[3px] flex justify-center items-center z-50 px-4">
-          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-[420px] border border-[#E3E0D4]">
+          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-105 border border-[#E3E0D4]">
             <h2 className="text-[18px] font-medium text-[#201F19] mb-5">
               City details
             </h2>
 
             <div className="space-y-4 mb-6">
               <div className="pb-4 border-b border-[#EFEBDF]">
-                <p className="text-[11px] tracking-[0.1em] font-mono text-[#9A927D] mb-1.5">
+                <p className="text-[11px] tracking-widest font-mono text-[#9A927D] mb-1.5">
                   CITY NAME
                 </p>
                 <p className="text-[16px] text-[#201F19] font-medium capitalize">
@@ -522,7 +522,7 @@ const City = () => {
               </div>
 
               <div className="pb-4 border-b border-[#EFEBDF]">
-                <p className="text-[11px] tracking-[0.1em] font-mono text-[#9A927D] mb-1.5">
+                <p className="text-[11px] tracking-widest font-mono text-[#9A927D] mb-1.5">
                   DISTRICT
                 </p>
                 <p className="text-[16px] text-[#201F19] font-medium capitalize">
@@ -531,7 +531,7 @@ const City = () => {
               </div>
 
               <div>
-                <p className="text-[11px] tracking-[0.1em] font-mono text-[#9A927D] mb-1.5">
+                <p className="text-[11px] tracking-widest font-mono text-[#9A927D] mb-1.5">
                   STATUS
                 </p>
                 <span
@@ -542,7 +542,7 @@ const City = () => {
                   }}
                 >
                   <span
-                    className="w-[6px] h-[6px] rounded-full"
+                    className="w-1.5 h-1.5 rounded-full"
                     style={{ background: viewData.status === "active" ? "#4C8B5B" : "#A39B8B" }}
                   />
                   {viewData.status}

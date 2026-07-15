@@ -14,6 +14,7 @@ const AdminLayout = () => {
         { name: "State", path: "state", scale: "lg" },
         { name: "District", path: "district", scale: "md" },
         { name: "City", path: "city", scale: "sm" },
+        { name: 'Hotels Request', path: 'PendingHotels', scale: 'sm' }
     ];
 
     const handleLogout = () => {
@@ -67,7 +68,7 @@ const AdminLayout = () => {
                             LOCATION HIERARCHY
                         </p>
                         <div className="relative">
-                            <div className="absolute left-[5px] top-2 bottom-2 w-px bg-[#E3E0D4]" />
+                            <div className="absolute left-1.25 top-2 bottom-2 w-px bg-[#E3E0D4]" />
                             <div className="space-y-1">
                                 {menu.map((item) => {
                                     const active = location.pathname === `/superAdmin/${item.path}`;
@@ -76,8 +77,8 @@ const AdminLayout = () => {
                                             key={item.path}
                                             to={item.path}
                                             className={`relative flex items-center gap-4 pl-0 pr-4 py-3.5 rounded-r-lg group transition-all duration-150 ${active
-                                                    ? "bg-[#FAF8F2] border-l-2 border-[#201F19]"
-                                                    : "border-l-2 border-transparent hover:bg-[#FAF8F2]"
+                                                ? "bg-[#FAF8F2] border-l-2 border-[#201F19]"
+                                                : "border-l-2 border-transparent hover:bg-[#FAF8F2]"
                                                 }`}
                                         >
                                             <span
@@ -135,7 +136,7 @@ const AdminLayout = () => {
                 </div>
 
                 {/* Outlet Container */}
-                <div className="reg-card rounded-2xl border border-[#E3E0D4] p-7 min-h-[500px]">
+                <div className="reg-card rounded-2xl border border-[#E3E0D4] p-7 min-h-125">
                     <Outlet />
                 </div>
             </div>
