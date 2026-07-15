@@ -81,7 +81,7 @@ const Login = () => {
                 response.data.user.role ===
                 "superAdmin"
             ) {
-                navigate("/superAdmin");
+                navigate("/superAdmin/state");
             } else {
                 navigate("/user");
             }
