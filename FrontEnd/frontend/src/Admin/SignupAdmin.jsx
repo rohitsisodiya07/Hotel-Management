@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
-import { Link } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 const initialForm = {
   hotelName: "",
@@ -29,7 +33,13 @@ const SignupAdmin = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const navigate =
+    useNavigate();
 
+  const { id } =
+    useParams();
+
+  const isEdit = !!id;
 
   const fetchCities = async () => {
     try {
@@ -45,9 +55,56 @@ const SignupAdmin = () => {
     }
   };
 
+  const getHotel = async () => {
+    try {
+      const response =
+        await axios.get(
+          `${signupApi}hotel/${id}`
+        );
+
+      const hotel =
+        response.data.hotel;
+
+      setFormData({
+        hotelName:
+          hotel.hotelName || "",
+        ownerName:
+          hotel.ownerName || "",
+        email:
+          hotel.email || "",
+        mobile:
+          hotel.mobile || "",
+        city:
+          hotel.city?._id ||
+          hotel.city ||
+          "",
+        address:
+          hotel.address || "",
+        totalRooms:
+          hotel.totalRooms || "",
+        hotelType:
+          hotel.hotelType ||
+          "Hotel",
+        description:
+          hotel.description ||
+          "",
+        hotelImage: null,
+        ownerImage: null,
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   useEffect(() => {
     fetchCities();
   }, []);
+
+  useEffect(() => {
+    if (id) {
+      getHotel();
+    }
+  }, [id]);
 
   //Validations
   const validateField = (name, value) => {
@@ -96,14 +153,19 @@ const SignupAdmin = () => {
         return "";
 
       case "hotelImage":
-        if (!value) return "Hotel image is required";
+        if (
+          !value &&
+          !isEdit
+        )
+          return "Hotel image is required";
         return "";
 
       case "ownerImage":
-        if (!value) return "Owner image is required";
-        return "";
-
-      default:
+        if (
+          !value &&
+          !isEdit
+        )
+          return "Owner image is required";
         return "";
     }
   };
@@ -256,25 +318,50 @@ const SignupAdmin = () => {
 
       Object.keys(formData).forEach(
         (key) => {
-          data.append(
-            key,
-            formData[key]
-          );
+          if (
+            formData[key] !==
+            null
+          ) {
+            data.append(
+              key,
+              formData[key]
+            );
+          }
         }
       );
 
-      const response =
-        await axios.post(
-          `${signupApi}hotel/create`,
-          data
+      let response;
+
+      if (isEdit) {
+        response =
+          await axios.patch(
+            `${signupApi}hotel/updateRequest/${id}`,
+            data
+          );
+      } else {
+        response =
+          await axios.post(
+            `${signupApi}hotel/create`,
+            data
+          );
+      }
+
+      alert(
+        response.data.message
+      );
+
+      if (isEdit) {
+        navigate(
+          "/checkStatus"
         );
-
-      alert(response.data.message);
-
-      setFormData(initialForm);
-      setErrors({});
-      setTouched({});
-      setSubmitted(true);
+      } else {
+        setFormData(
+          initialForm
+        );
+        setErrors({});
+        setTouched({});
+        setSubmitted(true);
+      }
     } catch (error) {
       console.log(error);
 
@@ -384,7 +471,9 @@ const SignupAdmin = () => {
             PARTNER ONBOARDING
           </p>
           <h1 className="text-[24px] font-medium text-[#201F19] tracking-tight">
-            Hotel registration
+            {isEdit
+              ? "Update Hotel Request"
+              : "Hotel Registration"}
           </h1>
           <p className="text-[#8B8474] text-[13px] mt-1.5">
             Tell us about your property — our team reviews every request within 48 hours.
@@ -637,13 +726,26 @@ const SignupAdmin = () => {
           >
             {submitting ? (
               <>
-                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg
+                  className="animate-spin"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
                   <path d="M21 12a9 9 0 1 1-9-9" />
                 </svg>
-                Submitting…
+
+                {isEdit
+                  ? "Updating..."
+                  : "Submitting..."}
               </>
             ) : (
-              "Submit request"
+              isEdit
+                ? "Update Request"
+                : "Submit Request"
             )}
           </button>
         </form>
@@ -665,6 +767,16 @@ const SignupAdmin = () => {
               className="text-[#201F19] font-medium hover:underline"
             >
               Login
+            </Link>
+          </p>
+
+          <p className="text-[13px] text-[#8B8474]">
+            Want to track your request?{" "}
+            <Link
+              to="/checkStatus"
+              className="text-[#201F19] font-medium hover:underline"
+            >
+              Check Request Status
             </Link>
           </p>
         </div>

@@ -20,6 +20,7 @@ import PendingHotels from "./SuperAdmin/PendingHotels";
 
 //Admin
 import SignupAdmin from './Admin/SignupAdmin'
+import CheckStatus from "./Admin/CheckStatus";
 
 function App() {
   return (
@@ -37,11 +38,17 @@ function App() {
 
         <Route
           path="/adminSignup"
-          element={
-            <PublicRoute>
-              <SignupAdmin />
-            </PublicRoute>
-          }
+          element={<SignupAdmin />}
+        />
+
+        <Route
+          path="/adminSignup/:id"
+          element={<SignupAdmin />}
+        />
+
+        <Route
+          path="/checkStatus"
+          element={<CheckStatus />}
         />
 
         {/* Login */}

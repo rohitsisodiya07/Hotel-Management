@@ -76,6 +76,20 @@ const hotelSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
+        trackingId: {
+            type: String,
+            unique: true,
+            required: true,
+        },
+        otp: {
+            type: String,
+            default: "",
+        },
+
+        otpExpire: {
+            type: Date,
+            default: null,
+        },
     },
     {
         timestamps: true,

@@ -2,6 +2,7 @@ const hotelModel = require("../Model/hotelModel");
 const { uploadImage } = require("../Utilities/Cloudinary");
 const bcrypt = require("bcrypt");
 const sendEmail = require("../Utilities/NodeMailer");
+const { v4: uuidv4 } = require("uuid");
 
 // ================= EMAIL TEMPLATES =================
 // Table-based, inline-styled markup so it renders consistently across
@@ -64,6 +65,9 @@ const emailShell = ({ preheader, bodyHtml }) => `
 </html>
 `;
 
+const trackingId = uuidv4();
+
+//Approve Email
 const approvalEmail = ({ ownerName, hotelName, email, password, loginUrl }) =>
     emailShell({
         preheader: `Your registration for ${hotelName} has been approved.`,
@@ -125,6 +129,7 @@ const approvalEmail = ({ ownerName, hotelName, email, password, loginUrl }) =>
     `,
     });
 
+//Rejection Email
 const rejectionEmail = ({ ownerName, hotelName, remark }) =>
     emailShell({
         preheader: `An update on your registration for ${hotelName}.`,
@@ -164,11 +169,22 @@ const rejectionEmail = ({ ownerName, hotelName, remark }) =>
     `,
     });
 
+
+//Create
 const createHotel = async (req, res) => {
     try {
-        const { hotelName, ownerName, email, mobile, city, address, totalRooms } = req.body;
+        const { hotelName,
+            ownerName,
+            email,
+            mobile,
+            city,
+            address,
+            totalRooms,
+            hotelType,
+            description,
+        } = req.body;
 
-        // Validations
+        //Validations
         if (!hotelName?.trim()) {
             return res.status(400).json({
                 success: false,
@@ -176,10 +192,30 @@ const createHotel = async (req, res) => {
             });
         }
 
+        if (hotelName.trim().length < 3) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Hotel name must be at least 3 characters",
+            });
+        }
+
         if (!ownerName?.trim()) {
             return res.status(400).json({
                 success: false,
                 message: "Owner name is required",
+            });
+        }
+
+        if (
+            !/^[A-Za-z\s.]+$/.test(
+                ownerName.trim()
+            )
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Owner name can contain only letters",
             });
         }
 
@@ -195,21 +231,23 @@ const createHotel = async (req, res) => {
         if (!emailRegex.test(email)) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid email",
+                message: "Invalid email address",
             });
         }
 
         if (!mobile?.trim()) {
             return res.status(400).json({
                 success: false,
-                message: "Mobile number is required",
+                message:
+                    "Mobile number is required",
             });
         }
 
-        if (!/^\d{10}$/.test(mobile)) {
+        if (!/^[6-9]\d{9}$/.test(mobile)) {
             return res.status(400).json({
                 success: false,
-                message: "Mobile number must be 10 digits",
+                message:
+                    "Enter a valid mobile number",
             });
         }
 
@@ -227,61 +265,172 @@ const createHotel = async (req, res) => {
             });
         }
 
-        if (!totalRooms || totalRooms <= 0) {
+        if (address.trim().length < 8) {
             return res.status(400).json({
                 success: false,
-                message: "Total rooms must be greater than 0",
+                message:
+                    "Please enter complete address",
             });
         }
 
-        const existingHotel = await hotelModel.findOne({ email });
+        if (!totalRooms) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Total rooms is required",
+            });
+        }
+
+        if (
+            Number(totalRooms) <= 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Total rooms must be greater than 0",
+            });
+        }
+
+        if (!description?.trim()) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Description is required",
+            });
+        }
+
+        if (
+            description.trim().length < 20
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Description must be at least 20 characters",
+            });
+        }
+
+        //Email Check
+
+        const existingHotel = await hotelModel.findOne({ email, });
 
         if (existingHotel) {
             return res.status(400).json({
                 success: false,
-                message: "Hotel with this email already exists",
+                message:
+                    "Hotel with this email already exists",
             });
         }
 
-        // Upload Images
+        //Check Image
+
+        if (!req.files?.hotelImage) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Hotel image is required",
+            });
+        }
+
+        if (!req.files?.ownerImage) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Owner image is required",
+            });
+        }
+
+        //Image Upload
+
         let hotelImage = "";
         let ownerImage = "";
 
-        if (req.files?.hotelImage) {
-            const result = await uploadImage({ hotelImage: req.files.hotelImage });
+        const hotelUpload = await uploadImage({ hotelImage: req.files.hotelImage, });
 
-            hotelImage = result[0]?.secure_url || "";
-        }
+        hotelImage =
+            hotelUpload[0]
+                ?.secure_url || "";
 
-        if (req.files?.ownerImage) {
-            const result = await uploadImage({ ownerImage: req.files.ownerImage });
+        const ownerUpload =
+            await uploadImage({
+                ownerImage:
+                    req.files.ownerImage,
+            });
 
-            ownerImage = result[0]?.secure_url || "";
-        }
+        ownerImage =
+            ownerUpload[0]
+                ?.secure_url || "";
 
-        // Create Hotel
-        const data = { ...req.body, hotelImage, ownerImage };
+        //UUID
 
-        const hotel = await hotelModel.create(data);
+        const trackingId = uuidv4();
 
-        // Populate
-        const populatedHotel = await hotelModel.findById(hotel._id).populate({
-            path: "city",
-            populate: {
-                path: "districtId",
-                populate: {
-                    path: "stateId",
-                },
-            },
-        });
+        //Create Hotel
+        const hotel =
+            await hotelModel.create({
+                hotelName,
+                ownerName,
+                email,
+                mobile,
+                city,
+                address,
+                totalRooms,
+                hotelType,
+                description,
+                hotelImage,
+                ownerImage,
+                trackingId,
+            });
+
+        //Mail
+
+        await sendEmail(
+            email,
+            "Hotel Registration Submitted",
+            `
+        <h2>Hello ${ownerName}</h2>
+
+        <p>
+          Your hotel registration request has been submitted successfully.
+        </p>
+
+        <p>
+          Your Tracking ID:
+        </p>
+
+        <h3>${trackingId}</h3>
+
+        <p>
+          Save this Tracking ID.
+          You can use it to check your request status.
+        </p>
+      `
+        );
+
+        //Populate
+        const populatedHotel =
+            await hotelModel
+                .findById(hotel._id)
+                .populate({
+                    path: "city",
+                    populate: {
+                        path: "districtId",
+                        populate: {
+                            path: "stateId",
+                        },
+                    },
+                });
 
         res.status(201).json({
             success: true,
-            message: "Request sent successfully. Wait for approval.",
+            message:
+                "Request submitted successfully. Tracking ID has been sent to your email.",
             hotel: populatedHotel,
         });
     } catch (error) {
-        console.log("Create Hotel Error :", error);
+        console.log(
+            "Create Hotel Error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
@@ -290,6 +439,7 @@ const createHotel = async (req, res) => {
     }
 };
 
+//Get Pending Hotels
 const getPendingHotels = async (req, res) => {
     try {
         const hotels = await hotelModel.find({ status: "Pending" }).populate({
@@ -314,6 +464,8 @@ const getPendingHotels = async (req, res) => {
     }
 };
 
+
+//Approve Hotels
 const approveHotel = async (req, res) => {
     try {
         const { password } = req.body;
@@ -381,6 +533,8 @@ const approveHotel = async (req, res) => {
     }
 };
 
+
+//Reject Hotels
 const rejectHotel = async (req, res) => {
     try {
         const { remark } = req.body;
@@ -437,6 +591,7 @@ const rejectHotel = async (req, res) => {
     }
 };
 
+//Get Rejected Hotels
 const getRejectedHotels = async (req, res) => {
     try {
         const hotels = await hotelModel.find({ status: "Rejected" }).populate({
@@ -461,10 +616,224 @@ const getRejectedHotels = async (req, res) => {
     }
 };
 
+//Send Otp
+const sendOtp = async (req, res) => {
+    try {
+        const { trackingId } = req.body;
+
+        const hotel = await hotelModel.findOne({ trackingId, });
+
+        if (!hotel) {
+            return res.status(404).json({
+                success: false,
+                message: "Invalid Tracking ID",
+            });
+        }
+
+        if (hotel.status !== "Pending") {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Request is already processed.",
+            });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        hotel.otp = otp;
+        //2 Minute
+        hotel.otpExpire = Date.now() + 2 * 60 * 1000;
+
+        await hotel.save();
+
+        await sendEmail(
+            hotel.email,
+            "OTP Verification",
+            `
+      <h2>OTP Verification</h2>
+
+      <p>Your OTP is:</p>
+
+      <h1>${otp}</h1>
+
+      <p>
+        This OTP is valid for
+        2 minutes.
+      </p>
+      `
+        );
+
+        res.status(200).json({
+            success: true,
+            message:
+                "OTP sent successfully.",
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+//Verify Otp
+const verifyOtp = async (req, res) => {
+    try {
+        const { trackingId, otp } =
+            req.body;
+
+        const hotel =
+            await hotelModel.findOne({
+                trackingId,
+            });
+
+        if (!hotel) {
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Invalid Tracking ID",
+            });
+        }
+
+        if (hotel.otp !== otp) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid OTP",
+            });
+        }
+
+        if (
+            !hotel.otpExpire ||
+            hotel.otpExpire < Date.now()
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "OTP expired",
+            });
+        }
+
+        hotel.otp = "";
+        hotel.otpExpire = null;
+
+        await hotel.save();
+
+        res.status(200).json({
+            success: true,
+            hotel: {
+                _id: hotel._id,
+                hotelName:
+                    hotel.hotelName,
+                ownerName:
+                    hotel.ownerName,
+                email: hotel.email,
+                status: hotel.status,
+                trackingId:
+                    hotel.trackingId,
+                remark: hotel.remark,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+//Update Request
+const updateRequest = async (req, res) => {
+    try {
+        const hotel =
+            await hotelModel.findById(
+                req.params.id
+            );
+
+        if (!hotel) {
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Hotel not found",
+            });
+        }
+
+        if (
+            hotel.status !== "Pending"
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Request is already processed",
+            });
+        }
+
+        const updatedHotel =
+            await hotelModel.findByIdAndUpdate(
+                req.params.id,
+                req.body,
+                {
+                    new: true,
+                }
+            );
+
+        res.status(200).json({
+            success: true,
+            message:
+                "Request updated successfully",
+            hotel: updatedHotel,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message:
+                error.message,
+        });
+    }
+};
+
+//get Hotel by id
+const getHotelById = async (req, res) => {
+    try {
+        const hotel =
+            await hotelModel
+                .findById(req.params.id)
+                .populate("city");
+
+        if (!hotel) {
+            return res.status(404).json({
+                success: false,
+                message: "Hotel not found",
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            hotel,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
 module.exports = {
     createHotel,
+
     getPendingHotels,
+
     approveHotel,
+
     rejectHotel,
+
     getRejectedHotels,
+
+    sendOtp,
+
+    verifyOtp,
+
+    updateRequest,
+
+    getHotelById
+
 };
