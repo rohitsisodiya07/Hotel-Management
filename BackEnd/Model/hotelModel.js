@@ -1,26 +1,29 @@
 const mongoose = require("mongoose");
 
-
 const hotelSchema = new mongoose.Schema(
     {
         hotelName: {
             type: String,
             required: true,
+            trim: true,
         },
 
-        ownerName: {
-            type: String,
-            required: true,
-        },
-
-        email: {
+        hotelEmail: {
             type: String,
             required: true,
             unique: true,
+            lowercase: true,
+            trim: true,
         },
 
-        mobile: {
+        password: {
             type: String,
+            default: "", // Super Admin approval ke baad bcrypt hash hoga
+        },
+
+        adminId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "signupUser",
             required: true,
         },
 
@@ -33,33 +36,50 @@ const hotelSchema = new mongoose.Schema(
         address: {
             type: String,
             required: true,
-        },
-
-        totalRooms: {
-            type: Number,
-            required: true,
-        },
-
-        // New fields
-        hotelImage: {
-            type: String,
-            default: "",
-        },
-
-        ownerImage: {
-            type: String,
-            default: "",
+            trim: true,
         },
 
         description: {
             type: String,
             default: "",
+            trim: true,
         },
 
         hotelType: {
             type: String,
-            enum: ["Hotel", "Resort", "Guest House", "Hostel"],
+            enum: [
+                "Hotel",
+                "Resort",
+                "Guest House",
+                "Hostel",
+                "Villa",
+            ],
             default: "Hotel",
+        },
+
+        totalRooms: {
+            type: Number,
+            required: true,
+            min: 1,
+        },
+
+        hotelImages: [
+            {
+                type: String,
+            },
+        ],
+
+        amenities: [
+            {
+                type: String,
+                trim: true,
+            },
+        ],
+
+        trackingId: {
+            type: String,
+            required: true,
+            unique: true,
         },
 
         status: {
@@ -68,27 +88,10 @@ const hotelSchema = new mongoose.Schema(
             default: "Pending",
         },
 
-        password: {
-            type: String,
-            default: "",
-        },
         remark: {
             type: String,
             default: "",
-        },
-        trackingId: {
-            type: String,
-            unique: true,
-            required: true,
-        },
-        otp: {
-            type: String,
-            default: "",
-        },
-
-        otpExpire: {
-            type: Date,
-            default: null,
+            trim: true,
         },
     },
     {

@@ -1,24 +1,132 @@
 const express = require("express");
 const router = express.Router();
 
-const hotelController = require('../Controller/hotelController');
+const hotelController = require("../Controller/hotelController");
 
-router.post('/create', hotelController.createHotel);
+const auth = require("../Middleware/authMiddleware");
+const admin = require("../Middleware/admin");
+const superAdmin = require("../Middleware/superAdmin");
+const adminOrSuperAdmin = require("../Middleware/adminOrSuperAdmin");
 
-router.get("/pending", hotelController.getPendingHotels);
+// ==========================
+// Admin
+// ==========================
 
-router.patch("/approve/:id", hotelController.approveHotel);
+// Create Hotel
+router.post(
+    "/create",
+    auth,
+    admin,
+    hotelController.createHotel
+);
 
-router.patch("/reject/:id", hotelController.rejectHotel);
+// My Hotels
+router.get(
+    "/my-hotels",
+    auth,
+    admin,
+    hotelController.getMyHotels
+);
 
-router.get("/rejected", hotelController.getRejectedHotels);
+// Update Hotel
+router.patch(
+    "/update/:id",
+    auth,
+    admin,
+    hotelController.updateHotel
+);
 
-router.post("/sendOtp", hotelController.sendOtp);
+// Change Active / Inactive
+router.patch(
+    "/change-status/:id",
+    auth,
+    admin,
+    hotelController.changeHotelStatus
+);
 
-router.post("/verifyOtp", hotelController.verifyOtp);
+// Active Hotels
+router.get(
+    "/active",
+    auth,
+    admin,
+    hotelController.getActiveHotels
+);
 
-router.patch("/updateRequest/:id", hotelController.updateRequest);
+// Inactive Hotels
+router.get(
+    "/inactive",
+    auth,
+    admin,
+    hotelController.getInactiveHotels
+);
 
-router.get("/:id", hotelController.getHotelById);
+// ==========================
+// Admin + Super Admin
+// ==========================
 
-module.exports = router
+// Pending Hotels
+router.get(
+    "/pending",
+    auth,
+    adminOrSuperAdmin,
+    hotelController.getPendingHotels
+);
+
+// Approved Hotels
+router.get(
+    "/approved",
+    auth,
+    adminOrSuperAdmin,
+    hotelController.getApprovedHotels
+);
+
+// Rejected Hotels
+router.get(
+    "/rejected",
+    auth,
+    adminOrSuperAdmin,
+    hotelController.getRejectedHotels
+);
+
+// ==========================
+// Super Admin
+// ==========================
+
+// Approve Hotel
+router.patch(
+    "/approve/:id",
+    auth,
+    superAdmin,
+    hotelController.approveHotel
+);
+
+// Reject Hotel
+router.patch(
+    "/reject/:id",
+    auth,
+    superAdmin,
+    hotelController.rejectHotel
+);
+
+// ==========================
+// Public
+// ==========================
+
+// Check Status
+router.post(
+    "/checkStatus",
+    hotelController.checkHotelStatus
+);
+
+// ==========================
+// Common
+// ==========================
+
+// Hotel By Id
+router.get(
+    "/:id",
+    auth,
+    hotelController.getHotelById
+);
+
+module.exports = router;

@@ -23,7 +23,9 @@ const signupRoute = require("./Route/signupRoute");
 const stateRoute = require('./Route/stateRoute');
 const districtRoute = require('./Route/districtRoute')
 const cityRoute = require('./Route/cityRoute')
+const adminRoute = require('./Route/adminRoute')
 const hotelRoute = require('./Route/hotelRoute');
+const couponRoute = require('./Route/couponRoute')
 
 app.use("/userSignup", signupRoute);
 
@@ -33,7 +35,11 @@ app.use('/district', districtRoute);
 
 app.use('/city', cityRoute);
 
+app.use('/admin', adminRoute)
+
 app.use('/hotel', hotelRoute);
+
+app.use('/coupon', couponRoute);
 
 app.get("/", (req, res) => {
     res.send("Server is Running.......");

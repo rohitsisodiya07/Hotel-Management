@@ -12,7 +12,6 @@ module.exports = async (req, res, next) => {
         }
 
         const token = authToken.split(" ")[1];
-
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         console.log("Decoded:", decoded);
@@ -25,8 +24,8 @@ module.exports = async (req, res, next) => {
             });
         }
 
+        // Token valid hone par database se aaya user data req object me save kiya
         req.user = userDetails;
-
         next();
     } catch (error) {
         console.log(error);

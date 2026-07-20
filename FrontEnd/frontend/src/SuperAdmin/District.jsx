@@ -214,43 +214,21 @@ const District = () => {
   const inactiveCount = inactiveDistricts.length;
 
   return (
-    <div
-      className="font-sans min-h-screen"
-      style={{
-        background:
-          "radial-gradient(1200px 480px at 8% -10%, #F3F1EA 0%, #ECE9DF 42%, #E6E2D5 100%)",
-      }}
-    >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Inter:wght@400;500;600&display=swap');
-        .font-sans { font-family: 'Inter', sans-serif; }
-        .font-mono { font-family: 'IBM Plex Mono', monospace; }
-        .icon-btn {
-          width: 30px; height: 30px; border-radius: 8px;
-          display: flex; align-items: center; justify-content: center;
-          border: 1px solid #E3E0D4; background: #FFFFFF;
-          color: #6B6659; transition: all .15s ease; cursor: pointer;
-        }
-        .icon-btn:hover { border-color: #C9C4B3; background: #FBFAF6; color: #24221C; }
-        .icon-btn.danger:hover { border-color: #C6564A; color: #C6564A; background: #FCF4F3; }
-        .reg-row:hover { background: #FBFAF5; }
-        .reg-card {
-          background: #FFFEFB;
-          box-shadow: 0 1px 2px rgba(30,28,20,0.04), 0 10px 30px -14px rgba(30,28,20,0.10);
-        }
-      `}</style>
+    <div className="min-h-screen font-['Inter',sans-serif] text-[#232320]">
+      {/* Google Fonts import (kept as-is; Tailwind utilities don't load fonts) */}
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
 
-      <div className="max-w-5xl mx-auto px-6 py-10">
+      <div className="max-w-[1080px] mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-end mb-8">
+        <div className="flex justify-between items-end gap-4 flex-wrap mb-[30px]">
           <div>
-            <p className="font-mono text-[11px] tracking-[0.16em] text-[#9A927D] mb-1.5">
+            <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.2em] text-[#A2782E] mb-2 mt-0">
               LOCATION HIERARCHY
             </p>
-            <h1 className="text-[22px] font-medium text-[#201F19] tracking-tight">
+            <h1 className="font-['Space_Grotesk',sans-serif] font-semibold text-2xl text-[#1B2537] m-0 tracking-[-0.01em]">
               Districts
             </h1>
-            <p className="text-[#8B8474] text-[13px] mt-1">
+            <p className="text-[#8C8676] text-[13px] mt-[6px] mb-0">
               {activeCount + inactiveCount} on record · {activeCount} active · grouped by state
             </p>
           </div>
@@ -262,7 +240,7 @@ const District = () => {
               setDistrictName("");
               setStateId("");
             }}
-            className="flex items-center gap-2 bg-[#201F19] text-[#F3EFE3] px-4 h-10 rounded-lg text-[13px] font-medium hover:bg-[#332F26] transition-colors duration-150 cursor-pointer"
+            className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A]"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M12 5v14M5 12h14" />
@@ -272,36 +250,36 @@ const District = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-6 mb-5 border-b border-[#E3E0D4]">
+        <div className="flex gap-[22px] mb-5 border-b border-[#E1DECF]">
           <button
             onClick={() => setActiveTab("active")}
-            className={`pb-3 -mb-px text-[13px] font-medium border-b-2 transition-colors duration-150 cursor-pointer flex items-center gap-1.5 ${activeTab === "active"
-                ? "border-[#201F19] text-[#201F19]"
-                : "border-transparent text-[#A39B8B] hover:text-[#201F19]"
+            className={`pb-3 -mb-px text-[13px] font-medium bg-transparent border-none border-b-2 cursor-pointer flex items-center gap-1.5 transition-colors duration-150 ease-in-out hover:text-[#1B2537] ${activeTab === "active"
+                ? "text-[#1B2537] border-b-[#A2782E]"
+                : "text-[#A39C89] border-b-transparent"
               }`}
           >
             Active
-            <span className="font-mono text-[11px] text-[#A39B8B]">{activeCount}</span>
+            <span className="font-['IBM_Plex_Mono',monospace] text-[11px] text-[#A39C89]">{activeCount}</span>
           </button>
 
           <button
             onClick={() => setActiveTab("inactive")}
-            className={`pb-3 -mb-px text-[13px] font-medium border-b-2 transition-colors duration-150 cursor-pointer flex items-center gap-1.5 ${activeTab === "inactive"
-                ? "border-[#201F19] text-[#201F19]"
-                : "border-transparent text-[#A39B8B] hover:text-[#201F19]"
+            className={`pb-3 -mb-px text-[13px] font-medium bg-transparent border-none border-b-2 cursor-pointer flex items-center gap-1.5 transition-colors duration-150 ease-in-out hover:text-[#1B2537] ${activeTab === "inactive"
+                ? "text-[#1B2537] border-b-[#A2782E]"
+                : "text-[#A39C89] border-b-transparent"
               }`}
           >
             Inactive
-            <span className="font-mono text-[11px] text-[#A39B8B]">{inactiveCount}</span>
+            <span className="font-['IBM_Plex_Mono',monospace] text-[11px] text-[#A39C89]">{inactiveCount}</span>
           </button>
         </div>
 
         {/* Search & Filters */}
-        <div className="flex gap-3 mb-5 flex-wrap">
-          <div className="relative w-64">
+        <div className="flex gap-3 flex-wrap mb-[18px]">
+          <div className="relative w-[260px] max-[760px]:w-full">
             <svg
-              className="absolute left-3.5 top-1/2 -translate-y-1/2"
-              width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39B8B" strokeWidth="2"
+              className="absolute left-[14px] top-1/2 -translate-y-1/2 text-[#A39C89]"
+              width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             >
               <circle cx="11" cy="11" r="7" />
               <path d="M21 21l-3.5-3.5" />
@@ -311,14 +289,14 @@ const District = () => {
               placeholder="Search district"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="border border-[#E3E0D4] pl-9 pr-3 h-10 rounded-lg w-full text-[13px] outline-none focus:border-[#B3AC97] focus:ring-2 focus:ring-[#B3AC97]/15 transition-all duration-150 bg-white"
+              className="w-full h-10 rounded-md border border-[#E1DECF] bg-white pl-9 pr-3.5 text-[13px] outline-none transition-colors duration-150 ease-in-out focus:border-[#A2782E]"
             />
           </div>
 
           <select
             value={filterState}
             onChange={(e) => setFilterState(e.target.value)}
-            className="border border-[#E3E0D4] px-3 h-10 rounded-lg text-[13px] outline-none focus:border-[#B3AC97] bg-white cursor-pointer"
+            className="h-10 rounded-md border border-[#E1DECF] bg-white px-3 text-[13px] cursor-pointer outline-none focus:border-[#A2782E]"
           >
             <option value="">All states</option>
 
@@ -332,7 +310,7 @@ const District = () => {
           <select
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
-            className="border border-[#E3E0D4] px-3 h-10 rounded-lg text-[13px] outline-none focus:border-[#B3AC97] bg-white cursor-pointer"
+            className="h-10 rounded-md border border-[#E1DECF] bg-white px-3 text-[13px] cursor-pointer outline-none focus:border-[#A2782E]"
           >
             <option value="asc">A to Z</option>
             <option value="desc">Z to A</option>
@@ -340,98 +318,106 @@ const District = () => {
         </div>
 
         {/* Table */}
-        <div className="reg-card border border-[#E3E0D4] rounded-2xl overflow-hidden">
+        <div className="bg-white border border-[#E1DECF] rounded-[10px] overflow-hidden shadow-[0_1px_2px_rgba(30,28,20,0.03),0_16px_34px_-22px_rgba(30,28,20,0.18)]">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-[#FAF8F2]">
-                <th className="p-3.5 pl-5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                  CODE
-                </th>
-                <th className="p-3.5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                  DISTRICT
-                </th>
-                <th className="p-3.5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                  STATE
-                </th>
-                <th className="p-3.5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                  STATUS
-                </th>
-                <th className="p-3.5 pr-5 text-right text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                  ACTIONS
-                </th>
+              <tr className="bg-[#FBFAF5]">
+                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">Code</th>
+                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">District</th>
+                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">State</th>
+                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">Status</th>
+                <th className="py-3.5 px-5 text-right font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-16 text-[#A39B8B] text-sm">
-                    Loading…
-                  </td>
+                  <td colSpan={5} className="text-center py-14 text-[#A39C89] text-[13px]">Loading…</td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center p-14 text-[#A39B8B] text-sm">
-                    No districts match your search.
-                  </td>
+                  <td colSpan={5} className="text-center py-14 text-[#A39C89] text-[13px]">No districts match your search.</td>
                 </tr>
               ) : (
                 filteredData.map((item) => (
-                  <tr
-                    key={item._id}
-                    className="reg-row border-t border-[#EFEBDF] transition-colors duration-150"
-                  >
-                    <td className="p-3.5 pl-5">
-                      <span className="font-mono text-[11px] bg-[#F3F1E6] text-[#71695A] px-2 py-1 rounded">
+                  <tr key={item._id} className="transition-colors duration-150 ease-in-out hover:bg-[#FBFAF5]">
+                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
+                      <span className="font-['IBM_Plex_Mono',monospace] text-[11px] bg-[#F3EEDD] text-[#7A6A3F] py-1 px-2 rounded">
                         {codeFor(item.districtName)}
                       </span>
                     </td>
 
-                    <td className="p-3.5 capitalize text-[#201F19] font-medium text-[14px]">
-                      {item.districtName}
+                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
+                      <span className="font-medium text-[#1B2537] capitalize">{item.districtName}</span>
                     </td>
 
-                    <td className="p-3.5 capitalize text-[#5A554C] text-[13px]">
-                      {item.stateId?.stateName}
+                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
+                      <span className="text-[#6E695C] text-[13px] capitalize">{item.stateId?.stateName}</span>
                     </td>
 
-                    <td className="p-3.5">
-                      <span className="inline-flex items-center gap-1.5 text-[13px]">
+                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
+                      <span className={`inline-flex items-center gap-[7px] text-[13px] ${activeTab === "active" ? "text-[#2F6F4E]" : "text-[#8C8676]"}`}>
                         <span
-                          className="w-[6px] h-[6px] rounded-full"
-                          style={{
-                            background: activeTab === "active" ? "#4C8B5B" : "#A39B8B",
-                          }}
+                          className={`w-1.5 h-1.5 rounded-full ${activeTab === "active" ? "bg-[#2F6F4E]" : "bg-[#C8C2AF]"}`}
                         />
-                        <span style={{ color: activeTab === "active" ? "#3E6E4A" : "#8B8474" }}>
-                          {activeTab === "active" ? "Active" : "Inactive"}
-                        </span>
+                        {activeTab === "active" ? "Active" : "Inactive"}
                       </span>
                     </td>
 
-                    <td className="p-3.5 pr-5">
+                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px] text-right">
                       <div className="flex justify-end gap-1.5">
                         {activeTab === "active" ? (
                           <>
-                            <button onClick={() => handleView(item._id)} className="icon-btn" title="View" aria-label="View">
+                            <button
+                              onClick={() => handleView(item._id)}
+                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
+                              title="View"
+                              aria-label="View"
+                            >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
                             </button>
-                            <button onClick={() => handleEdit(item)} className="icon-btn" title="Edit" aria-label="Edit">
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
+                              title="Edit"
+                              aria-label="Edit"
+                            >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                             </button>
-                            <button onClick={() => handleInactive(item._id)} className="icon-btn" title="Mark inactive" aria-label="Mark inactive">
+                            <button
+                              onClick={() => handleInactive(item._id)}
+                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
+                              title="Mark inactive"
+                              aria-label="Mark inactive"
+                            >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.8 0" /></svg>
                             </button>
-                            <button onClick={() => handleDelete(item._id)} className="icon-btn danger" title="Delete" aria-label="Delete">
+                            <button
+                              onClick={() => handleDelete(item._id)}
+                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#8E3B30] hover:text-[#8E3B30] hover:bg-[#FBF0EE]"
+                              title="Delete"
+                              aria-label="Delete"
+                            >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
                             </button>
                           </>
                         ) : (
                           <>
-                            <button onClick={() => handleRestore(item._id)} className="icon-btn" title="Restore" aria-label="Restore">
+                            <button
+                              onClick={() => handleRestore(item._id)}
+                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
+                              title="Restore"
+                              aria-label="Restore"
+                            >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
                             </button>
-                            <button onClick={() => handleDelete(item._id)} className="icon-btn danger" title="Delete" aria-label="Delete">
+                            <button
+                              onClick={() => handleDelete(item._id)}
+                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#8E3B30] hover:text-[#8E3B30] hover:bg-[#FBF0EE]"
+                              title="Delete"
+                              aria-label="Delete"
+                            >
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
                             </button>
                           </>
@@ -448,31 +434,27 @@ const District = () => {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-[#1A1712]/45 backdrop-blur-[3px] flex justify-center items-center z-50 px-4">
-          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-[460px] border border-[#E3E0D4]">
-            <h2 className="text-[18px] font-medium text-[#201F19] mb-5">
+        <div className="fixed inset-0 bg-[rgba(27,22,14,0.35)] backdrop-blur-[4px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-[#E1DECF] rounded-[10px] p-7 w-full max-w-[460px] shadow-[0_30px_60px_-20px_rgba(30,28,20,0.28)]">
+            <h2 className="font-['Space_Grotesk',sans-serif] text-lg font-semibold text-[#1B2537] mt-0 mb-5">
               {isEdit ? "Update district" : "Add district"}
             </h2>
 
-            <label className="block text-[12px] font-medium text-[#8B8474] mb-1.5">
-              District name
-            </label>
+            <label className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">District name</label>
             <input
               type="text"
               placeholder="e.g. Jaipur"
               value={districtName}
               onChange={(e) => setDistrictName(e.target.value)}
               autoFocus
-              className="w-full border border-[#E3E0D4] px-3.5 h-10 rounded-lg mb-4 text-[13px] outline-none focus:border-[#B3AC97] focus:ring-2 focus:ring-[#B3AC97]/15 transition-all duration-150"
+              className="w-full h-10 rounded-md border border-[#E1DECF] bg-white px-3.5 text-[13px] outline-none mb-4 transition-colors duration-150 ease-in-out focus:border-[#A2782E]"
             />
 
-            <label className="block text-[12px] font-medium text-[#8B8474] mb-1.5">
-              State
-            </label>
+            <label className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">State</label>
             <select
               value={stateId}
               onChange={(e) => setStateId(e.target.value)}
-              className="w-full border border-[#E3E0D4] px-3.5 h-10 rounded-lg mb-6 text-[13px] outline-none focus:border-[#B3AC97] bg-white cursor-pointer"
+              className="w-full h-10 rounded-md border border-[#E1DECF] bg-white px-3.5 text-[13px] outline-none mb-6 cursor-pointer transition-colors duration-150 ease-in-out focus:border-[#A2782E]"
             >
               <option value="">Select state</option>
 
@@ -486,14 +468,14 @@ const District = () => {
             <div className="flex justify-end gap-2.5">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 h-10 bg-[#F5F3EA] text-[#8B8474] rounded-lg text-[13px] font-medium hover:bg-[#EFEBDF] transition-colors duration-150 cursor-pointer"
+                className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#F3F1E8] text-[#8C8676] hover:bg-[#EAE6D6] hover:text-[#1B2537]"
               >
                 Cancel
               </button>
 
               <button
                 onClick={handleSubmit}
-                className="px-4 h-10 bg-[#201F19] text-[#F3EFE3] rounded-lg text-[13px] font-medium hover:bg-[#332F26] transition-colors duration-150 cursor-pointer"
+                className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A]"
               >
                 {isEdit ? "Save changes" : "Create district"}
               </button>
@@ -504,33 +486,33 @@ const District = () => {
 
       {/* View Modal */}
       {showViewModal && (
-        <div className="fixed inset-0 bg-[#1A1712]/45 backdrop-blur-[3px] flex justify-center items-center z-50 px-4">
-          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-[420px] border border-[#E3E0D4]">
-            <h2 className="text-[18px] font-medium text-[#201F19] mb-5">
+        <div className="fixed inset-0 bg-[rgba(27,22,14,0.35)] backdrop-blur-[4px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-[#E1DECF] rounded-[10px] p-7 w-full max-w-[460px] shadow-[0_30px_60px_-20px_rgba(30,28,20,0.28)]">
+            <h2 className="font-['Space_Grotesk',sans-serif] text-lg font-semibold text-[#1B2537] mt-0 mb-5">
               District details
             </h2>
 
-            <div className="mb-4 pb-4 border-b border-[#EFEBDF]">
-              <p className="text-[11px] tracking-[0.1em] font-mono text-[#9A927D] mb-1.5">
-                DISTRICT
+            <div className="pb-4 mb-4 border-b border-[#EAE7DA]">
+              <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-1.5">
+                District
               </p>
-              <p className="text-[16px] text-[#201F19] font-medium capitalize">
+              <p className="text-[15.5px] text-[#1B2537] font-medium m-0 capitalize">
                 {viewData?.districtName}
               </p>
             </div>
 
-            <div className="mb-6 pb-5 border-b border-[#EFEBDF]">
-              <p className="text-[11px] tracking-[0.1em] font-mono text-[#9A927D] mb-1.5">
-                STATE
+            <div className="pb-5 mb-5 border-b border-[#EAE7DA]">
+              <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-1.5">
+                State
               </p>
-              <p className="text-[16px] text-[#201F19] font-medium capitalize">
+              <p className="text-[15.5px] text-[#1B2537] font-medium m-0 capitalize">
                 {viewData?.stateId?.stateName}
               </p>
             </div>
 
             <button
               onClick={() => setShowViewModal(false)}
-              className="bg-[#201F19] text-[#F3EFE3] px-4 h-10 rounded-lg text-[13px] font-medium hover:bg-[#332F26] transition-colors duration-150 cursor-pointer"
+              className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A]"
             >
               Close
             </button>

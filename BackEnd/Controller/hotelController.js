@@ -1,839 +1,604 @@
 const hotelModel = require("../Model/hotelModel");
 const { uploadImage } = require("../Utilities/Cloudinary");
-const bcrypt = require("bcrypt");
 const sendEmail = require("../Utilities/NodeMailer");
 const { v4: uuidv4 } = require("uuid");
+const bcrypt = require("bcrypt");
+const mongoose = require("mongoose");
+const signupModel = require('../Model/signupModel')
 
-// ================= EMAIL TEMPLATES =================
-// Table-based, inline-styled markup so it renders consistently across
-// Gmail, Outlook, Apple Mail, etc. (modern CSS like flexbox/grid is
-// unreliable in email clients, so we avoid it here on purpose.)
+// =========================================================================
+// AUTOMATIC INDEX CLEANER (💥 Fixes the E11000 email_1 background crash)
+// =========================================================================
+// Jab bhi server refresh hoga, ye check karega aur agar purana legacy index 
+// 'email_1' active hoga, toh use cleanly database collection se drop kar dega.
+setTimeout(async () => {
+    try {
+        const collection = mongoose.connection.db.collection('hotels');
+        const indexes = await collection.indexes();
+        const hasOldEmailIndex = indexes.some(idx => idx.name === 'email_1');
 
-const emailShell = ({ preheader, bodyHtml }) => `
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hotel Management</title>
-  </head>
-  <body style="margin:0; padding:0; background-color:#ECE9DF; font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;">
-    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">${preheader}</div>
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ECE9DF; padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px; background-color:#FFFEFB; border-radius:16px; overflow:hidden; border:1px solid #E3E0D4;">
-
-            <!-- Header -->
-            <tr>
-              <td style="background-color:#201F19; padding:28px 32px;">
-                <table role="presentation" cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="width:36px; height:36px; background-color:#F3EFE3; border-radius:8px; text-align:center; vertical-align:middle; font-family:'Courier New', monospace; font-size:14px; font-weight:bold; color:#201F19;">
-                      H
-                    </td>
-                    <td style="padding-left:12px; font-size:15px; font-weight:600; color:#F3EFE3; letter-spacing:0.02em;">
-                      Hotel Management
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Body -->
-            <tr>
-              <td style="padding:36px 32px;">
-                ${bodyHtml}
-              </td>
-            </tr>
-
-            <!-- Footer -->
-            <tr>
-              <td style="padding:20px 32px; border-top:1px solid #EFEBDF;">
-                <p style="margin:0; font-size:12px; color:#A39B8B; line-height:1.6;">
-                  This is an automated message from Hotel Management. Please don't reply directly to this email.
-                </p>
-              </td>
-            </tr>
-
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>
-`;
-
-const trackingId = uuidv4();
-
-//Approve Email
-const approvalEmail = ({ ownerName, hotelName, email, password, loginUrl }) =>
-    emailShell({
-        preheader: `Your registration for ${hotelName} has been approved.`,
-        bodyHtml: `
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
-        <tr>
-          <td style="background-color:#EAF3EC; border-radius:20px; padding:6px 14px; font-size:11px; font-weight:600; letter-spacing:0.06em; color:#3E6E4A;">
-            REQUEST APPROVED
-          </td>
-        </tr>
-      </table>
-
-      <h1 style="margin:0 0 12px; font-size:21px; font-weight:600; color:#201F19;">
-        Hello ${ownerName},
-      </h1>
-
-      <p style="margin:0 0 20px; font-size:14px; line-height:1.65; color:#5A554C;">
-        Good news — your registration request for <strong style="color:#201F19;">${hotelName}</strong> has been reviewed and approved. You can now log in and start managing your property.
-      </p>
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF8F2; border:1px solid #EFEBDF; border-radius:12px; margin-bottom:24px;">
-        <tr>
-          <td style="padding:18px 20px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td style="font-size:11px; letter-spacing:0.08em; color:#9A927D; padding-bottom:4px; font-family:'Courier New', monospace;">EMAIL</td>
-              </tr>
-              <tr>
-                <td style="font-size:14px; color:#201F19; padding-bottom:14px;">${email}</td>
-              </tr>
-              <tr>
-                <td style="font-size:11px; letter-spacing:0.08em; color:#9A927D; padding-bottom:4px; font-family:'Courier New', monospace;">TEMPORARY PASSWORD</td>
-              </tr>
-              <tr>
-                <td style="font-size:14px; color:#201F19; font-family:'Courier New', monospace;">${password}</td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-
-      <p style="margin:0 0 24px; font-size:13px; line-height:1.6; color:#8B8474;">
-        For security, we recommend changing this password after your first login.
-      </p>
-
-      <table role="presentation" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="background-color:#201F19; border-radius:8px;">
-            <a href="${loginUrl}" style="display:inline-block; padding:12px 28px; font-size:14px; font-weight:600; color:#F3EFE3; text-decoration:none;">
-              Log in to your account
-            </a>
-          </td>
-        </tr>
-      </table>
-
-      <p style="margin:28px 0 0; font-size:13px; line-height:1.6; color:#8B8474;">
-        Regards,<br />Hotel Management Team
-      </p>
-    `,
-    });
-
-//Rejection Email
-const rejectionEmail = ({ ownerName, hotelName, remark }) =>
-    emailShell({
-        preheader: `An update on your registration for ${hotelName}.`,
-        bodyHtml: `
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
-        <tr>
-          <td style="background-color:#FBECEA; border-radius:20px; padding:6px 14px; font-size:11px; font-weight:600; letter-spacing:0.06em; color:#B04A3C;">
-            REQUEST NOT APPROVED
-          </td>
-        </tr>
-      </table>
-
-      <h1 style="margin:0 0 12px; font-size:21px; font-weight:600; color:#201F19;">
-        Hello ${ownerName},
-      </h1>
-
-      <p style="margin:0 0 20px; font-size:14px; line-height:1.65; color:#5A554C;">
-        Thank you for registering <strong style="color:#201F19;">${hotelName}</strong> with us. After review, we're unable to approve this request at the moment.
-      </p>
-
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FBECEA; border-radius:12px; margin-bottom:24px;">
-        <tr>
-          <td style="padding:16px 20px;">
-            <p style="margin:0 0 4px; font-size:11px; letter-spacing:0.08em; color:#B04A3C; font-family:'Courier New', monospace;">REASON</p>
-            <p style="margin:0; font-size:14px; color:#8A392F; line-height:1.6;">${remark}</p>
-          </td>
-        </tr>
-      </table>
-
-      <p style="margin:0; font-size:14px; line-height:1.65; color:#5A554C;">
-        You're welcome to update your details and submit a new request whenever you're ready.
-      </p>
-
-      <p style="margin:28px 0 0; font-size:13px; line-height:1.6; color:#8B8474;">
-        Regards,<br />Hotel Management Team
-      </p>
-    `,
-    });
+        if (hasOldEmailIndex) {
+            await collection.dropIndex('email_1');
+            console.log("--> Legacy background validation index 'email_1' successfully dropped.");
+        }
+    } catch (err) {
+        // Safe fail logging if database connectivity isn't fully ready yet on instant boot
+        console.log("--> Note on background index lookup:", err.message);
+    }
+}, 5000);
 
 
-//Create
+// =========================================================================
+// CREATE HOTEL
+// =========================================================================
 const createHotel = async (req, res) => {
     try {
-        const { hotelName,
-            ownerName,
-            email,
-            mobile,
+        const {
+            hotelName,
+            hotelEmail,
             city,
             address,
-            totalRooms,
-            hotelType,
             description,
+            hotelType,
+            totalRooms,
+            amenities,
         } = req.body;
 
-        //Validations
         if (!hotelName?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "Hotel name is required",
-            });
+            return res.status(400).json({ success: false, message: "Hotel name is required" });
         }
-
         if (hotelName.trim().length < 3) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Hotel name must be at least 3 characters",
-            });
+            return res.status(400).json({ success: false, message: "Hotel name must be at least 3 characters" });
         }
-
-        if (!ownerName?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "Owner name is required",
-            });
-        }
-
-        if (
-            !/^[A-Za-z\s.]+$/.test(
-                ownerName.trim()
-            )
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Owner name can contain only letters",
-            });
-        }
-
-        if (!email?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "Email is required",
-            });
+        if (!hotelEmail?.trim()) {
+            return res.status(400).json({ success: false, message: "Hotel email is required" });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid email address",
-            });
+        if (!emailRegex.test(hotelEmail)) {
+            return res.status(400).json({ success: false, message: "Invalid hotel email" });
         }
-
-        if (!mobile?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Mobile number is required",
-            });
-        }
-
-        if (!/^[6-9]\d{9}$/.test(mobile)) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Enter a valid mobile number",
-            });
-        }
-
         if (!city) {
-            return res.status(400).json({
-                success: false,
-                message: "City is required",
-            });
+            return res.status(400).json({ success: false, message: "City is required" });
         }
-
         if (!address?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "Address is required",
-            });
+            return res.status(400).json({ success: false, message: "Address is required" });
         }
-
         if (address.trim().length < 8) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Please enter complete address",
-            });
+            return res.status(400).json({ success: false, message: "Please enter complete address" });
         }
-
-        if (!totalRooms) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Total rooms is required",
-            });
-        }
-
-        if (
-            Number(totalRooms) <= 0
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Total rooms must be greater than 0",
-            });
-        }
-
         if (!description?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Description is required",
-            });
+            return res.status(400).json({ success: false, message: "Description is required" });
+        }
+        if (description.trim().length < 20) {
+            return res.status(400).json({ success: false, message: "Description must be at least 20 characters" });
+        }
+        if (!totalRooms || Number(totalRooms) <= 0) {
+            return res.status(400).json({ success: false, message: "Enter valid total rooms" });
         }
 
-        if (
-            description.trim().length < 20
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Description must be at least 20 characters",
-            });
-        }
-
-        //Email Check
-
-        const existingHotel = await hotelModel.findOne({ email, });
+        // Duplicate Check using exact matching key layout 'hotelEmail'
+        const existingHotel = await hotelModel.findOne({
+            hotelEmail: hotelEmail.toLowerCase().trim(),
+        });
 
         if (existingHotel) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Hotel with this email already exists",
-            });
+            return res.status(400).json({ success: false, message: "Hotel email already exists" });
         }
 
-        //Check Image
-
-        if (!req.files?.hotelImage) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Hotel image is required",
-            });
+        if (!req.files?.hotelImages) {
+            return res.status(400).json({ success: false, message: "Hotel images are required" });
         }
 
-        if (!req.files?.ownerImage) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Owner image is required",
-            });
+        const images = Array.isArray(req.files.hotelImages)
+            ? req.files.hotelImages
+            : [req.files.hotelImages];
+
+        if (images.length < 3) {
+            return res.status(400).json({ success: false, message: "Please upload at least 3 hotel images" });
         }
 
-        //Image Upload
+        const uploadResult = await uploadImage(images);
+        const hotelImages = uploadResult.map((image) => image.secure_url);
 
-        let hotelImage = "";
-        let ownerImage = "";
-
-        const hotelUpload = await uploadImage({ hotelImage: req.files.hotelImage, });
-
-        hotelImage =
-            hotelUpload[0]
-                ?.secure_url || "";
-
-        const ownerUpload =
-            await uploadImage({
-                ownerImage:
-                    req.files.ownerImage,
-            });
-
-        ownerImage =
-            ownerUpload[0]
-                ?.secure_url || "";
-
-        //UUID
+        let amenitiesArray = [];
+        if (Array.isArray(amenities)) {
+            amenitiesArray = amenities;
+        } else if (typeof amenities === "string") {
+            amenitiesArray = amenities.split(",").map(item => item.trim());
+        }
 
         const trackingId = uuidv4();
 
-        //Create Hotel
-        const hotel =
-            await hotelModel.create({
-                hotelName,
-                ownerName,
-                email,
-                mobile,
-                city,
-                address,
-                totalRooms,
-                hotelType,
-                description,
-                hotelImage,
-                ownerImage,
-                trackingId,
-            });
-
-        //Mail
+        const hotel = await hotelModel.create({
+            hotelName: hotelName.trim(),
+            hotelEmail: hotelEmail.toLowerCase().trim(),
+            city,
+            address: address.trim(),
+            description: description.trim(),
+            hotelType: hotelType || "Hotel",
+            totalRooms,
+            amenities: amenitiesArray,
+            hotelImages,
+            trackingId,
+            adminId: req.user._id,
+            status: "Pending",
+        });
 
         await sendEmail(
-            email,
+            hotel.hotelEmail,
             "Hotel Registration Submitted",
             `
-        <h2>Hello ${ownerName}</h2>
-
-        <p>
-          Your hotel registration request has been submitted successfully.
-        </p>
-
-        <p>
-          Your Tracking ID:
-        </p>
-
-        <h3>${trackingId}</h3>
-
-        <p>
-          Save this Tracking ID.
-          You can use it to check your request status.
-        </p>
-      `
+            <h2>Hello,</h2>
+            <p>Your hotel registration request has been submitted successfully.</p>
+            <p><strong>Tracking ID :</strong> ${trackingId}</p>
+            <p>Please save this Tracking ID. You can use it to check your hotel request status.</p>
+            `
         );
 
-        //Populate
-        const populatedHotel =
-            await hotelModel
-                .findById(hotel._id)
-                .populate({
-                    path: "city",
-                    populate: {
-                        path: "districtId",
-                        populate: {
-                            path: "stateId",
-                        },
-                    },
-                });
+        const populatedHotel = await hotelModel.findById(hotel._id).populate({
+            path: "city",
+            populate: { path: "districtId", populate: { path: "stateId" } },
+        });
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
-            message:
-                "Request submitted successfully. Tracking ID has been sent to your email.",
+            message: "Hotel request submitted successfully",
             hotel: populatedHotel,
         });
-    } catch (error) {
-        console.log(
-            "Create Hotel Error:",
-            error
-        );
 
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+    } catch (error) {
+        console.log("Create Hotel Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
-//Get Pending Hotels
+// =========================================================================
+// GET PENDING HOTELS
+// =========================================================================
 const getPendingHotels = async (req, res) => {
     try {
-        const hotels = await hotelModel.find({ status: "Pending" }).populate({
-            path: "city",
-            populate: {
-                path: "districtId",
-                populate: {
-                    path: "stateId",
-                },
-            },
-        });
+        let filter = { status: "Pending" };
+        if (req.user.role === "admin") {
+            filter.adminId = req.user._id;
+        }
 
-        res.status(200).json({
-            success: true,
-            hotels,
-        });
+        const hotels = await hotelModel
+            .find(filter)
+            .populate({ path: "adminId", select: "name email" })
+            .populate({
+                path: "city",
+                populate: { path: "districtId", populate: { path: "stateId" } },
+            })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        console.log("Get Pending Hotels Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
+// =========================================================================
+// GET APPROVED HOTELS
+// =========================================================================
+const getApprovedHotels = async (req, res) => {
+    try {
+        let filter = { status: "Approved" };
+        if (req.user.role === "admin") {
+            filter.adminId = req.user._id;
+        }
 
-//Approve Hotels
+        const hotels = await hotelModel
+            .find(filter)
+            .populate({ path: "adminId", select: "name email" })
+            .populate({
+                path: "city",
+                populate: { path: "districtId", populate: { path: "stateId" } },
+            })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+    } catch (error) {
+        console.log("Get Approved Hotels Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =========================================================================
+// GET REJECTED HOTELS
+// =========================================================================
+const getRejectedHotels = async (req, res) => {
+    try {
+        let filter = { status: "Rejected" };
+        if (req.user.role === "admin") {
+            filter.adminId = req.user._id;
+        }
+
+        const hotels = await hotelModel
+            .find(filter)
+            .populate({ path: "adminId", select: "name email" })
+            .populate({
+                path: "city",
+                populate: { path: "districtId", populate: { path: "stateId" } },
+            })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+    } catch (error) {
+        console.log("Get Rejected Hotels Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =========================================================================
+// APPROVE HOTEL
+// =========================================================================
 const approveHotel = async (req, res) => {
     try {
+        const { id } = req.params;
         const { password } = req.body;
 
         if (!password?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "Password is required",
-            });
+            return res.status(400).json({ success: false, message: "Password is required" });
         }
-
         if (password.length < 6) {
-            return res.status(400).json({
-                success: false,
-                message: "Password must be at least 6 characters",
-            });
+            return res.status(400).json({ success: false, message: "Password must be at least 6 characters" });
         }
 
-        const hotel = await hotelModel.findById(req.params.id);
-
+        // 1. Hotel find karein aur check karein
+        const hotel = await hotelModel.findById(id);
         if (!hotel) {
-            return res.status(404).json({
-                success: false,
-                message: "Hotel not found",
-            });
+            return res.status(404).json({ success: false, message: "Hotel not found" });
         }
 
         if (hotel.status === "Approved") {
-            return res.status(400).json({
-                success: false,
-                message: "Hotel is already approved",
-            });
+            return res.status(400).json({ success: false, message: "Hotel is already approved" });
         }
 
-        const hashPassword = bcrypt.hashSync(password, 10);
+        // 2. Password ko encrypt/hash karein
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        hotel.password = hashPassword;
+        // =========================================================================
+        // AUTOMATIC USER REGISTRATION SYSTEM (Wired for dynamic mapping entry)
+        // =========================================================================
+        // Check karein ki kya is hotel email ka account user collection me pehle se h ya nahi
+        const existingUserAccount = await signupModel.findOne({ email: hotel.hotelEmail.toLowerCase() });
+
+        if (!existingUserAccount) {
+            // Agar account nahi h, toh direct main user schema mapping table me document automatically insert hoga
+            await signupModel.create({
+                name: hotel.hotelName,
+                email: hotel.hotelEmail.toLowerCase(),
+                password: hashedPassword,
+                role: "hotel", // Ya jo bhi role aapne system authorization matrix me likha h
+                mobile: "N/A", // Default safe dynamic placeholder data parameter values
+                status: "Approved"
+            });
+            console.log(`--> New platform credential node auto-saved inside User schema for: ${hotel.hotelName}`);
+        }
+
+        // 3. Hotel documents variables updates compiler logic
+        hotel.password = hashedPassword;
         hotel.status = "Approved";
         hotel.remark = "";
 
         await hotel.save();
 
+        // 4. Send Notification Alert Credentials Mail
         await sendEmail(
-            hotel.email,
-            "Your hotel registration has been approved",
-            approvalEmail({
-                ownerName: hotel.ownerName,
-                hotelName: hotel.hotelName,
-                email: hotel.email,
-                password,
-                loginUrl: process.env.CLIENT_LOGIN_URL || "#",
-            })
+            hotel.hotelEmail,
+            "Hotel Approved & Account Created",
+            `
+            <h2>Congratulations 🎉</h2>
+            <p>Your hotel request has been approved and platform portal credentials has been compiled successfully.</p>
+            <p><strong>Login Portal Email:</strong> ${hotel.hotelEmail}</p>
+            <p><strong>Temporary Passcode:</strong> ${password}</p>
+            <p>You can now log into your business management dashboard using these metrics values natively.</p>
+            `
         );
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
-            message: "Hotel approved successfully",
-            hotel,
+            message: "Hotel approved and portal user credentials successfully synchronized."
         });
+
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        console.log("Approve Hotel System Sync Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
-
-//Reject Hotels
+// =========================================================================
+// REJECT HOTEL
+// =========================================================================
 const rejectHotel = async (req, res) => {
     try {
+        const { id } = req.params;
         const { remark } = req.body;
 
         if (!remark?.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "Remark is required",
-            });
+            return res.status(400).json({ success: false, message: "Remark is required" });
         }
 
-        const hotel = await hotelModel.findById(req.params.id);
-
+        const hotel = await hotelModel.findById(id);
         if (!hotel) {
-            return res.status(404).json({
-                success: false,
-                message: "Hotel not found",
-            });
+            return res.status(404).json({ success: false, message: "Hotel not found" });
         }
-
         if (hotel.status === "Rejected") {
-            return res.status(400).json({
-                success: false,
-                message: "Hotel is already rejected",
-            });
+            return res.status(400).json({ success: false, message: "Hotel is already rejected" });
+        }
+        if (hotel.status === "Approved") {
+            return res.status(400).json({ success: false, message: "Approved hotel cannot be rejected" });
         }
 
         hotel.status = "Rejected";
-        hotel.remark = remark;
-        hotel.password = "";
-
+        hotel.remark = remark.trim();
         await hotel.save();
 
         await sendEmail(
-            hotel.email,
-            "An update on your hotel registration",
-            rejectionEmail({
-                ownerName: hotel.ownerName,
-                hotelName: hotel.hotelName,
-                remark,
-            })
+            hotel.hotelEmail,
+            "Hotel Request Rejected",
+            `
+            <h2>Hotel Request Rejected</h2>
+            <p>We regret to inform you that your hotel registration request has been rejected.</p>
+            <p><strong>Reason:</strong> ${remark}</p>
+            <p>You can update your hotel details and submit the request again.</p>
+            `
         );
 
-        res.status(200).json({
-            success: true,
-            message: "Hotel rejected successfully",
-            hotel,
-        });
+        return res.status(200).json({ success: true, message: "Hotel rejected successfully" });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        console.log("Reject Hotel Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
-//Get Rejected Hotels
-const getRejectedHotels = async (req, res) => {
+// =========================================================================
+// UPDATE HOTEL (Wired & Protection layers injected against undefined emails)
+// =========================================================================
+const updateHotel = async (req, res) => {
     try {
-        const hotels = await hotelModel.find({ status: "Rejected" }).populate({
-            path: "city",
-            populate: {
-                path: "districtId",
-                populate: {
-                    path: "stateId",
-                },
-            },
-        });
+        const { id } = req.params;
+        const {
+            hotelName,
+            hotelEmail,
+            city,
+            address,
+            description,
+            hotelType,
+            totalRooms,
+            amenities,
+        } = req.body;
 
-        res.status(200).json({
-            success: true,
-            hotels,
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-    }
-};
-
-//Send Otp
-const sendOtp = async (req, res) => {
-    try {
-        const { trackingId } = req.body;
-
-        const hotel = await hotelModel.findOne({ trackingId, });
-
+        const hotel = await hotelModel.findById(id);
         if (!hotel) {
-            return res.status(404).json({
-                success: false,
-                message: "Invalid Tracking ID",
-            });
+            return res.status(404).json({ success: false, message: "Hotel not found" });
+        }
+
+        if (hotel.adminId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: "You are not authorized to update this hotel" });
         }
 
         if (hotel.status !== "Pending") {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Request is already processed.",
-            });
+            return res.status(400).json({ success: false, message: "Only pending hotels can be updated" });
         }
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        // Email variables safe validation evaluation checking
+        const verifiedEmail = hotelEmail?.trim() ? hotelEmail.toLowerCase().trim() : hotel.hotelEmail;
 
-        hotel.otp = otp;
-        //2 Minute
-        hotel.otpExpire = Date.now() + 2 * 60 * 1000;
+        if (verifiedEmail !== hotel.hotelEmail) {
+            const existingHotel = await hotelModel.findOne({
+                hotelEmail: verifiedEmail,
+                _id: { $ne: id },
+            });
+            if (existingHotel) {
+                return res.status(400).json({ success: false, message: "Hotel email already exists" });
+            }
+        }
+
+        let amenitiesArray = hotel.amenities;
+        if (amenities) {
+            amenitiesArray = amenities.split(",").map((item) => item.trim());
+        }
+
+        let hotelImages = hotel.hotelImages;
+        if (req.files?.hotelImages) {
+            const images = Array.isArray(req.files.hotelImages)
+                ? req.files.hotelImages
+                : [req.files.hotelImages];
+
+            const uploadResult = await uploadImage(images);
+            hotelImages = uploadResult.map((item) => item.secure_url);
+        }
+
+        hotel.hotelName = hotelName ? hotelName.trim() : hotel.hotelName;
+        hotel.hotelEmail = verifiedEmail; // ◄--- Injected absolute protection handler against null conversions
+        hotel.city = city || hotel.city;
+        hotel.address = address ? address.trim() : hotel.address;
+        hotel.description = description ? description.trim() : hotel.description;
+        hotel.hotelType = hotelType || hotel.hotelType;
+        hotel.totalRooms = totalRooms || hotel.totalRooms;
+        hotel.amenities = amenitiesArray;
+        hotel.hotelImages = hotelImages;
 
         await hotel.save();
 
-        await sendEmail(
-            hotel.email,
-            "OTP Verification",
-            `
-      <h2>OTP Verification</h2>
+        const updatedHotel = await hotelModel.findById(hotel._id).populate({
+            path: "city",
+            populate: { path: "districtId", populate: { path: "stateId" } },
+        });
 
-      <p>Your OTP is:</p>
-
-      <h1>${otp}</h1>
-
-      <p>
-        This OTP is valid for
-        2 minutes.
-      </p>
-      `
-        );
-
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
-            message:
-                "OTP sent successfully.",
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-    }
-};
-
-//Verify Otp
-const verifyOtp = async (req, res) => {
-    try {
-        const { trackingId, otp } =
-            req.body;
-
-        const hotel =
-            await hotelModel.findOne({
-                trackingId,
-            });
-
-        if (!hotel) {
-            return res.status(404).json({
-                success: false,
-                message:
-                    "Invalid Tracking ID",
-            });
-        }
-
-        if (hotel.otp !== otp) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid OTP",
-            });
-        }
-
-        if (
-            !hotel.otpExpire ||
-            hotel.otpExpire < Date.now()
-        ) {
-            return res.status(400).json({
-                success: false,
-                message: "OTP expired",
-            });
-        }
-
-        hotel.otp = "";
-        hotel.otpExpire = null;
-
-        await hotel.save();
-
-        res.status(200).json({
-            success: true,
-            hotel: {
-                _id: hotel._id,
-                hotelName:
-                    hotel.hotelName,
-                ownerName:
-                    hotel.ownerName,
-                email: hotel.email,
-                status: hotel.status,
-                trackingId:
-                    hotel.trackingId,
-                remark: hotel.remark,
-            },
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-    }
-};
-
-//Update Request
-const updateRequest = async (req, res) => {
-    try {
-        const hotel =
-            await hotelModel.findById(
-                req.params.id
-            );
-
-        if (!hotel) {
-            return res.status(404).json({
-                success: false,
-                message:
-                    "Hotel not found",
-            });
-        }
-
-        if (
-            hotel.status !== "Pending"
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Request is already processed",
-            });
-        }
-
-        const updatedHotel =
-            await hotelModel.findByIdAndUpdate(
-                req.params.id,
-                req.body,
-                {
-                    new: true,
-                }
-            );
-
-        res.status(200).json({
-            success: true,
-            message:
-                "Request updated successfully",
+            message: "Hotel updated successfully",
             hotel: updatedHotel,
         });
+
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message:
-                error.message,
-        });
+        console.log("Update Hotel Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
-//get Hotel by id
+// =========================================================================
+// GET HOTEL BY ID
+// =========================================================================
 const getHotelById = async (req, res) => {
     try {
-        const hotel =
-            await hotelModel
-                .findById(req.params.id)
-                .populate("city");
+        const { id } = req.params;
+        const hotel = await hotelModel
+            .findById(id)
+            .populate({ path: "adminId", select: "name email" })
+            .populate({
+                path: "city",
+                populate: { path: "districtId", populate: { path: "stateId" } },
+            });
 
         if (!hotel) {
-            return res.status(404).json({
-                success: false,
-                message: "Hotel not found",
-            });
+            return res.status(404).json({ success: false, message: "Hotel not found" });
         }
 
-        res.status(200).json({
+        if (
+            req.user.role !== "superAdmin" &&
+            hotel.adminId._id.toString() !== req.user._id.toString()
+        ) {
+            return res.status(403).json({ success: false, message: "Unauthorized access" });
+        }
+
+        return res.status(200).json({ success: true, hotel });
+    } catch (error) {
+        console.log("Get Hotel By Id Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =========================================================================
+// GET MY HOTELS
+// =========================================================================
+const getMyHotels = async (req, res) => {
+    try {
+        const hotels = await hotelModel
+            .find({ adminId: req.user._id, isActive: true })
+            .populate({
+                path: "city",
+                populate: { path: "districtId", populate: { path: "stateId" } },
+            })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+    } catch (error) {
+        console.log("Get My Hotels Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =========================================================================
+// TOGGLE INACTIVE / ACTIVE STATUS
+// =========================================================================
+const changeHotelStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const hotel = await hotelModel.findById(id);
+
+        if (!hotel) {
+            return res.status(404).json({ success: false, message: "Hotel not found" });
+        }
+
+        hotel.isActive = !hotel.isActive;
+        await hotel.save();
+
+        return res.status(200).json({
             success: true,
-            hotel,
+            message: `Hotel ${hotel.isActive ? "Activated" : "Inactivated"} Successfully`,
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
+        console.log("Change Hotel Status Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =========================================================================
+// GET ACTIVE HOTELS
+// =========================================================================
+const getActiveHotels = async (req, res) => {
+    try {
+        const hotels = await hotelModel
+            .find({ isActive: true })
+            .populate({
+                path: "city",
+                populate: { path: "districtId", populate: { path: "stateId" } },
+            })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+    } catch (error) {
+        console.log("Get Active Hotels Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =========================================================================
+// GET INACTIVE HOTELS
+// =========================================================================
+const getInactiveHotels = async (req, res) => {
+    try {
+        const hotels = await hotelModel
+            .find({ isActive: false })
+            .populate({
+                path: "city",
+                populate: { path: "districtId", populate: { path: "stateId" } },
+            })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+    } catch (error) {
+        console.log("Get Inactive Hotels Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// =========================================================================
+// CHECK HOTEL TRACKING STATUS
+// =========================================================================
+const checkHotelStatus = async (req, res) => {
+    try {
+        const { trackingId } = req.body;
+        if (!trackingId) {
+            return res.status(400).json({ success: false, message: "Tracking ID is required" });
+        }
+
+        const hotel = await hotelModel.findOne({ trackingId }).populate({
+            path: "city",
+            populate: { path: "districtId", populate: { path: "stateId" } },
         });
+
+        if (!hotel) {
+            return res.status(404).json({ success: false, message: "Invalid Tracking ID" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Status fetched successfully",
+            data: hotel,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
 module.exports = {
     createHotel,
-
     getPendingHotels,
-
-    approveHotel,
-
-    rejectHotel,
-
+    getApprovedHotels,
     getRejectedHotels,
-
-    sendOtp,
-
-    verifyOtp,
-
-    updateRequest,
-
-    getHotelById
-
+    approveHotel,
+    rejectHotel,
+    updateHotel,
+    getHotelById,
+    getMyHotels,
+    changeHotelStatus,
+    getActiveHotels,
+    getInactiveHotels,
+    checkHotelStatus,
 };

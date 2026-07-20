@@ -1,5 +1,9 @@
 import "./App.css";
-import { BrowserRouter, Route, Routes, } from "react-router-dom";
+import {
+  BrowserRouter,
+  Route,
+  Routes,
+} from "react-router-dom";
 
 import Signup from "./Signup";
 import Login from "./Login";
@@ -10,22 +14,31 @@ import ResetPassword from "./ResetPassword";
 import PublicRoute from "./PublicRoute";
 import ProtectedRoute from "./ProtectedRoute";
 
-//SuperAdmin
-import AdminRoute from "./SuperAdmin/AdminRoute";
+// Super Admin
 import AdminLayout from "./SuperAdmin/AdminLayout";
 import State from "./SuperAdmin/State";
 import District from "./SuperAdmin/District";
 import City from "./SuperAdmin/City";
 import PendingHotels from "./SuperAdmin/PendingHotels";
+import PendingAdmin from "./SuperAdmin/PendingAdmin";
 
-//Admin
-import SignupAdmin from './Admin/SignupAdmin'
+// Admin
+import SignupAdmin from "./Admin/SignupAdmin";
 import CheckStatus from "./Admin/CheckStatus";
+import AdminLayoutAdmin from "./Admin/AdminLayout";
+import AdminDashboard from "./Admin/AdminDashboard";
+import AddHotels from "./Admin/AddHotels";
+import MyHotels from "./Admin/MyHotels";
+import Profile from "./Admin/Profile";
+import CheckHotelStatus from "./Admin/CheckHotelStatus";
+import AddCoupon from "./Admin/AddCoupon";
+import MyCoupon from "./Admin/MyCoupon";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+
         {/* Signup */}
         <Route
           path="/"
@@ -36,6 +49,7 @@ function App() {
           }
         />
 
+        {/* Admin Signup */}
         <Route
           path="/adminSignup"
           element={<SignupAdmin />}
@@ -46,11 +60,16 @@ function App() {
           element={<SignupAdmin />}
         />
 
+        {/* Check Status */}
         <Route
           path="/checkStatus"
           element={<CheckStatus />}
         />
 
+        <Route
+          path="/hotelStatus"
+          element={<CheckHotelStatus />}
+        />
         {/* Login */}
         <Route
           path="/login"
@@ -61,43 +80,64 @@ function App() {
           }
         />
 
-        {/* User Dashboard */}
+        {/* User */}
         <Route
           path="/user"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute
+              allowedRoles={["user"]}
+            >
               <User />
             </ProtectedRoute>
           }
         />
 
-        {/* Forgot Password */}
+        {/* Admin */}
         <Route
-          path="/forgot"
+          path="/admin"
           element={
-            <PublicRoute>
-              <ForgotPassword />
-            </PublicRoute>
-          }
-        />
-
-        {/* Reset Password */}
-        <Route
-          path="/reset"
-          element={
-            <ProtectedRoute>
-              <ResetPassword />
+            <ProtectedRoute
+              allowedRoles={["admin"]}
+            >
+              <AdminLayoutAdmin />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route
+            path="dashboard"
+            element={<AdminDashboard />}
+          />
+
+          <Route
+            path="addHotel"
+            element={<AddHotels />}
+          />
+
+          <Route
+            path="addCoupon"
+            element={<AddCoupon />}
+          />
+
+          <Route
+            path="myCoupon"
+            element={<MyCoupon />}
+          />
+
+          <Route
+            path="profile"
+            element={<Profile />}
+          />
+        </Route>
 
         {/* Super Admin */}
         <Route
           path="/superAdmin"
           element={
-            <AdminRoute>
+            <ProtectedRoute
+              allowedRoles={["superAdmin"]}
+            >
               <AdminLayout />
-            </AdminRoute>
+            </ProtectedRoute>
           }
         >
           <Route
@@ -120,7 +160,38 @@ function App() {
             element={<PendingHotels />}
           />
 
+          <Route
+            path="pendingAdmin"
+            element={<PendingAdmin />}
+          />
         </Route>
+
+        {/* Forgot Password */}
+        <Route
+          path="/forgot"
+          element={
+            <PublicRoute>
+              <ForgotPassword />
+            </PublicRoute>
+          }
+        />
+
+        {/* Reset Password */}
+        <Route
+          path="/reset"
+          element={
+            <ProtectedRoute
+              allowedRoles={[
+                "user",
+                "admin",
+                "superAdmin",
+              ]}
+            >
+              <ResetPassword />
+            </ProtectedRoute>
+          }
+        />
+
       </Routes>
     </BrowserRouter>
   );
