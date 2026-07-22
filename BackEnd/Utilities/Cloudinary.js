@@ -6,7 +6,7 @@ cloudinary.config({
     api_secret: process.env.API_SECRET,
 });
 
-exports.uploadImage = async (files) => {
+const uploadImage = async (files, folder = "hotel-management") => {
     const fileArray = Array.isArray(files) ? files : [files];
 
     const results = [];
@@ -16,14 +16,11 @@ exports.uploadImage = async (files) => {
             cloudinary.uploader
                 .upload_stream(
                     {
-                        folder: "hotel-management/admins",
+                        folder,
                         resource_type: "image",
                     },
                     (error, result) => {
-                        if (error) {
-                            return reject(error);
-                        }
-
+                        if (error) return reject(error);
                         resolve(result);
                     }
                 )
@@ -34,4 +31,8 @@ exports.uploadImage = async (files) => {
     }
 
     return results;
+};
+
+module.exports = {
+    uploadImage,
 };

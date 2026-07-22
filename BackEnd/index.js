@@ -26,6 +26,8 @@ const cityRoute = require('./Route/cityRoute')
 const adminRoute = require('./Route/adminRoute')
 const hotelRoute = require('./Route/hotelRoute');
 const couponRoute = require('./Route/couponRoute')
+const roomRoute = require('./Route/roomRoute')
+const bookingRoute = require('./Route/bookingRoute')
 
 app.use("/userSignup", signupRoute);
 
@@ -40,6 +42,11 @@ app.use('/admin', adminRoute)
 app.use('/hotel', hotelRoute);
 
 app.use('/coupon', couponRoute);
+
+app.use('/room', roomRoute);
+
+app.use('/booking', bookingRoute);
+
 
 app.get("/", (req, res) => {
     res.send("Server is Running.......");

@@ -37,12 +37,11 @@ const MyCoupon = () => {
             const headers = { Authorization: `Bearer ${token}` };
             await axios.patch(`${signupApi}coupon/toggle-status/${id}`, {}, { headers });
 
-            // Real-time state local mapping mutation array list refresh handles natively
+
             setCoupons((prev) =>
                 prev.map((c) => (c._id === id ? { ...c, status: c.status === "Active" ? "Inactive" : "Active" } : c))
             );
 
-            // Modal window profile frame values synchronization refresh update helper
             if (selectedCoupon && selectedCoupon._id === id) {
                 setSelectedCoupon((prev) => ({ ...prev, status: prev.status === "Active" ? "Inactive" : "Active" }));
             }
@@ -72,11 +71,11 @@ const MyCoupon = () => {
     };
 
     const handleEdit = (id) => {
-        // Redirection to the creation compilation workspace panel map with identification markers
+
         navigate(`/admin/addCoupon?id=${id}`);
     };
 
-    // Modern horizontal list searching pipeline compilation operations
+
     const filteredCoupons = useMemo(() => {
         let data = [...coupons];
 
@@ -145,8 +144,8 @@ const MyCoupon = () => {
                             key={status}
                             onClick={() => setStatusFilter(status)}
                             className={`px-5 py-3 font-['Space_Grotesk',sans-serif] font-medium text-[14px] rounded-t-[3px] transition whitespace-nowrap border-b-2 -mb-[1px] ${isActive
-                                    ? "border-[#A2782E] text-[#1B2537] bg-[rgba(162,120,46,0.04)] font-semibold"
-                                    : "border-transparent text-[#8C8676] hover:text-[#1B2537] hover:bg-[#FCFBF7]"
+                                ? "border-[#A2782E] text-[#1B2537] bg-[rgba(162,120,46,0.04)] font-semibold"
+                                : "border-transparent text-[#8C8676] hover:text-[#1B2537] hover:bg-[#FCFBF7]"
                                 }`}
                         >
                             {status} Campaigns
@@ -185,8 +184,8 @@ const MyCoupon = () => {
                                 </div>
                                 <div className="flex flex-col items-end gap-1.5">
                                     <span className={`px-2 py-0.5 text-[10px] font-['IBM_Plex_Mono',monospace] font-semibold uppercase tracking-wider border rounded-[2px] ${coupon.status === "Active"
-                                            ? "bg-[#E8F5E9] border-[#C8E6C9] text-[#2E7D32]"
-                                            : "bg-[#F5F5F5] border-[#E0E0E0] text-[#616161]"
+                                        ? "bg-[#E8F5E9] border-[#C8E6C9] text-[#2E7D32]"
+                                        : "bg-[#F5F5F5] border-[#E0E0E0] text-[#616161]"
                                         }`}>
                                         {coupon.status}
                                     </span>
@@ -239,8 +238,8 @@ const MyCoupon = () => {
                                 <button
                                     onClick={() => handleToggleStatus(coupon._id)}
                                     className={`text-[12.5px] py-2 rounded-[2px] font-medium border text-center transition-all ${coupon.status === "Active"
-                                            ? "bg-[#FFF8E1] hover:bg-[#FFF3E0] border-[#FFECB3] text-[#E65100]"
-                                            : "bg-[#E8F5E9] hover:bg-[#E8F5E9]/80 border-[#C8E6C9] text-[#2E7D32]"
+                                        ? "bg-[#FFF8E1] hover:bg-[#FFF3E0] border-[#FFECB3] text-[#E65100]"
+                                        : "bg-[#E8F5E9] hover:bg-[#E8F5E9]/80 border-[#C8E6C9] text-[#2E7D32]"
                                         }`}
                                     title={coupon.status === "Active" ? "Deactivate Campaign" : "Restore & Activate Campaign"}
                                 >

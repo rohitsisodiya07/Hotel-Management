@@ -587,6 +587,123 @@ const checkHotelStatus = async (req, res) => {
     }
 };
 
+// =========================================================================
+// GET PARTICULAR HOTEL DASHBOARD (💥 Injected Dynamic Filter Mapping)
+// =========================================================================
+const getParticularHotelDashboard = async (req, res) => {
+    try {
+        // req.user.email aapke login authentication middleware layer se extract hoga
+        if (!req.user || !req.user.email) {
+            return res.status(401).json({ success: false, message: "Unauthorized token initialization context." });
+        }
+
+        // Particular logged-in hotel ki email se match karke poora data nested collections se fetch karein
+        const hotel = await hotelModel.findOne({ hotelEmail: req.user.email.toLowerCase().trim() })
+            .populate({
+                path: "city",
+                populate: {
+                    path: "districtId",
+                    populate: { path: "stateId" }
+                }
+            });
+
+        if (!hotel) {
+            return res.status(404).json({
+                success: false,
+                message: "No approved hotel specifications discovered mapping this manager account link."
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Particular hotel metrics fetched successfully",
+            hotel
+        });
+
+    } catch (error) {
+        console.log("Get Particular Hotel Dashboard Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const getAllPublicHotels = async (req, res) => {
+    try {
+        const hotels = await hotelModel
+            .find({
+                status: "Approved",
+            })
+            .populate({
+                path: "city",
+                populate: {
+                    path: "districtId",
+                    populate: {
+                        path: "stateId",
+                    },
+                },
+            })
+            .sort({ createdAt: -1 });
+
+        console.log("Public Hotels Count:", hotels.length);
+        console.log("Public Hotels:", hotels);
+
+        return res.status(200).json({
+            success: true,
+            hotels,
+        });
+    } catch (error) {
+        console.log("Public Hotels Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+const getPublicHotelById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const hotel = await hotelModel
+            .findOne({
+                _id: id,
+                status: "Approved",
+            })
+            .populate({
+                path: "city",
+                populate: {
+                    path: "districtId",
+                    populate: {
+                        path: "stateId",
+                    },
+                },
+            });
+
+        if (!hotel) {
+            return res.status(404).json({
+                success: false,
+                message: "Hotel not found",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            hotel,
+        });
+    } catch (error) {
+        console.log("Public Hotel Details Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+
+// =========================================================================
+// MODULE EXPORTS (Updated to include the new dynamic node handler)
+// =========================================================================
 module.exports = {
     createHotel,
     getPendingHotels,
@@ -601,4 +718,8 @@ module.exports = {
     getActiveHotels,
     getInactiveHotels,
     checkHotelStatus,
+    getParticularHotelDashboard,
+    getAllPublicHotels,
+    getPublicHotelById
 };
+

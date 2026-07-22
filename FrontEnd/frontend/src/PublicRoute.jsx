@@ -2,7 +2,14 @@ import { Navigate } from "react-router-dom";
 
 const PublicRoute = ({ children }) => {
     const token = localStorage.getItem("token");
-    const currentUser = JSON.parse(localStorage.getItem("user"));
+
+    let currentUser = null;
+
+    try {
+        currentUser = JSON.parse(localStorage.getItem("user"));
+    } catch (err) {
+        localStorage.removeItem("user");
+    }
 
     if (!token) {
         return children;
@@ -15,8 +22,11 @@ const PublicRoute = ({ children }) => {
         case "admin":
             return <Navigate to="/admin/dashboard" replace />;
 
+        case "hotel":
+            return <Navigate to="/hotel/hotelDashboard" replace />;
+
         case "user":
-            return <Navigate to="/user" replace />;
+            return <Navigate to="/" replace />;
 
         default:
             localStorage.removeItem("token");

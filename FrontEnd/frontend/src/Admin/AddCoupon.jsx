@@ -29,14 +29,13 @@ const AddCoupon = () => {
     const discountTypes = ["Percentage", "Fixed Amount"];
     const statusOptions = ["Active", "Inactive"];
 
-    // Agar URL me ID parameter available hai toh dynamic tracking execute hogi
     useEffect(() => {
         if (id) {
             getCouponById();
         }
     }, [id]);
 
-    // Backend database parameters maps fetching logic for editing setup
+
     const getCouponById = async () => {
         try {
             setLoading(true);
@@ -47,7 +46,7 @@ const AddCoupon = () => {
             const response = await axiosInstance.get(`${signupApi}coupon/${id}`, { headers });
             const coupon = response.data.result;
 
-            // Date structure raw parsing configuration to match standard HTML input (YYYY-MM-DD)
+
             let formattedExpiry = "";
             if (coupon.expiryDate) {
                 formattedExpiry = new Date(coupon.expiryDate).toISOString().split("T")[0];
@@ -114,16 +113,16 @@ const AddCoupon = () => {
 
             let response;
             if (id) {
-                // Agar components parameters updating pipeline runtime map par active ho
+                
                 response = await axiosInstance.patch(`${signupApi}coupon/update/${id}`, form, { headers });
                 alert(response.data.message || "Coupon successfully modified.");
             } else {
-                // New initialization schema model save deployment
+            
                 response = await axiosInstance.post(`${signupApi}coupon/create`, form, { headers });
                 alert(response.data.message || "Coupon successfully deployed.");
             }
 
-            // Redirect back to operational dashboard layout console
+    
             navigate("/admin/dashboard");
         } catch (error) {
             console.error(error);

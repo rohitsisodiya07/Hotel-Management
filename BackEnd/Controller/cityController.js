@@ -1,7 +1,7 @@
 const CityModel = require("../Model/cityModel");
 const DistrictModel = require("../Model/districtModel");
 
-// ================= CREATE CITY =================
+//Create City
 const createCity = async (req, res) => {
     try {
         const { cityName, districtId } = req.body;
@@ -63,7 +63,7 @@ const createCity = async (req, res) => {
     }
 };
 
-// ================= GET ALL ACTIVE CITIES =================
+//Get all city
 const getAllCities = async (
     req,
     res
@@ -89,7 +89,7 @@ const getAllCities = async (
     }
 };
 
-// ================= GET ALL INACTIVE CITIES =================
+//
 const getInactiveCities =
     async (req, res) => {
         try {
@@ -114,7 +114,7 @@ const getInactiveCities =
         }
     };
 
-// ================= GET ONE CITY =================
+//
 const getCityById = async (
     req,
     res
@@ -148,7 +148,7 @@ const getCityById = async (
     }
 };
 
-// ================= UPDATE CITY =================
+// 
 const updateCity = async (
     req,
     res
@@ -234,7 +234,7 @@ const updateCity = async (
     }
 };
 
-// ================= INACTIVE CITY =================
+// 
 const inactiveCity = async (
     req,
     res
@@ -266,7 +266,7 @@ const inactiveCity = async (
     }
 };
 
-// ================= RESTORE CITY =================
+// 
 const restoreCity = async (
     req,
     res
@@ -297,7 +297,7 @@ const restoreCity = async (
     }
 };
 
-// ================= DELETE CITY =================
+// 
 const deleteCity = async (
     req,
     res

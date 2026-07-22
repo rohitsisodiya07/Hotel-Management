@@ -119,6 +119,17 @@ router.post(
 );
 
 // ==========================
+// 💥 Approved Hotel Dashboard Portal
+// ==========================
+
+// Particular login hotel ka poora data secure tarike se fetch karne ke liye
+router.get(
+    "/particular-dashboard",
+    auth, // ◄--- Sirf authorized logged-in hotels hi access kar payenge
+    hotelController.getParticularHotelDashboard
+);
+
+// ==========================
 // Common
 // ==========================
 
@@ -128,5 +139,9 @@ router.get(
     auth,
     hotelController.getHotelById
 );
+
+// PUBLIC ROUTES (No Auth Required)
+router.get("/public/all", hotelController.getAllPublicHotels);
+router.get("/public/:id", hotelController.getPublicHotelById);
 
 module.exports = router;

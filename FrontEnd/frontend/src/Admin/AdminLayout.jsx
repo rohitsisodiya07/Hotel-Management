@@ -17,11 +17,11 @@ const AdminLayout = () => {
     console.error("Error parsing user data:", error);
   }
 
-  // Integrated Coupon Management options matching your structural layout routing blueprint
+  
   const menu = [
     { name: "Dashboard", path: "dashboard" },
     { name: "Add Hotel", path: "addHotel" },
-    { name: "Add Coupon", path: "addCoupon" },
+    // { name: "Add Coupon", path: "addCoupon" },
     { name: "My Coupon", path: "myCoupon" },
     { name: "Profile", path: "profile" },
   ];

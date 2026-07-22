@@ -6,7 +6,6 @@ import { signupApi } from "../api";
 const AddHotels = () => {
   const navigate = useNavigate();
 
-  // URL query parameters (?id=value) ko capture karne ke liye useSearchParams hook lagaya
   const [searchParams] = useSearchParams();
   const id = searchParams.get("id");
   console.log(">>>>id", id);
@@ -70,7 +69,7 @@ const AddHotels = () => {
       setForm({
         hotelName: hotel.hotelName || "",
         hotelEmail: hotel.hotelEmail || "",
-        // Mongoose nested relational document payload safety handler
+        
         city: hotel.city?._id || hotel.city || "",
         address: hotel.address || "",
         hotelType: hotel.hotelType || "Hotel",
@@ -131,7 +130,7 @@ const AddHotels = () => {
       newErrors.amenities = "Select at least one amenity";
     }
 
-    // Naye hotel creation ke waqt minimum 3 images verification layer
+    
     if (!id && form.hotelImages.length < 3) {
       newErrors.hotelImages = "Please upload at least 3 hotel images";
     }
