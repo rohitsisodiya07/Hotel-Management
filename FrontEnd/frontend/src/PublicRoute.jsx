@@ -1,3 +1,4 @@
+import React from "react";
 import { Navigate } from "react-router-dom";
 
 const PublicRoute = ({ children }) => {
@@ -6,33 +7,38 @@ const PublicRoute = ({ children }) => {
     let currentUser = null;
 
     try {
-        currentUser = JSON.parse(localStorage.getItem("user"));
-    } catch (err) {
+        const storedUser = localStorage.getItem("user");
+        currentUser = storedUser ? JSON.parse(storedUser) : null;
+    } catch (error) {
         localStorage.removeItem("user");
+        currentUser = null;
     }
 
+    // Login nahi hai
     if (!token) {
         return children;
     }
 
-    switch (currentUser?.role) {
-        case "superAdmin":
-            return <Navigate to="/superAdmin/state" replace />;
-
-        case "admin":
-            return <Navigate to="/admin/dashboard" replace />;
-
-        case "hotel":
-            return <Navigate to="/hotel/hotelDashboard" replace />;
-
-        case "user":
-            return <Navigate to="/" replace />;
-
-        default:
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            return children;
+    // Token hai lekin user missing hai
+    if (!currentUser) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        return children;
     }
+
+    const roleRedirect = {
+        superAdmin: "/superAdmin/dashboard",
+        admin: "/admin/dashboard",
+        hotel: "/hotel/hotelDashboard",
+        user: "/",
+    };
+
+    return (
+        <Navigate
+            to={roleRedirect[currentUser.role] || "/"}
+            replace
+        />
+    );
 };
 
 export default PublicRoute;

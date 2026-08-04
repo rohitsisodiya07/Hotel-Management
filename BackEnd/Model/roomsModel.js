@@ -86,7 +86,7 @@ const roomSchema = new mongoose.Schema(
             type: [String],
             validate: {
                 validator: (images) => images.length >= 2,
-                message: "Minimum 2 images required",
+                message: "Minimum 2 images required",   
             },
         },
 

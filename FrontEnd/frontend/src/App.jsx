@@ -1,23 +1,25 @@
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import HomeRedirect from "./HomeRedirect";
+
 
 import Signup from "./Signup";
 import Login from "./Login";
 import ForgotPassword from "./ForgotPassword";
 import ResetPassword from "./ResetPassword";
-
 import PublicRoute from "./PublicRoute";
 import ProtectedRoute from "./ProtectedRoute";
 
-// Super Admin
+//SuperAdmin
 import AdminLayout from "./SuperAdmin/AdminLayout";
 import State from "./SuperAdmin/State";
 import District from "./SuperAdmin/District";
 import City from "./SuperAdmin/City";
 import PendingHotels from "./SuperAdmin/PendingHotels";
 import PendingAdmin from "./SuperAdmin/PendingAdmin";
+import SuperAdminDashboard from "./SuperAdmin/SuperAdminDashboard";
 
-// Admin
+//Admin
 import SignupAdmin from "./Admin/SignupAdmin";
 import CheckStatus from "./Admin/CheckStatus";
 import AdminLayoutAdmin from "./Admin/AdminLayout";
@@ -28,37 +30,47 @@ import Profile from "./Admin/Profile";
 import AddCoupon from "./Admin/AddCoupon";
 import MyCoupon from "./Admin/MyCoupon";
 import CheckHotelStatus from "./Admin/CheckHotelStatus";
+import AdminBookings from "./Admin/AdminBookings";
 
-// Hotel
+//Hotel
 import HotelLayout from "./Hotel/HotelLayout";
 import HotelDashboard from "./Hotel/HotelDashboard";
 import RoomManagement from "./Hotel/RoomManagement";
 import HotelProfile from "./Hotel/HotelProfile";
 import AllRooms from "./Hotel/AllRooms";
+import HotelBookings from "./Hotel/HotelBookings";
 
-// User (Public)
-import PublicHome from "./User/PublicHome";
+//User
 import HotelDetails from "./User/HotelDetails";
+import MyBooking from "./User/MyBooking";
+import UserLayout from "./User/UserLayout";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* ========================================== */}
-        {/* 🌍 PUBLIC / CUSTOMER ROUTES (Default UI) */}
-        {/* ========================================== */}
+        {/* User Layout */}
+        <Route element={<UserLayout />}>
+          <Route path="/" element={<HomeRedirect />} />
 
-        {/* Default Home Page (Saare Hotels Yahan Dikhenge) */}
-        <Route path="/" element={<PublicHome />} />
+          <Route
+            path="/hotel-details/:id"
+            element={<HotelDetails />}
+          />
 
-        {/* Hotel Details Page (Rooms Yahan Dikhenge) */}
-        <Route path="/hotel-details/:id" element={<HotelDetails />} />
+          <Route
+            path="/myBookings"
+            element={
+              <ProtectedRoute allowedRoles={["user"]}>
+                <MyBooking />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
 
-        {/* ========================================== */}
-        {/* 🔐 AUTHENTICATION ROUTES */}
-        {/* ========================================== */}
 
+        {/*Authentication */}
         <Route
           path="/signup"
           element={
@@ -86,71 +98,179 @@ function App() {
           }
         />
 
-        <Route path="/adminSignup" element={<SignupAdmin />} />
-        <Route path="/adminSignup/:id" element={<SignupAdmin />} />
-        <Route path="/checkStatus" element={<CheckStatus />} />
-        <Route path="/hotelStatus" element={<CheckHotelStatus />} />
+        {/* Change 3: Wrapped Admin and Status pages in PublicRoute */}
+        <Route
+          path="/adminSignup"
+          element={
+            <PublicRoute>
+              <SignupAdmin />
+            </PublicRoute>
+          }
+        />
 
-        {/* ========================================== */}
-        {/* 🏢 ADMIN DASHBOARD */}
-        {/* ========================================== */}
+        <Route
+          path="/adminSignup/:id"
+          element={
+            <PublicRoute>
+              <SignupAdmin />
+            </PublicRoute>
+          }
+        />
 
+        <Route
+          path="/checkStatus"
+          element={
+            <PublicRoute>
+              <CheckStatus />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/hotelStatus"
+          element={
+            <PublicRoute>
+              <CheckHotelStatus />
+            </PublicRoute>
+          }
+        />
+
+
+        {/* Admin */}
         <Route
           path="/admin"
           element={
-            <ProtectedRoute allowedRoles={["admin"]}>
+            <ProtectedRoute
+              allowedRoles={["admin"]}
+            >
               <AdminLayoutAdmin />
             </ProtectedRoute>
           }
         >
-          <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="addHotel" element={<AddHotels />} />
-          <Route path="myHotels" element={<MyHotels />} />
-          <Route path="addCoupon" element={<AddCoupon />} />
-          <Route path="myCoupon" element={<MyCoupon />} />
-          <Route path="profile" element={<Profile />} />
+          <Route
+            path="dashboard"
+            element={<AdminDashboard />}
+          />
+
+          <Route
+            path="addHotel"
+            element={<AddHotels />}
+          />
+
+          <Route
+            path="myHotels"
+            element={<MyHotels />}
+          />
+
+          <Route
+            path="addCoupon"
+            element={<AddCoupon />}
+          />
+
+          <Route
+            path="myCoupon"
+            element={<MyCoupon />}
+          />
+
+          <Route
+            path="profile"
+            element={<Profile />}
+          />
+
+          <Route
+            path="adminBookings"
+            element={<AdminBookings />}
+          />
         </Route>
 
-        {/* ========================================== */}
-        {/* 🏨 HOTEL DASHBOARD */}
-        {/* ========================================== */}
-
+        {/* Hotel */}
         <Route
           path="/hotel"
           element={
-            <ProtectedRoute allowedRoles={["hotel"]}>
+            <ProtectedRoute
+              allowedRoles={["hotel"]}
+            >
               <HotelLayout />
             </ProtectedRoute>
           }
         >
-          <Route path="hotelDashboard" element={<HotelDashboard />} />
-          <Route path="room" element={<RoomManagement />} />
-          <Route path="hotelProfile" element={<HotelProfile />} />
-          <Route path="allRooms" element={<AllRooms />} />
+          <Route
+            path="hotelDashboard"
+            element={<HotelDashboard />}
+          />
+
+          <Route
+            path="room"
+            element={<RoomManagement />}
+          />
+
+          <Route
+            path="hotelProfile"
+            element={<HotelProfile />}
+          />
+
+          <Route
+            path="allRooms"
+            element={<AllRooms />}
+          />
+
+          <Route
+            path="hotelBookings"
+            element={<HotelBookings />}
+          />
         </Route>
 
-        {/* ========================================== */}
-        {/* 👑 SUPER ADMIN DASHBOARD */}
-        {/* ========================================== */}
-
+        {/* superAdmin */}
         <Route
           path="/superAdmin"
           element={
-            <ProtectedRoute allowedRoles={["superAdmin"]}>
+            <ProtectedRoute
+              allowedRoles={["superAdmin"]}
+            >
               <AdminLayout />
             </ProtectedRoute>
           }
         >
-          <Route path="state" element={<State />} />
-          <Route path="district" element={<District />} />
-          <Route path="city" element={<City />} />
-          <Route path="pendingHotels" element={<PendingHotels />} />
-          <Route path="pendingAdmin" element={<PendingAdmin />} />
+          <Route
+            path="state"
+            element={<State />}
+          />
+
+          <Route
+            path="district"
+            element={<District />}
+          />
+
+          <Route
+            path="city"
+            element={<City />}
+          />
+
+          {/* Reuse Admin Add Hotel Form */}
+          <Route
+            path="addHotel"
+            element={<AddHotels />}
+          />
+
+          <Route
+            path="pendingHotels"
+            element={<PendingHotels />}
+          />
+
+          <Route
+            path="pendingAdmin"
+            element={<PendingAdmin />}
+          />
+          <Route
+            path="dashboard"
+            element={<SuperAdminDashboard />}
+          />
+
         </Route>
 
-        {/* ========================================== */}
-        {/* 🔑 COMMON SECURE ROUTES */}
-        {/* ========================================== */}
+        {/* ======================
+              Common Routes
+        ======================= */}
 
         <Route
           path="/reset"
@@ -166,6 +286,12 @@ function App() {
               <ResetPassword />
             </ProtectedRoute>
           }
+        />
+
+        {/* Change 4: Catch-all 404 Route */}
+        <Route
+          path="*"
+          element={<Navigate to="/" replace />}
         />
 
       </Routes>

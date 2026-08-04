@@ -1,15 +1,15 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import axios from "axios";
-import { useSearchParams, useNavigate } from "react-router-dom"; // Naya import Edit mode ke liye
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
+import { Plus, Edit2, Loader2, BedDouble, Users, Hotel, ChevronDown, CheckSquare, XCircle, Info, UploadCloud, CheckCircle2, X } from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 const RoomManagement = () => {
-    
     const [searchParams] = useSearchParams();
-    const editId = searchParams.get("edit"); 
+    const editId = searchParams.get("edit");
     const navigate = useNavigate();
 
-  
     const [formData, setFormData] = useState({
         roomNumber: "",
         roomType: "Standard",
@@ -24,34 +24,70 @@ const RoomManagement = () => {
 
     const [amenitiesList, setAmenitiesList] = useState([]);
     const [selectedImages, setSelectedImages] = useState([]);
-    const [existingImages, setExistingImages] = useState([]); 
+    const [existingImages, setExistingImages] = useState([]);
 
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
 
-  
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(false);
     const [fetchLoading, setFetchLoading] = useState(true);
     const [formError, setFormError] = useState("");
     const [successMsg, setSuccessMsg] = useState("");
 
-  
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [modalMessage, setModalMessage] = useState("");
+
     const roomTypes = ["Standard", "Deluxe", "Super Deluxe", "Suite", "Family Room"];
     const bedTypes = ["Single", "Double", "Queen", "King"];
 
-    
     const standardRoomAmenities = [
         "Air Conditioning (AC)",
         "Free High-Speed Wi-Fi",
-        "Smart TV / Cable",
-        "Mini Bar Fridge",
-        "Attached Balcony View",
+        "Smart TV",
+        "King Size Bed",
+        "Queen Size Bed",
+        "Twin Beds",
+        "Premium Mattress",
+        "Private Balcony",
+        "Garden View",
+        "Pool View",
+        "City View",
+        "Mountain View",
+        "Sea View",
+        "Lake View",
+        "River View",
         "Complimentary Tea/Coffee Maker",
-        "Electronic Safety Deposit Vault",
-        "Premium En-suite Bathroom",
-        "24/7 Room Dining Service",
-        "Work Desk & Ergonomic Chair"
+        "Electric Kettle",
+        "Mini Bar",
+        "Bottled Drinking Water",
+        "Work Desk & Chair",
+        "Wardrobe",
+        "Reading Lamp",
+        "USB Charging Ports",
+        "Telephone",
+        "Electronic Safe",
+        "Attached Bathroom",
+        "Rain Shower",
+        "Bathtub",
+        "Hot & Cold Water",
+        "Luxury Toiletries",
+        "Hair Dryer",
+        "Bathrobe & Slippers",
+        "Fresh Towels",
+        "Iron & Ironing Board",
+        "Blackout Curtains",
+        "Sofa Seating Area",
+        "Dining Table",
+        "Soundproof Room",
+        "Non-Smoking Room",
+        "Daily Housekeeping",
+        "24/7 Room Service",
+        "Laundry Service",
+        "Wake-up Call Service",
+        "Power Backup",
+        "Smoke Detector",
+        "Fire Safety Alarm"
     ];
 
     const fetchRoomsInventory = async () => {
@@ -103,11 +139,9 @@ const RoomManagement = () => {
     useEffect(() => {
         fetchRoomsInventory();
 
-        
         if (editId) {
             fetchSingleRoomForEdit();
         } else {
-            
             setFormData({
                 roomNumber: "", roomType: "Standard", pricePerNight: "", maxOccupancy: "2",
                 totalBeds: "1", bedType: "Double", roomSize: "", description: "", isFeatured: false
@@ -116,7 +150,6 @@ const RoomManagement = () => {
             setExistingImages([]);
         }
 
-       
         const closeDropdownHandler = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setDropdownOpen(false);
@@ -135,7 +168,6 @@ const RoomManagement = () => {
         setFormError("");
     };
 
-    
     const handleAmenityCheckboxChange = (amenity) => {
         setAmenitiesList((prev) =>
             prev.includes(amenity)
@@ -151,18 +183,14 @@ const RoomManagement = () => {
         }
     };
 
-  
     const handleSubmit = async (e) => {
         e.preventDefault();
         setFormError("");
         setSuccessMsg("");
 
-        // Simple input checks
         if (!formData.roomNumber.toString().trim()) return setFormError("Room identity number is mandatory.");
         if (!formData.pricePerNight || Number(formData.pricePerNight) <= 0) return setFormError("Pricing per night metrics must be a positive count.");
-
-       
-        if (!editId && selectedImages.length < 2) return setFormError("Mongoose constraint: Please upload at least 2 clear picture assets.");
+        if (!editId && selectedImages.length < 2) return setFormError("System constraint: Upload at least 2 clear picture assets.");
 
         try {
             setLoading(true);
@@ -184,7 +212,6 @@ const RoomManagement = () => {
                 dataPayload.append("roomImages", file);
             });
 
-            // Dynamic API URL and Method
             const url = editId ? `${signupApi}room/update/${editId}` : `${signupApi}room/create`;
             const method = editId ? 'put' : 'post';
 
@@ -199,16 +226,13 @@ const RoomManagement = () => {
             });
 
             if (response.data?.success) {
-                setSuccessMsg(editId ? "Room configuration updated successfully!" : "Room structure compiled and deployed successfully!");
+                const messageText = editId ? "Room configuration updated successfully!" : "Room structure compiled and deployed successfully!";
+                setSuccessMsg(messageText);
+                setModalMessage(messageText);
+                setShowSuccessModal(true);
+                toast.success(messageText);
 
-                if (editId) {
-                    // Edit mode - wapas default path pe jao (Add Mode)
-                    setTimeout(() => {
-                        navigate("/hotel/room");
-                        setSuccessMsg("");
-                    }, 1500);
-                } else {
-                    // Create mode - form reset karo
+                if (!editId) {
                     setFormData({
                         roomNumber: "", roomType: "Standard", pricePerNight: "", maxOccupancy: "2",
                         totalBeds: "1", bedType: "Double", roomSize: "", description: "", isFeatured: false
@@ -216,216 +240,304 @@ const RoomManagement = () => {
                     setAmenitiesList([]);
                     setSelectedImages([]);
                 }
-                fetchRoomsInventory(); // Auto refresh listings
+                fetchRoomsInventory();
             }
         } catch (error) {
             console.error("Room Submission Error:", error);
-            setFormError(error.response?.data?.message || "Operational data layer synchronization failure.");
+            const errorMsgText = error.response?.data?.message || "Operational data layer synchronization failure.";
+            setFormError(errorMsgText);
+            toast.error(errorMsgText);
         } finally {
             setLoading(false);
         }
     };
 
-    return (
-        <div className="space-y-10 animate-in fade-in duration-200 text-[#232320]">
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');`}</style>
+    const handleCloseModal = () => {
+        setShowSuccessModal(false);
+        if (editId) {
+            navigate("/hotel/room");
+        }
+    };
 
-            <div className="grid lg:grid-cols-5 gap-8 items-start">
+    return (
+        <div className="space-y-6 animate-in fade-in duration-300 text-gray-800 font-['Inter',sans-serif] max-w-[1600px] mx-auto pb-12 relative">
+            <Toaster position="top-right" richColors />
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+                .custom-checkbox:checked { background-color: #2563EB; border-color: #2563EB; }
+            `}</style>
+
+            <div className="grid lg:grid-cols-3 gap-6 items-start">
 
                 {/* Left Side Section: Inventory Form */}
-                <div className="lg:col-span-3 border border-[#E5E2D5] bg-white rounded-[3px] p-6 shadow-xs">
-
-                    <div className="flex justify-between items-start mb-6 pb-3 border-b border-[#FAF9F5]">
+                <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
+                    <div className="border-b border-gray-100 px-6 sm:px-8 py-5 bg-gray-50/60 flex justify-between items-center">
                         <div>
-                            <span className="font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.2em] text-[#A2782E] font-bold uppercase block mb-1">
-                                {editId ? "Update Framework" : "Inventory Creation Framework"}
+                            <span className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold tracking-[0.15em] text-blue-600 uppercase block mb-1">
+                                {editId ? "Update Framework" : "Inventory Creation"}
                             </span>
-                            <h2 className="font-['Space_Grotesk',sans-serif] font-bold text-xl text-[#1B2537] mt-0">
-                                {editId ? `Edit Unit ${formData.roomNumber}` : "Add New Inventory Room"}
+                            <h2 className="font-['Space_Grotesk',sans-serif] font-bold text-xl text-gray-900 m-0 tracking-tight">
+                                {editId ? `Edit Room No. ${formData.roomNumber}` : "Add New Room"}
                             </h2>
                         </div>
                         {editId && (
                             <button
                                 onClick={() => navigate("/hotel/room")}
-                                className="text-[11px] font-bold uppercase tracking-wider bg-[#F5F5F5] hover:bg-[#E0E0E0] text-[#616161] px-3 py-1.5 rounded-[2px] transition"
+                                className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2 rounded-xl transition cursor-pointer shadow-2xs"
                             >
-                                Cancel Edit
+                                <XCircle size={14} /> Cancel Edit
                             </button>
                         )}
                     </div>
 
-                    {formError && <div className="mb-5 p-3.5 bg-[#FFF8F7] border border-[#E7C9C3]/60 text-[#8E3B30] text-[13px] font-medium rounded-[2px]">✕ {formError}</div>}
-                    {successMsg && <div className="mb-5 p-3.5 bg-[#E8F5E9] border border-[#C8E6C9]/60 text-[#2E7D32] text-[13px] font-medium rounded-[2px]">✓ {successMsg}</div>}
+                    <div className="p-6 sm:p-8">
+                        {formError && (
+                            <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-xl flex items-start gap-2 shadow-2xs">
+                                <Info size={16} className="shrink-0 mt-0.5" /> {formError}
+                            </div>
+                        )}
+                        {successMsg && !showSuccessModal && (
+                            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium rounded-xl flex items-start gap-2 shadow-2xs">
+                                <CheckSquare size={16} className="shrink-0 mt-0.5" /> {successMsg}
+                            </div>
+                        )}
 
-                    <form onSubmit={handleSubmit} noValidate className="space-y-5 text-[13px] font-medium">
+                        <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
-                        {/* Identifiers Numbers Grid Rows */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-[#4A473D] mb-1.5">Room Identity Number *</label>
-                                <input type="text" name="roomNumber" placeholder="e.g. 101" value={formData.roomNumber} onChange={handleChange} className="w-full border border-[#E1DECF] px-3 h-10 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320]" />
-                            </div>
-                            <div>
-                                <label className="block text-[#4A473D] mb-1.5">Pricing Per Night (₹) *</label>
-                                <input type="number" name="pricePerNight" placeholder="e.g. 3500" value={formData.pricePerNight} onChange={handleChange} className="w-full border border-[#E1DECF] px-3 h-10 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320]" />
-                            </div>
-                        </div>
-
-                        {/* Dropdown Type Enums selections */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-[#4A473D] mb-1.5">Room Category Class *</label>
-                                <select name="roomType" value={formData.roomType} onChange={handleChange} className="w-full border border-[#E1DECF] px-3 h-10 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320] cursor-pointer">
-                                    {roomTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-[#4A473D] mb-1.5">Bedding Class *</label>
-                                <select name="bedType" value={formData.bedType} onChange={handleChange} className="w-full border border-[#E1DECF] px-3 h-10 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320] cursor-pointer">
-                                    {bedTypes.map((b) => <option key={b} value={b}>{b}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        {/* Numeric limits metadata */}
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-[#4A473D] mb-1.5">Max Occupancy *</label>
-                                <input type="number" name="maxOccupancy" value={formData.maxOccupancy} onChange={handleChange} className="w-full border border-[#E1DECF] px-3 h-10 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320]" />
-                            </div>
-                            <div>
-                                <label className="block text-[#4A473D] mb-1.5">Total Beds Count *</label>
-                                <input type="number" name="totalBeds" value={formData.totalBeds} onChange={handleChange} className="w-full border border-[#E1DECF] px-3 h-10 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320]" />
-                            </div>
-                            <div>
-                                <label className="block text-[#4A473D] mb-1.5">Room Size (Sq Ft)</label>
-                                <input type="number" name="roomSize" placeholder="Optional" value={formData.roomSize} onChange={handleChange} className="w-full border border-[#E1DECF] px-3 h-10 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320]" />
-                            </div>
-                        </div>
-
-                        {/* Interactive Selection Amenities Dropdown List Block */}
-                        <div ref={dropdownRef} className="relative">
-                            <label className="block text-[#4A473D] mb-1.5">Select Room Amenities Blueprint *</label>
-                            <div onClick={() => setDropdownOpen((v) => !v)} className="w-full border border-[#E1DECF] px-3 min-h-[40px] py-2 rounded-[2px] flex items-center justify-between bg-white text-[#232320] cursor-pointer select-none focus-within:border-[#A2782E]">
-                                <span className={amenitiesList.length === 0 ? "text-[#8C8676]" : "text-[#232320] font-medium"}>
-                                    {amenitiesList.length === 0 ? "Choose room features matrix items..." : `${amenitiesList.length} Amenities Selected`}
-                                </span>
-                                <svg className={`text-[#8C8676] transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
-                            </div>
-
-                            {dropdownOpen && (
-                                <div className="absolute left-0 right-0 mt-1 bg-white border border-[#E5E2D5] rounded-[3px] shadow-lg max-h-60 overflow-y-auto z-50 p-2 space-y-0.5 animate-in fade-in slide-in-from-top-2 duration-150">
-                                    {standardRoomAmenities.map((amenity, idx) => {
-                                        const isChecked = amenitiesList.includes(amenity);
-                                        return (
-                                            <label key={idx} className={`flex items-center gap-3 px-3 py-2 rounded-[2px] cursor-pointer select-none transition ${isChecked ? "bg-[rgba(162,120,46,0.04)] text-[#A2782E]" : "hover:bg-[#FCFBF9] text-[#4A473D]"}`}>
-                                                <input type="checkbox" checked={isChecked} onChange={() => handleAmenityCheckboxChange(amenity)} className="w-4 h-4 accent-[#A2782E] cursor-pointer" />
-                                                <span className="font-medium text-[12.5px]">{amenity}</span>
-                                            </label>
-                                        );
-                                    })}
+                            {/* Row 1 */}
+                            <div className="grid sm:grid-cols-2 gap-5">
+                                <div>
+                                    <label className="block text-gray-700 text-xs font-bold mb-1.5">Room Identity Number <span className="text-rose-500">*</span></label>
+                                    <input type="text" name="roomNumber" placeholder="e.g. 101" value={formData.roomNumber} onChange={handleChange} className="w-full border border-gray-200 px-4 h-11 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-gray-50/50 focus:bg-white text-xs font-medium transition shadow-2xs" />
                                 </div>
-                            )}
+                                <div>
+                                    <label className="block text-gray-700 text-xs font-bold mb-1.5">Pricing Per Night (₹) <span className="text-rose-500">*</span></label>
+                                    <input type="number" name="pricePerNight" placeholder="e.g. 3500" value={formData.pricePerNight} onChange={handleChange} className="w-full border border-gray-200 px-4 h-11 rounded-xl outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-gray-50/50 focus:bg-white text-xs font-medium transition shadow-2xs" />
+                                </div>
+                            </div>
 
-                            {/* Badges visual chip grid output loop */}
+                            {/* Row 2 */}
+                            <div className="grid sm:grid-cols-2 gap-5">
+                                <div>
+                                    <label className="block text-gray-700 text-xs font-bold mb-1.5">Room Category Class <span className="text-rose-500">*</span></label>
+                                    <select name="roomType" value={formData.roomType} onChange={handleChange} className="w-full border border-gray-200 px-4 h-11 rounded-xl outline-none focus:border-blue-500 bg-white text-xs font-medium cursor-pointer shadow-2xs">
+                                        {roomTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-xs font-bold mb-1.5">Bedding Class <span className="text-rose-500">*</span></label>
+                                    <select name="bedType" value={formData.bedType} onChange={handleChange} className="w-full border border-gray-200 px-4 h-11 rounded-xl outline-none focus:border-blue-500 bg-white text-xs font-medium cursor-pointer shadow-2xs">
+                                        {bedTypes.map((b) => <option key={b} value={b}>{b}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Row 3 */}
+                            <div className="grid sm:grid-cols-3 gap-5">
+                                <div>
+                                    <label className="block text-gray-700 text-xs font-bold mb-1.5">Max Occupancy <span className="text-rose-500">*</span></label>
+                                    <input type="number" name="maxOccupancy" value={formData.maxOccupancy} onChange={handleChange} className="w-full border border-gray-200 px-4 h-11 rounded-xl outline-none focus:border-blue-500 bg-gray-50/50 focus:bg-white text-xs font-medium transition shadow-2xs" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-xs font-bold mb-1.5">Total Beds Count <span className="text-rose-500">*</span></label>
+                                    <input type="number" name="totalBeds" value={formData.totalBeds} onChange={handleChange} className="w-full border border-gray-200 px-4 h-11 rounded-xl outline-none focus:border-blue-500 bg-gray-50/50 focus:bg-white text-xs font-medium transition shadow-2xs" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-xs font-bold mb-1.5">Room Size (Sq Ft)</label>
+                                    <input type="number" name="roomSize" placeholder="Optional" value={formData.roomSize} onChange={handleChange} className="w-full border border-gray-200 px-4 h-11 rounded-xl outline-none focus:border-blue-500 bg-gray-50/50 focus:bg-white text-xs font-medium transition shadow-2xs" />
+                                </div>
+                            </div>
+
+                            <hr className="border-gray-100" />
+
+                            {/* Amenities Select Dropdown */}
+                            <div ref={dropdownRef} className="relative">
+                                <label className="block text-gray-700 text-xs font-bold mb-1.5">Select Room Amenities <span className="text-rose-500">*</span></label>
+                                <div onClick={() => setDropdownOpen((v) => !v)} className="w-full border border-gray-200 px-4 min-h-[44px] py-2 rounded-xl flex items-center justify-between bg-gray-50/50 hover:bg-white text-xs cursor-pointer select-none transition shadow-2xs">
+                                    <span className={amenitiesList.length === 0 ? "text-gray-400 font-medium" : "text-gray-900 font-semibold"}>
+                                        {amenitiesList.length === 0 ? "Choose available features..." : `${amenitiesList.length} Features Selected`}
+                                    </span>
+                                    <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
+                                </div>
+
+                                {dropdownOpen && (
+                                    <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto z-50 p-2 space-y-0.5">
+                                        {standardRoomAmenities.map((amenity, idx) => {
+                                            const isChecked = amenitiesList.includes(amenity);
+                                            return (
+                                                <label key={idx} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer select-none transition text-xs ${isChecked ? "bg-blue-50 text-blue-700 font-semibold" : "hover:bg-gray-50 text-gray-700"}`}>
+                                                    <input type="checkbox" checked={isChecked} onChange={() => handleAmenityCheckboxChange(amenity)} className="w-4 h-4 accent-blue-600 cursor-pointer rounded" />
+                                                    <span>{amenity}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Selected Amenities Chips */}
                             {amenitiesList.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-3 bg-[#FCFBF9] p-3 border border-[#E5E2D5] rounded-[2px]">
+                                <div className="flex flex-wrap gap-2 mt-3 bg-gray-50 p-3.5 border border-gray-200 rounded-xl shadow-inner">
                                     {amenitiesList.map((amenity, idx) => (
-                                        <span key={idx} className="bg-white border border-[#E5E2D5] text-[#A2782E] text-[12px] px-2.5 py-1 rounded-[2px] flex items-center gap-1 animate-in scale-in duration-700 font-medium">
+                                        <span key={idx} className="bg-white border border-gray-200 text-gray-700 text-[11px] font-medium px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
                                             {amenity.split(" (")[0]}
-                                            <button type="button" onClick={() => handleAmenityCheckboxChange(amenity)} className="text-[#8E3B30] font-bold hover:text-red-700 ml-1 text-[13px] cursor-pointer">×</button>
+                                            <button type="button" onClick={() => handleAmenityCheckboxChange(amenity)} className="text-rose-500 hover:text-rose-700 font-bold transition">×</button>
                                         </span>
                                     ))}
                                 </div>
                             )}
-                        </div>
 
-                        {/* Binary File Input Blocks */}
-                        <div className="bg-[#FCFBF9] p-4 border border-[#E1DECF] rounded-[2px]">
-                            <label className="block text-[#4A473D] mb-1.5 font-bold">Media Assets {editId ? "(Optional)" : "*"}</label>
+                            <hr className="border-gray-100" />
 
-                            {editId && existingImages.length > 0 && (
-                                <div className="mb-4">
-                                    <p className="text-[#8C8676] text-[11px] font-['IBM_Plex_Mono',monospace] uppercase tracking-wider mb-2">Current Active Images</p>
-                                    <div className="flex gap-2 overflow-x-auto pb-2">
-                                        {existingImages.map((img, i) => (
-                                            <img key={i} src={img} alt="Current" className="h-14 w-16 object-cover rounded-[2px] border border-[#E5E2D5]" />
-                                        ))}
+                            {/* Media File Upload */}
+                            <div>
+                                <label className="block text-gray-700 text-xs font-bold mb-1.5">Media Assets {editId && <span className="text-gray-400 font-normal">(Leave empty to retain existing)</span>} <span className="text-rose-500">*</span></label>
+
+                                {editId && existingImages.length > 0 && (
+                                    <div className="mb-3 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
+                                        <p className="text-gray-400 text-[10px] font-['IBM_Plex_Mono',monospace] font-bold uppercase tracking-widest mb-2.5">Current Active Images</p>
+                                        <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+                                            {existingImages.map((img, i) => (
+                                                <img key={i} src={img} alt="Current" className="h-14 w-18 object-cover rounded-lg border border-gray-200 shadow-2xs" />
+                                            ))}
+                                        </div>
                                     </div>
-                                    <p className="text-[11px] text-[#A2782E] mt-1">Upload below only to replace existing media.</p>
+                                )}
+
+                                <div className="relative border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/60 hover:bg-gray-50 p-6 text-center transition cursor-pointer">
+                                    <input type="file" multiple accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                    <UploadCloud className="mx-auto text-gray-400 mb-2" size={28} />
+                                    <p className="text-xs font-bold text-gray-800">Click or drag images here to upload</p>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">Select at least 2 clear pictures of the room</p>
                                 </div>
-                            )}
 
-                            <input type="file" multiple accept="image/*" onChange={handleFileChange} className="w-full file:bg-white file:border file:border-[#E5E2D5] file:text-[#1B2537] file:px-4 file:py-2 file:rounded-[2px] file:mr-4 file:font-semibold file:cursor-pointer cursor-pointer border border-[#E1DECF] p-1.5 rounded-[2px] text-[#8C8676] bg-white mt-1" />
+                                {selectedImages.length > 0 && (
+                                    <p className="mt-2 text-[11px] font-['IBM_Plex_Mono',monospace] text-emerald-600 font-bold">
+                                        ✓ {selectedImages.length} new files ready for deployment.
+                                    </p>
+                                )}
+                            </div>
 
-                            {selectedImages.length > 0 && (
-                                <p className="m-0 mt-2 text-[12px] font-['IBM_Plex_Mono',monospace] text-[#A2782E] font-bold">
-                                    ✓ {selectedImages.length} new files ready for deployment.
-                                </p>
-                            )}
-                        </div>
+                            <hr className="border-gray-100" />
 
-                        {/* Long text fields description area */}
-                        <div>
-                            <label className="block text-[#4A473D] mb-1.5">Overview Summary / Description</label>
-                            <textarea name="description" rows="3" placeholder="Enter structural or special visual descriptions of the room features..." value={formData.description} onChange={handleChange} className="w-full border border-[#E1DECF] p-3 rounded-[2px] outline-none focus:border-[#A2782E] bg-white text-[#232320] resize-none" />
-                        </div>
+                            {/* Description */}
+                            <div>
+                                <label className="block text-gray-700 text-xs font-bold mb-1.5">Overview Summary / Description</label>
+                                <textarea name="description" rows="3" placeholder="Describe the room, its features, and overall vibe..." value={formData.description} onChange={handleChange} className="w-full border border-gray-200 p-3.5 rounded-xl outline-none focus:border-blue-500 bg-gray-50/50 focus:bg-white text-xs resize-none transition shadow-2xs leading-relaxed" />
+                            </div>
 
-                        {/* Featured Checkbox toggle switches */}
-                        <div className="flex items-center gap-2.5 pt-1">
-                            <input type="checkbox" id="isFeatured" name="isFeatured" checked={formData.isFeatured} onChange={handleChange} className="w-4 h-4 accent-[#A2782E] cursor-pointer" />
-                            <label htmlFor="isFeatured" className="text-[#4A473D] cursor-pointer select-none">Flag this room node as a **Featured Unit** highlight</label>
-                        </div>
+                            {/* Featured Checkbox */}
+                            <div className="flex items-center gap-2.5 pt-1">
+                                <input type="checkbox" id="isFeatured" name="isFeatured" checked={formData.isFeatured} onChange={handleChange} className="custom-checkbox w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer" />
+                                <label htmlFor="isFeatured" className="text-gray-700 text-xs font-medium cursor-pointer select-none">Mark this room as a <strong className="text-gray-900">Featured Room</strong></label>
+                            </div>
 
-                        {/* Form execution trigger */}
-                        <button type="submit" disabled={loading} className="w-full h-11 bg-[#1B2537] hover:bg-[#26314A] text-[#FFF9EC] text-[13.5px] font-['Space_Grotesk',sans-serif] font-bold uppercase rounded-[2px] tracking-wider transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
-                            {loading && <div className="w-4 h-4 border-2 border-[#FFF9EC] border-t-transparent rounded-full animate-spin"></div>}
-                            {loading ? "Processing..." : (editId ? "Save Updated Configurations" : "Compile & Deploy Room")}
-                        </button>
-                    </form>
+                            {/* Submit Button */}
+                            <div className="pt-4 border-t border-gray-100 flex justify-end">
+                                <button type="submit" disabled={loading} className="w-full sm:w-auto h-11 px-7 bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold rounded-xl transition shadow-2xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer">
+                                    {loading && <Loader2 size={15} className="animate-spin" />}
+                                    {loading ? "Processing..." : (editId ? "Save Updated Configurations" : "Deploy Room")}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
                 {/* Right Side Section Control Box: Live Inventory */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="border border-[#E5E2D5] bg-white rounded-[3px] p-6 shadow-xs min-h-[500px]">
-                        <span className="font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.2em] text-[#8C8676] font-bold uppercase block mb-1">Live Inventory Ledger</span>
-                        <h2 className="font-['Space_Grotesk',sans-serif] font-bold text-xl text-[#1B2537] mt-0 mb-6 pb-3 border-b border-[#FAF9F5]">Rooms Catalog ({rooms.length})</h2>
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="border border-gray-200 bg-white rounded-2xl shadow-2xs overflow-hidden sticky top-6">
+                        <div className="p-5 bg-gray-50/60 border-b border-gray-100 flex justify-between items-center">
+                            <div>
+                                <span className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold tracking-[0.15em] text-blue-600 uppercase block mb-0.5">Live Ledger</span>
+                                <h2 className="font-['Space_Grotesk',sans-serif] font-bold text-lg text-gray-900 m-0">Room Catalog</h2>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-gray-100 text-gray-700 font-['IBM_Plex_Mono']">
+                                {rooms.length}
+                            </span>
+                        </div>
 
-                        {fetchLoading ? (
-                            <div className="py-20 text-center space-y-2">
-                                <div className="w-6 h-6 border-2 border-[#A2782E] border-t-transparent rounded-full animate-spin mx-auto"></div>
-                            </div>
-                        ) : rooms.length === 0 ? (
-                            <div className="py-24 text-center border border-dashed border-[#E5E2D5] bg-[#FCFBF9] rounded-[2px]">
-                                <p className="text-[#8C8676] m-0">No active rooms deployed yet.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4 max-h-[700px] overflow-y-auto pr-1 scrollbar-thin">
-                                {rooms.map((room) => (
-                                    <div key={room._id} className={`border ${editId === room._id ? 'border-[#A2782E] bg-[rgba(162,120,46,0.02)]' : 'border-[#E5E2D5] bg-white'} rounded-[3px] overflow-hidden shadow-xs flex gap-4 p-3 hover:border-[#A2782E] transition duration-150`}>
-                                        <img src={room.roomImages?.[0] || "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=150"} alt="Unit" className="w-24 h-24 object-cover rounded-[2px] border border-[#E5E2D5] bg-[#FCFBF9] shrink-0" />
-                                        <div className="min-w-0 flex-1 flex flex-col justify-between text-[13px]">
-                                            <div>
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <h4 className="font-['Space_Grotesk',sans-serif] font-bold text-[15px] m-0 text-[#1B2537]">Unit {room.roomNumber}</h4>
-                                                    <button onClick={() => navigate(`?edit=${room._id}`)} className="text-[#A2782E] text-[10px] uppercase font-bold hover:underline tracking-wider cursor-pointer">
-                                                        Edit
-                                                    </button>
+                        <div className="p-4 bg-white min-h-[400px]">
+                            {fetchLoading ? (
+                                <div className="py-20 text-center space-y-3 flex flex-col items-center">
+                                    <Loader2 size={24} className="text-blue-600 animate-spin" />
+                                    <p className="text-[11px] font-['IBM_Plex_Mono'] font-bold text-gray-400 uppercase tracking-widest">Fetching Data</p>
+                                </div>
+                            ) : rooms.length === 0 ? (
+                                <div className="py-16 text-center border border-dashed border-gray-200 bg-gray-50/50 rounded-xl">
+                                    <Hotel size={30} className="mx-auto text-gray-300 mb-2" />
+                                    <p className="text-gray-500 text-xs font-medium m-0">No active rooms deployed yet.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1 scrollbar-hide">
+                                    {rooms.map((room) => (
+                                        <div key={room._id} className={`border ${editId === room._id ? 'border-blue-500 bg-blue-50/20' : 'border-gray-200 bg-white'} rounded-xl overflow-hidden shadow-2xs flex flex-col p-3.5 hover:border-blue-400 transition duration-200 group`}>
+                                            <div className="flex gap-3.5">
+                                                <img src={room.roomImages?.[0] || "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=150"} alt="Unit" className="w-16 h-16 object-cover rounded-lg border border-gray-100 shrink-0 shadow-2xs" />
+                                                <div className="min-w-0 flex-1 flex flex-col justify-between">
+                                                    <div>
+                                                        <h4 className="font-['Space_Grotesk',sans-serif] font-bold text-sm text-gray-900 m-0 leading-tight">No. {room.roomNumber}</h4>
+                                                        <p className="text-gray-500 text-[11px] font-medium mt-0.5">{room.roomType}</p>
+                                                    </div>
+                                                    <div className="flex justify-between items-end mt-1">
+                                                        <span className="font-bold text-blue-600 text-xs">₹{room.pricePerNight}</span>
+                                                        <div className="flex gap-2 text-gray-400 text-[10px]">
+                                                            <span className="flex items-center gap-0.5 font-medium"><Users size={11} /> {room.maxOccupancy}</span>
+                                                            <span className="flex items-center gap-0.5 font-medium"><BedDouble size={11} /> {room.totalBeds}</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <p className="text-[#8C8676] text-[12px] m-0 mt-0.5 font-medium">{room.roomType}</p>
                                             </div>
-                                            <div className="flex items-end justify-between border-t pt-2 border-[#FAF9F5] mt-2">
-                                                <span className="font-['Space_Grotesk',sans-serif] font-bold text-[#A2782E] text-[14.5px]">₹{room.pricePerNight}</span>
+                                            <div className="mt-3 pt-2.5 border-t border-gray-100 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => navigate(`?edit=${room._id}`)} className="text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 px-3 py-1 text-[11px] rounded-lg font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer">
+                                                    <Edit2 size={11} /> Edit Detail
+                                                </button>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
             </div>
+
+            {/* Success Popup Modal */}
+            {showSuccessModal && (
+                <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-7 w-full max-w-[380px] shadow-2xl text-center relative animate-in zoom-in-95 duration-200">
+                        <button
+                            onClick={handleCloseModal}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition cursor-pointer"
+                        >
+                            <X size={16} />
+                        </button>
+
+                        <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+                            <CheckCircle2 size={24} />
+                        </div>
+
+                        <span className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.15em] text-blue-600 uppercase font-bold block mb-1">
+                            SYSTEM NOTIFICATION
+                        </span>
+
+                        <h3 className="font-['Space_Grotesk',sans-serif] text-lg font-bold text-gray-900 mb-1.5">
+                            Successfully Synchronized!
+                        </h3>
+
+                        <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+                            {modalMessage}
+                        </p>
+
+                        <button
+                            onClick={handleCloseModal}
+                            className="w-full h-10 bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold rounded-xl transition shadow-2xs cursor-pointer"
+                        >
+                            Okay, Got It
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

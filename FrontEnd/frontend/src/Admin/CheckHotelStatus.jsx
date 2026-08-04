@@ -2,11 +2,21 @@ import React, { useState } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
+import {
+    Building2,
+    ShieldCheck,
+    ArrowLeft,
+    AlertCircle,
+    CheckCircle2,
+    Loader2,
+    Copy,
+    Check
+} from "lucide-react";
 
 const STATUS_STYLES = {
-    Approved: "bg-[#E9F1E4] text-[#3F6B2E]",
-    Rejected: "bg-[#FBF0EE] text-[#8E3B30]",
-    Pending: "bg-[#FBF6E9] text-[#7A5A1E]",
+    Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    Rejected: "bg-rose-50 text-rose-700 border-rose-200",
+    Pending: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
 const normalizeStatus = (status) => {
@@ -25,15 +35,16 @@ const CheckHotelStatus = () => {
     const [hotel, setHotel] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [copied, setCopied] = useState(false);
 
     const fieldClass =
-        "w-full border pl-10 pr-3.5 h-11 rounded text-[13px] outline-none transition-colors duration-150 ease-in-out bg-[#FCFBF7] text-[#232320] border-[#DEDBCF] focus:border-[#A2782E]";
+        "w-full border pl-10 pr-3.5 h-11 rounded-xl text-xs font-medium outline-none transition-all bg-gray-50/50 text-gray-900 border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 shadow-2xs";
 
     const handleCheckStatus = async (e) => {
         e.preventDefault();
 
         if (!trackingId.trim()) {
-            setError("Please enter your Tracking ID");
+            setError("Please enter your tracking ID");
             return;
         }
 
@@ -54,65 +65,67 @@ const CheckHotelStatus = () => {
         }
     };
 
+    const handleCopyTrackingId = (id) => {
+        navigator.clipboard.writeText(id);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     const status = normalizeStatus(hotel?.status);
 
     return (
-        <div className="min-h-screen bg-[#F5F4EF] bg-[radial-gradient(900px_420px_at_100%_-10%,rgba(31,42,68,0.05),transparent_60%)] font-['Inter',sans-serif] text-[#232320] flex items-center justify-center px-4 py-10">
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
+        <div className="min-h-screen bg-gray-50 text-gray-800 font-['Inter',sans-serif] flex items-center justify-center px-4 py-12 relative overflow-hidden">
 
-            <div className="w-full max-w-lg bg-white border border-[#E1DECF] rounded-md p-8 shadow-[0_1px_2px_rgba(30,28,20,0.03),0_12px_26px_-18px_rgba(30,28,20,0.18)]">
+            {/* Background Decorative Glows */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div className="w-full max-w-lg bg-white border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl relative z-10">
+
+                {/* Back Button */}
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center gap-1.5 text-[13px] font-medium text-[#8C8676] hover:text-[#1B2537] transition-colors duration-150 mb-6 cursor-pointer"
+                    className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-900 transition-colors mb-6 cursor-pointer font-['IBM_Plex_Mono'] uppercase tracking-wider"
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M19 12H5" />
-                        <path d="M12 19l-7-7 7-7" />
-                    </svg>
-                    Back
+                    <ArrowLeft size={15} /> Back
                 </button>
 
+                {/* Header */}
                 <div className="text-center mb-8">
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.22em] text-[#A2782E] mt-0 mb-2.5">
-                        REQUEST STATUS
-                    </p>
-                    <h1 className="font-['Space_Grotesk',sans-serif] font-semibold text-[26px] tracking-[-0.01em] m-0 text-[#1B2537]">
-                        Check hotel request status
+                    <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-4 shadow-2xs">
+                        <Building2 size={22} />
+                    </div>
+                    <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
+                        Property Application
+                    </span>
+                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 m-0 tracking-tight">
+                        Check Hotel Status
                     </h1>
-                    <p className="text-[#8C8676] text-[13px] mt-2 mb-0">
-                        Enter your tracking ID to check your hotel request.
+                    <p className="text-gray-500 text-xs mt-1 font-medium">
+                        Enter your tracking ID to review your hotel submission status.
                     </p>
                 </div>
 
+                {/* Error Alert */}
                 {error && (
-                    <div
-                        role="alert"
-                        className="mb-4 rounded border border-[#E7C9C3] bg-[#FBF0EE] text-[#8E3B30] text-[13px] px-3.5 py-2.5 flex items-start gap-2"
-                    >
-                        <svg className="mt-[1px] shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="9" />
-                            <path d="M12 8v5" />
-                            <path d="M12 16h.01" />
-                        </svg>
-                        {error}
+                    <div role="alert" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
+                        <AlertCircle className="mt-0.5 shrink-0" size={14} />
+                        <span>{error}</span>
                     </div>
                 )}
 
                 {!hotel && (
                     <form onSubmit={handleCheckStatus} className="space-y-4">
                         <div>
-                            <label htmlFor="tracking-id" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
+                            <label htmlFor="tracking-id" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
                                 Tracking ID
                             </label>
                             <div className="relative">
-                                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                                    <rect x="3" y="5" width="18" height="14" rx="2" />
-                                    <path d="M7 9h6M7 13h10" />
-                                </svg>
+                                <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                                 <input
                                     id="tracking-id"
                                     type="text"
-                                    placeholder="Enter tracking ID"
+                                    placeholder="Enter hotel tracking ID"
                                     value={trackingId}
                                     onChange={(e) => {
                                         setTrackingId(e.target.value);
@@ -126,67 +139,67 @@ const CheckHotelStatus = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full h-11 rounded-[3px] font-['Inter',sans-serif] font-semibold text-[13.5px] bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A] disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out cursor-pointer flex items-center justify-center gap-2"
+                            className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
                         >
-                            {loading && (
-                                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                    <path d="M21 12a9 9 0 1 1-9-9" />
-                                </svg>
-                            )}
-                            {loading ? "Checking…" : "Check Status"}
+                            {loading && <Loader2 className="animate-spin" size={15} />}
+                            {loading ? "Checking Status..." : "Check Status"}
                         </button>
                     </form>
                 )}
 
+                {/* Hotel Details Card */}
                 {hotel && (
-                    <div className="mt-2 border border-[#E1DECF] rounded p-5 bg-[#FCFBF7]">
-                        <h2 className="font-['Space_Grotesk',sans-serif] font-semibold text-[16px] text-[#1B2537] mb-4">
-                            Hotel details
+                    <div className="mt-4 border border-gray-200 rounded-2xl p-6 bg-gray-50/60 shadow-2xs">
+                        <h2 className="font-['Space_Grotesk'] font-bold text-base text-gray-900 mb-4 text-center">
+                            Hotel Details
                         </h2>
 
-                        <div className="space-y-2.5 text-[13.5px]">
-                            <p>
-                                <span className="text-[#8C8676]">Hotel Name: </span>
-                                <span className="text-[#232320] font-medium">{hotel.hotelName}</span>
-                            </p>
+                        <div className="space-y-2.5 text-xs">
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Hotel Name</span>
+                                <span className="font-bold text-gray-900">{hotel.hotelName}</span>
+                            </div>
 
-                            <p>
-                                <span className="text-[#8C8676]">Owner: </span>
-                                <span className="text-[#232320] font-medium">{hotel.ownerName}</span>
-                            </p>
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Owner</span>
+                                <span className="font-semibold text-gray-900">{hotel.ownerName}</span>
+                            </div>
 
-                            <p>
-                                <span className="text-[#8C8676]">Email: </span>
-                                <span className="text-[#232320] font-medium">{hotel.hotelEmail}</span>
-                            </p>
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Email</span>
+                                <span className="font-semibold text-gray-900">{hotel.hotelEmail}</span>
+                            </div>
 
-                            <p>
-                                <span className="text-[#8C8676]">Tracking ID: </span>
-                                <span className="text-[#232320] font-medium">{hotel.trackingId}</span>
-                            </p>
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Tracking ID</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-['IBM_Plex_Mono',monospace] font-bold text-blue-600">{hotel.trackingId}</span>
+                                    <button
+                                        onClick={() => handleCopyTrackingId(hotel.trackingId)}
+                                        className="p-1 text-gray-400 hover:text-blue-600 bg-white rounded-md border border-gray-200 shadow-2xs cursor-pointer"
+                                        title="Copy ID"
+                                    >
+                                        {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                                    </button>
+                                </div>
+                            </div>
 
-                            <p>
-                                <span className="text-[#8C8676]">Created: </span>
-                                <span className="text-[#232320] font-medium">
-                                    {new Date(hotel.createdAt).toLocaleDateString()}
-                                </span>
-                            </p>
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Submitted On</span>
+                                <span className="font-semibold text-gray-900">{new Date(hotel.createdAt).toLocaleDateString()}</span>
+                            </div>
 
-                            <p className="flex items-center gap-2">
-                                <span className="text-[#8C8676]">Status:</span>
-                                <span
-                                    className={`px-2.5 py-1 rounded-full text-[12px] font-medium ${STATUS_STYLES[status] || "bg-[#F0EEE4] text-[#8C8676]"
-                                        }`}
-                                >
+                            <div className="flex justify-between items-center pt-1">
+                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Status</span>
+                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-2xs ${STATUS_STYLES[status] || "bg-gray-100 text-gray-700 border-gray-200"}`}>
                                     {status}
                                 </span>
-                            </p>
+                            </div>
 
                             {status === "Rejected" && hotel.remark && (
-                                <p>
-                                    <span className="text-[#8C8676]">Remark: </span>
-                                    <span className="text-[#232320] font-medium">{hotel.remark}</span>
-                                </p>
+                                <div className="pt-2 text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200">
+                                    <span className="font-bold">Remark: </span> {hotel.remark}
+                                </div>
                             )}
                         </div>
 
@@ -195,28 +208,23 @@ const CheckHotelStatus = () => {
                                 setHotel(null);
                                 setTrackingId("");
                             }}
-                            className="w-full mt-5 h-11 rounded-[3px] font-['Inter',sans-serif] font-semibold text-[13.5px] bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A] transition-colors duration-150 ease-in-out cursor-pointer"
+                            className="w-full mt-5 h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 transition shadow-2xs cursor-pointer"
                         >
-                            Check another Tracking ID
+                            Check Another Tracking ID
                         </button>
                     </div>
                 )}
 
-                <div className="mt-6 border-t border-[#DEDBCF] pt-4 space-y-2">
-                    <p className="text-center text-[13px] text-[#8C8676]">
-                        Want to check a user/admin request?{" "}
-                        <Link to="/adminStatus" className="font-medium text-[#1B2537] hover:text-[#A2782E]">
-                            Check Status
-                        </Link>
-                    </p>
-
-                    <p className="text-center text-[13px] text-[#8C8676]">
+                {/* Streamlined Footer */}
+                <div className="mt-8 border-t border-gray-100 pt-6 flex flex-col items-center justify-center text-xs text-center">
+                    <p className="text-gray-500 font-medium">
                         Already have an account?{" "}
-                        <Link to="/login" className="font-medium text-[#1B2537] hover:text-[#A2782E]">
+                        <Link to="/login" className="text-blue-600 font-bold hover:underline underline-offset-4">
                             Log in
                         </Link>
                     </p>
                 </div>
+
             </div>
         </div>
     );

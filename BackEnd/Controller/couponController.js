@@ -274,6 +274,38 @@ exports.validateCoupon = async (req, res) => {
     }
 };
 
+// GET AVAILABLE COUPONS
+exports.getAvailableCoupons = async (req, res) => {
+    console.log("getAvailableCoupons Hit");
+    try {
+        const amount = Number(req.query.amount);
+        console.log(">>>>Amount", amount);
+
+
+        const coupons = await Coupon.find({
+            status: "Active",
+            expiryDate: { $gte: new Date() },
+            minBookingAmount: { $lte: amount },
+        });
+        console.log(">>>>Coupons", coupons);
+
+
+        return res.status(200).json({
+            success: true,
+            totalCoupons: coupons.length,
+            coupons,
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
 exports.deleteCoupon = async (req, res) => {
     try {
         const { id } = req.params;

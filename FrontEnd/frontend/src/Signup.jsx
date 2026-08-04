@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 import { signupApi } from "./api";
+import { Hotel, User, Mail, Lock, ShieldCheck, ArrowRight, AlertCircle, Loader2, KeyRound } from "lucide-react";
 
 const EyeIcon = ({ open }) =>
     open ? (
@@ -26,9 +27,12 @@ const initialFormData = {
 
 const Signup = () => {
     const [formData, setFormData] = useState(initialFormData);
+    const [step, setStep] = useState(1); // Step 1: Details, Step 2: OTP
+    const [otp, setOtp] = useState("");
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [formError, setFormError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const navigate = useNavigate();
@@ -50,7 +54,7 @@ const Signup = () => {
         if (!formData.email.trim()) {
             newErrors.email = "Email is required";
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = "Invalid email";
+            newErrors.email = "Invalid email address";
         }
 
         if (!formData.password) {
@@ -60,7 +64,7 @@ const Signup = () => {
         }
 
         if (!formData.confirmPassword) {
-            newErrors.confirmPassword = "Confirm Password is required";
+            newErrors.confirmPassword = "Confirm password is required";
         } else if (formData.password !== formData.confirmPassword) {
             newErrors.confirmPassword = "Passwords do not match";
         }
@@ -69,7 +73,8 @@ const Signup = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = async (e) => {
+    // Step 1: Request OTP
+    const handleSendOtp = async (e) => {
         e.preventDefault();
         setFormError("");
 
@@ -77,12 +82,16 @@ const Signup = () => {
 
         try {
             setLoading(true);
+            const payload = {
+                name: formData.name.trim(),
+                email: formData.email.trim(),
+                password: formData.password
+            };
 
-            const payload = { ...formData, name: formData.name.trim() };
-            const response = await axios.post(`${signupApi}userSignup/signup`, payload);
+            const response = await axios.post(`${signupApi}userSignup/sendSignupOtp`, payload);
 
-            setFormData(initialFormData);
-            navigate("/login", { state: { signupMessage: response.data.message } });
+            setSuccessMessage(response.data.message || "OTP sent successfully to your email.");
+            setStep(2); // Move to OTP verification step
         } catch (error) {
             setFormError(
                 error.response?.data?.message || "Something went wrong. Please try again."
@@ -92,219 +101,269 @@ const Signup = () => {
         }
     };
 
+    // Step 2: Verify OTP & Complete Signup
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        setFormError("");
+
+        if (!otp.trim()) {
+            setFormError("Please enter the verification OTP");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const payload = {
+                email: formData.email.trim(),
+                otp: otp.trim()
+            };
+
+            const response = await axios.post(`${signupApi}userSignup/verifySignupOtp`, payload);
+
+            navigate("/login", { state: { signupMessage: response.data.message || "Account verified and registered successfully!" } });
+        } catch (error) {
+            setFormError(
+                error.response?.data?.message || "Invalid or expired OTP."
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const fieldClass = (name) =>
-        `w-full border pl-10 pr-3.5 h-11 rounded text-[13px] outline-none transition-colors duration-150 ease-in-out bg-[#FCFBF7] text-[#232320] ${errors[name]
-            ? "border-[#8E3B30] focus:border-[#8E3B30]"
-            : "border-[#DEDBCF] focus:border-[#A2782E]"
+        `w-full border pl-10 pr-3.5 h-11 rounded-xl text-xs font-medium outline-none transition-all bg-gray-50/50 text-gray-900 shadow-2xs ${errors[name]
+            ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
+            : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
         }`;
 
     const FieldError = ({ name }) =>
         errors[name] ? (
-            <p id={`${name}-error`} role="alert" className="text-[12px] text-[#8E3B30] mt-1.5 flex items-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M12 8v5" />
-                    <path d="M12 16h.01" />
-                </svg>
+            <p id={`${name}-error`} role="alert" className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
                 {errors[name]}
             </p>
         ) : null;
 
     return (
-        <div className="min-h-screen bg-[#F5F4EF] bg-[radial-gradient(900px_420px_at_100%_-10%,rgba(31,42,68,0.05),transparent_60%)] font-['Inter',sans-serif] text-[#232320] flex items-center justify-center px-4 py-10">
-            {/* Note: prefer moving this @import into a global stylesheet/index.html
-                so it isn't re-injected on every mount. Left inline to preserve
-                the original single-file structure. */}
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
+        <div className="min-h-screen bg-gray-50 text-gray-800 font-['Inter',sans-serif] flex items-center justify-center px-4 py-12 relative overflow-hidden">
 
-            <div className="w-full max-w-md bg-white border border-[#E1DECF] rounded-md p-8 shadow-[0_1px_2px_rgba(30,28,20,0.03),0_12px_26px_-18px_rgba(30,28,20,0.18)]">
+            {/* Background subtle decorative elements */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div className="w-full max-w-md bg-white border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl relative z-10">
+
+                {/* Brand Header */}
                 <div className="text-center mb-8">
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.22em] text-[#A2782E] mt-0 mb-2.5">
-                        NEW REGISTRATION
-                    </p>
-                    <h1 className="font-['Space_Grotesk',sans-serif] font-semibold text-[26px] tracking-[-0.01em] m-0 text-[#1B2537]">
-                        Create account
+                    <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <Hotel size={22} />
+                    </div>
+                    <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
+                        {step === 1 ? "New Registration" : "Email Verification"}
+                    </span>
+                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 m-0 tracking-tight">
+                        {step === 1 ? "Create Account" : "Enter OTP"}
                     </h1>
-                    <p className="text-[#8C8676] text-[13px] mt-2 mb-0">
-                        Sign up to get started
+                    <p className="text-gray-500 text-xs mt-1 font-medium">
+                        {step === 1 ? "Join AuraStays to book luxury stays" : `We've sent a 6-digit code to ${formData.email}`}
                     </p>
                 </div>
 
-                {formError && (
-                    <div
-                        role="alert"
-                        className="mb-4 rounded border border-[#E7C9C3] bg-[#FBF0EE] text-[#8E3B30] text-[13px] px-3.5 py-2.5 flex items-start gap-2"
-                    >
-                        <svg className="mt-[1px] shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="9" />
-                            <path d="M12 8v5" />
-                            <path d="M12 16h.01" />
-                        </svg>
-                        {formError}
+                {/* Success Message Alert */}
+                {successMessage && step === 2 && (
+                    <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
+                        <AlertCircle className="mt-0.5 shrink-0" size={14} />
+                        <span>{successMessage}</span>
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                    <div>
-                        <label htmlFor="signup-name" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-                            Name
-                        </label>
-                        <div className="relative">
-                            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                                <path d="M20 21a8 8 0 1 0-16 0" />
-                                <circle cx="12" cy="7" r="4" />
-                            </svg>
-                            <input
-                                id="signup-name"
-                                type="text"
-                                name="name"
-                                autoComplete="name"
-                                placeholder="Enter your name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                aria-invalid={!!errors.name}
-                                aria-describedby={errors.name ? "name-error" : undefined}
-                                className={fieldClass("name")}
-                            />
-                        </div>
-                        <FieldError name="name" />
-                    </div>
-
-                    <div>
-                        <label htmlFor="signup-email" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-                            Email
-                        </label>
-                        <div className="relative">
-                            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                                <rect x="2" y="4" width="20" height="16" rx="2" />
-                                <path d="M2 7l10 6 10-6" />
-                            </svg>
-                            <input
-                                id="signup-email"
-                                type="email"
-                                name="email"
-                                autoComplete="email"
-                                placeholder="Enter your email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                aria-invalid={!!errors.email}
-                                aria-describedby={errors.email ? "email-error" : undefined}
-                                className={fieldClass("email")}
-                            />
-                        </div>
-                        <FieldError name="email" />
-                    </div>
-
-                    <div>
-                        <label htmlFor="signup-password" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-                            Password
-                        </label>
-                        <div className="relative">
-                            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                                <rect x="3" y="11" width="18" height="10" rx="2" />
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                            </svg>
-                            <input
-                                id="signup-password"
-                                type={showPassword ? "text" : "password"}
-                                name="password"
-                                autoComplete="new-password"
-                                placeholder="Enter your password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                aria-invalid={!!errors.password}
-                                aria-describedby={errors.password ? "password-error" : undefined}
-                                className={fieldClass("password") + " pr-10"}
-                            />
-                            <button
-                                type="button"
-                                aria-label={showPassword ? "Hide password" : "Show password"}
-                                aria-pressed={showPassword}
-                                onClick={() => setShowPassword((v) => !v)}
-                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A39C89] hover:text-[#A2782E] transition-colors duration-150"
-                            >
-                                <EyeIcon open={showPassword} />
-                            </button>
-                        </div>
-                        <FieldError name="password" />
-                    </div>
-
-                    <div>
-                        <label htmlFor="signup-confirm-password" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-                            Confirm password
-                        </label>
-                        <div className="relative">
-                            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                                <rect x="3" y="11" width="18" height="10" rx="2" />
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                            </svg>
-                            <input
-                                id="signup-confirm-password"
-                                type={showConfirm ? "text" : "password"}
-                                name="confirmPassword"
-                                autoComplete="new-password"
-                                placeholder="Confirm your password"
-                                value={formData.confirmPassword}
-                                onChange={handleChange}
-                                aria-invalid={!!errors.confirmPassword}
-                                aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}
-                                className={fieldClass("confirmPassword") + " pr-10"}
-                            />
-                            <button
-                                type="button"
-                                aria-label={showConfirm ? "Hide password" : "Show password"}
-                                aria-pressed={showConfirm}
-                                onClick={() => setShowConfirm((v) => !v)}
-                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A39C89] hover:text-[#A2782E] transition-colors duration-150"
-                            >
-                                <EyeIcon open={showConfirm} />
-                            </button>
-                        </div>
-                        <FieldError name="confirmPassword" />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full h-11 rounded-[3px] font-['Inter',sans-serif] font-semibold text-[13.5px] bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A] disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out cursor-pointer flex items-center justify-center gap-2 mt-2"
+                {/* Form Level Error */}
+                {formError && (
+                    <div
+                        role="alert"
+                        className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs"
                     >
-                        {loading && (
-                            <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M21 12a9 9 0 1 1-9-9" />
-                            </svg>
-                        )}
-                        {loading ? "Creating account…" : "Sign up"}
-                    </button>
-                </form>
+                        <AlertCircle className="mt-0.5 shrink-0" size={14} />
+                        <span>{formError}</span>
+                    </div>
+                )}
 
-                <p className="text-center mt-6 text-[13px] text-[#8C8676]">
-                    Already have an account?{" "}
-                    <Link to="/login" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
-                        Log in
-                    </Link>
-                </p>
-                <p className="text-center mt-2.5 text-[13px] text-[#8C8676]">
-                    Want to create an admin account?{" "}
-                    <Link to="/adminSignup" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
-                        Sign up as admin
-                    </Link>
-                </p>
+                {/* STEP 1: Registration Form */}
+                {step === 1 && (
+                    <form onSubmit={handleSendOtp} noValidate className="space-y-4">
+                        <div>
+                            <label htmlFor="signup-name" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                                Full Name
+                            </label>
+                            <div className="relative">
+                                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    id="signup-name"
+                                    type="text"
+                                    name="name"
+                                    autoComplete="name"
+                                    placeholder="Enter your full name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    aria-invalid={!!errors.name}
+                                    aria-describedby={errors.name ? "name-error" : undefined}
+                                    className={fieldClass("name")}
+                                />
+                            </div>
+                            <FieldError name="name" />
+                        </div>
 
-                <div className="mt-6 border-t border-[#DEDBCF] pt-4 space-y-2">
-                    <p className="text-center text-[13px] text-[#8C8676]">
-                        Already submitted an admin request?{" "}
-                        <Link to="/checkStatus" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
-                            Check Admin Status
+                        <div>
+                            <label htmlFor="signup-email" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                                Email Address
+                            </label>
+                            <div className="relative">
+                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    id="signup-email"
+                                    type="email"
+                                    name="email"
+                                    autoComplete="email"
+                                    placeholder="name@example.com"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    aria-invalid={!!errors.email}
+                                    aria-describedby={errors.email ? "email-error" : undefined}
+                                    className={fieldClass("email")}
+                                />
+                            </div>
+                            <FieldError name="email" />
+                        </div>
+
+                        <div>
+                            <label htmlFor="signup-password" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                                Password
+                            </label>
+                            <div className="relative">
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    id="signup-password"
+                                    type={showPassword ? "text" : "password"}
+                                    name="password"
+                                    autoComplete="new-password"
+                                    placeholder="At least 6 characters"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    aria-invalid={!!errors.password}
+                                    aria-describedby={errors.password ? "password-error" : undefined}
+                                    className={fieldClass("password") + " pr-11"}
+                                />
+                                <button
+                                    type="button"
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                    aria-pressed={showPassword}
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+                                >
+                                    <EyeIcon open={showPassword} />
+                                </button>
+                            </div>
+                            <FieldError name="password" />
+                        </div>
+
+                        <div>
+                            <label htmlFor="signup-confirm-password" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                                Confirm Password
+                            </label>
+                            <div className="relative">
+                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    id="signup-confirm-password"
+                                    type={showConfirm ? "text" : "password"}
+                                    name="confirmPassword"
+                                    autoComplete="new-password"
+                                    placeholder="Re-enter your password"
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    aria-invalid={!!errors.confirmPassword}
+                                    aria-describedby={errors.confirmPassword ? "confirmPassword-error" : undefined}
+                                    className={fieldClass("confirmPassword") + " pr-11"}
+                                />
+                                <button
+                                    type="button"
+                                    aria-label={showConfirm ? "Hide password" : "Show password"}
+                                    aria-pressed={showConfirm}
+                                    onClick={() => setShowConfirm((v) => !v)}
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+                                >
+                                    <EyeIcon open={showConfirm} />
+                                </button>
+                            </div>
+                            <FieldError name="confirmPassword" />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                        >
+                            {loading && <Loader2 className="animate-spin" size={15} />}
+                            {loading ? "Sending OTP..." : "Continue & Send OTP"}
+                        </button>
+                    </form>
+                )}
+
+                {/* STEP 2: OTP Verification Form */}
+                {step === 2 && (
+                    <form onSubmit={handleVerifyOtp} className="space-y-4">
+                        <div>
+                            <label htmlFor="otp-input" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                                Verification Code (OTP)
+                            </label>
+                            <div className="relative">
+                                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    id="otp-input"
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={6}
+                                    placeholder="Enter 6-digit OTP"
+                                    value={otp}
+                                    onChange={(e) => setOtp(e.target.value)}
+                                    className="w-full border pl-10 pr-3.5 h-11 rounded-xl text-xs font-bold outline-none transition-all bg-gray-50/50 text-gray-900 border-gray-200 focus:border-blue-500 focus:bg-white tracking-widest shadow-2xs"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
+                        >
+                            {loading && <Loader2 className="animate-spin" size={15} />}
+                            {loading ? "Verifying..." : "Verify & Complete Signup"}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => { setStep(1); setOtp(""); setFormError(""); }}
+                            className="w-full text-center text-xs text-gray-500 hover:text-gray-900 mt-3 font-medium transition cursor-pointer"
+                        >
+                            ← Back to registration details
+                        </button>
+                    </form>
+                )}
+
+                <div className="mt-8 border-t border-gray-100 pt-6 flex flex-col items-center justify-center gap-2 text-xs text-center">
+                    <p className="text-gray-500 font-medium">
+                        Already have an account?{" "}
+                        <Link to="/login" className="text-gray-900 font-bold hover:text-blue-600 underline underline-offset-4">
+                            Log in
                         </Link>
                     </p>
-
-                    <p className="text-center text-[13px] text-[#8C8676]">
-                        Already submitted a hotel request?{" "}
-                        <Link to="/hotelStatus" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
-                            Check Hotel Status
+                    <p className="text-gray-500 font-medium">
+                        Want to manage properties?{" "}
+                        <Link to="/adminSignup" className="text-blue-600 font-bold hover:underline underline-offset-4">
+                            Sign up as admin
                         </Link>
                     </p>
                 </div>
+
             </div>
         </div>
     );

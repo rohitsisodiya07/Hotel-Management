@@ -2,6 +2,21 @@ import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { signupApi } from "../api";
+import {
+  Hotel,
+  User,
+  Mail,
+  Phone,
+  ShieldCheck,
+  Upload,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  ArrowRight,
+  FileText,
+  Building2,
+  KeyRound
+} from "lucide-react";
 
 const initialForm = {
   name: "",
@@ -20,6 +35,9 @@ const SignupAdmin = () => {
   const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState(initialForm);
+  const [step, setStep] = useState(1); // Step 1: Details & Upload, Step 2: OTP Verification
+  const [adminId, setAdminId] = useState("");
+  const [otp, setOtp] = useState("");
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +77,6 @@ const SignupAdmin = () => {
     getAdmin();
   }, [id]);
 
-  // Revoke object URLs created for local file previews to avoid memory leaks
   useEffect(() => {
     return () => {
       if (imagePreview?.startsWith("blob:")) {
@@ -70,15 +87,12 @@ const SignupAdmin = () => {
 
   const validateFile = (file) => {
     if (!file) return "";
-
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
       return "Only JPG, PNG and WEBP files are allowed";
     }
-
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
       return `File size should be less than ${MAX_IMAGE_MB} MB`;
     }
-
     return "";
   };
 
@@ -155,10 +169,28 @@ const SignupAdmin = () => {
     setErrors((prev) => ({ ...prev, [name]: validateField(name, formData[name]) }));
   };
 
+  // Step 1: Send OTP to Email
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError("");
     setFormSuccess("");
+
+    if (isEdit) {
+      try {
+        setSubmitting(true);
+        const data = new FormData();
+        Object.entries(formData).forEach(([key, val]) => {
+          if (val !== null && val !== "") data.append(key, val);
+        });
+        const response = await axios.patch(`${signupApi}admin/updateRequest/${id}`, data);
+        navigate("/checkStatus", { state: { statusMessage: response.data.message } });
+      } catch (error) {
+        setFormError(error.response?.data?.message || "Something went wrong.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     const allErrors = validateAll(formData);
     setTouched(
@@ -171,25 +203,17 @@ const SignupAdmin = () => {
     try {
       setSubmitting(true);
 
-      const data = new FormData();
-      Object.entries(formData).forEach(([key, val]) => {
-        if (val !== null && val !== "") data.append(key, val);
-      });
+      const payload = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        mobile: formData.mobile.trim(),
+      };
 
-      const response = isEdit
-        ? await axios.patch(`${signupApi}admin/updateRequest/${id}`, data)
-        : await axios.post(`${signupApi}admin/create`, data);
+      const response = await axios.post(`${signupApi}admin/sendAdminSignupOtp`, payload);
 
-      if (isEdit) {
-        navigate("/checkStatus", { state: { statusMessage: response.data.message } });
-      } else {
-        setFormSuccess(response.data.message || "Request submitted successfully.");
-        setFormData(initialForm);
-        setErrors({});
-        setTouched({});
-        setImagePreview(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      }
+      setAdminId(response.data.tempId);
+      setFormSuccess(response.data.message || "OTP sent successfully to your email.");
+      setStep(2); // Move to Step 2 (OTP Verification)
     } catch (error) {
       setFormError(error.response?.data?.message || "Something went wrong. Please try again.");
     } finally {
@@ -197,259 +221,342 @@ const SignupAdmin = () => {
     }
   };
 
+  // Step 2: Verify OTP and Finalize Request (with Image upload)
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setFormError("");
+
+    if (!otp.trim()) {
+      setFormError("Please enter the verification OTP");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const data = new FormData();
+      data.append("adminId", adminId);
+      data.append("otp", otp.trim());
+      if (formData.profileImage) {
+        data.append("profileImage", formData.profileImage);
+      }
+
+      const response = await axios.post(`${signupApi}admin/verifyAndCreateAdmin`, data);
+
+      navigate("/checkStatus", { state: { statusMessage: response.data.message || "Request submitted successfully. Tracking ID sent to email." } });
+    } catch (error) {
+      setFormError(error.response?.data?.message || "Invalid or expired OTP.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const fieldClass = (name) =>
-    `w-full border pl-10 pr-3.5 h-11 rounded text-[13px] outline-none transition-colors duration-150 ease-in-out bg-[#FCFBF7] text-[#232320] ${errors[name] && touched[name]
-      ? "border-[#8E3B30] focus:border-[#8E3B30]"
-      : "border-[#DEDBCF] focus:border-[#A2782E]"
+    `w-full border pl-10 pr-3.5 h-11 rounded-xl text-xs font-medium outline-none transition-all bg-gray-50/50 text-gray-900 shadow-2xs ${errors[name] && touched[name]
+      ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
+      : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
     }`;
 
   const FieldError = ({ name }) =>
     errors[name] && touched[name] ? (
-      <p id={`${name}-error`} role="alert" className="text-[12px] text-[#8E3B30] mt-1.5 flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 8v5" />
-          <path d="M12 16h.01" />
-        </svg>
+      <p id={`${name}-error`} role="alert" className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+        <AlertCircle size={12} />
         {errors[name]}
       </p>
     ) : null;
 
   if (loadingAdmin) {
     return (
-      <div className="min-h-screen bg-[#F5F4EF] flex items-center justify-center px-4 py-10">
-        <p className="text-[#8C8676] text-[13px] font-['Inter',sans-serif]">Loading request…</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="animate-spin text-blue-600" size={28} />
+          <p className="text-gray-400 text-xs font-['IBM_Plex_Mono',monospace] uppercase tracking-wider font-semibold">Loading request...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F4EF] bg-[radial-gradient(900px_420px_at_100%_-10%,rgba(31,42,68,0.05),transparent_60%)] font-['Inter',sans-serif] text-[#232320] flex items-center justify-center px-4 py-10">
-      {/* Note: prefer moving this @import into a global stylesheet/index.html
-                so it isn't re-injected on every mount. Left inline to preserve
-                the original single-file structure. */}
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
+    <div className="min-h-screen bg-gray-50 text-gray-800 font-['Inter',sans-serif] flex items-center justify-center px-4 py-12 relative overflow-hidden">
 
-      <div className="w-full max-w-2xl bg-white border border-[#E1DECF] rounded-md p-8 shadow-[0_1px_2px_rgba(30,28,20,0.03),0_12px_26px_-18px_rgba(30,28,20,0.18)]">
+      {/* Background Decorative Glows */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div className="w-full max-w-xl bg-white border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl relative z-10">
+
+        {/* Header */}
         <div className="text-center mb-8">
-          <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.22em] text-[#A2782E] mt-0 mb-2.5">
-            {isEdit ? "UPDATE REQUEST" : "ADMIN REGISTRATION"}
-          </p>
-          <h1 className="font-['Space_Grotesk',sans-serif] font-semibold text-[26px] tracking-[-0.01em] m-0 text-[#1B2537]">
-            {isEdit ? "Update admin request" : "Admin registration"}
+          <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center mx-auto mb-4 shadow-sm">
+            <ShieldCheck size={22} />
+          </div>
+          <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
+            {step === 1 ? (isEdit ? "Update Request" : "Executive Access") : "Verification Required"}
+          </span>
+          <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 m-0 tracking-tight">
+            {step === 1 ? (isEdit ? "Update Admin Request" : "Admin Registration") : "Verify Application OTP"}
           </h1>
-          <p className="text-[#8C8676] text-[13px] mt-2 mb-0">
-            Submit your admin registration request. Once approved, login credentials
-            will be sent to your email.
+          <p className="text-gray-500 text-xs mt-1 max-w-md mx-auto font-medium">
+            {step === 1
+              ? "Submit your management registration request. Once verified, credentials will be dispatched to your email."
+              : `Enter the 6-digit verification code sent to ${formData.email} to generate your Tracking ID.`}
           </p>
         </div>
 
+        {/* Success Alert */}
         {formSuccess && (
-          <div
-            role="status"
-            className="mb-4 rounded border border-[#E4D2A0] bg-[#FBF6E9] text-[#7A5A1E] text-[13px] px-3.5 py-2.5 flex items-start gap-2"
-          >
-            <svg className="mt-[1px] shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-            {formSuccess}
+          <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
+            <CheckCircle2 className="mt-0.5 shrink-0" size={14} />
+            <span>{formSuccess}</span>
           </div>
         )}
 
+        {/* Error Alert */}
         {formError && (
-          <div
-            role="alert"
-            className="mb-4 rounded border border-[#E7C9C3] bg-[#FBF0EE] text-[#8E3B30] text-[13px] px-3.5 py-2.5 flex items-start gap-2"
-          >
-            <svg className="mt-[1px] shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v5" />
-              <path d="M12 16h.01" />
-            </svg>
-            {formError}
+          <div role="alert" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
+            <AlertCircle className="mt-0.5 shrink-0" size={14} />
+            <span>{formError}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          <div>
-            <label htmlFor="admin-name" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-              Name
-            </label>
-            <div className="relative">
-              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                <path d="M20 21a8 8 0 1 0-16 0" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              <input
-                id="admin-name"
-                type="text"
-                name="name"
-                autoComplete="name"
-                placeholder="Enter your name"
-                value={formData.name}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                aria-invalid={!!(errors.name && touched.name)}
-                aria-describedby={errors.name && touched.name ? "name-error" : undefined}
-                className={fieldClass("name")}
-              />
+        {/* STEP 1: Registration Form */}
+        {step === 1 && (
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+
+            {/* Name Field */}
+            <div>
+              <label htmlFor="admin-name" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                Full Name
+              </label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  id="admin-name"
+                  type="text"
+                  name="name"
+                  autoComplete="name"
+                  placeholder="Enter your full name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  aria-invalid={!!(errors.name && touched.name)}
+                  aria-describedby={errors.name && touched.name ? "name-error" : undefined}
+                  className={fieldClass("name")}
+                />
+              </div>
+              <FieldError name="name" />
             </div>
-            <FieldError name="name" />
-          </div>
 
-          <div>
-            <label htmlFor="admin-email" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-              Email
-            </label>
-            <div className="relative">
-              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <path d="M2 7l10 6 10-6" />
-              </svg>
-              <input
-                id="admin-email"
-                type="email"
-                name="email"
-                autoComplete="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                aria-invalid={!!(errors.email && touched.email)}
-                aria-describedby={errors.email && touched.email ? "email-error" : undefined}
-                className={fieldClass("email")}
-              />
+            {/* Email Field */}
+            <div>
+              <label htmlFor="admin-email" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  id="admin-email"
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  placeholder="name@example.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  aria-invalid={!!(errors.email && touched.email)}
+                  aria-describedby={errors.email && touched.email ? "email-error" : undefined}
+                  className={fieldClass("email")}
+                />
+              </div>
+              <FieldError name="email" />
             </div>
-            <FieldError name="email" />
-          </div>
 
-          <div>
-            <label htmlFor="admin-mobile" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-              Mobile number
-            </label>
-            <div className="relative">
-              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                <rect x="6" y="2" width="12" height="20" rx="2" />
-                <path d="M11 18h2" />
-              </svg>
-              <input
-                id="admin-mobile"
-                type="tel"
-                inputMode="numeric"
-                name="mobile"
-                maxLength={10}
-                autoComplete="tel"
-                placeholder="Enter mobile number"
-                value={formData.mobile}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                aria-invalid={!!(errors.mobile && touched.mobile)}
-                aria-describedby={errors.mobile && touched.mobile ? "mobile-error" : undefined}
-                className={fieldClass("mobile")}
-              />
+            {/* Mobile Field */}
+            <div>
+              <label htmlFor="admin-mobile" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                Mobile Number
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  id="admin-mobile"
+                  type="tel"
+                  inputMode="numeric"
+                  name="mobile"
+                  maxLength={10}
+                  autoComplete="tel"
+                  placeholder="10-digit mobile number"
+                  value={formData.mobile}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  aria-invalid={!!(errors.mobile && touched.mobile)}
+                  aria-describedby={errors.mobile && touched.mobile ? "mobile-error" : undefined}
+                  className={fieldClass("mobile")}
+                />
+              </div>
+              <FieldError name="mobile" />
             </div>
-            <FieldError name="mobile" />
-          </div>
 
-          <div>
-            <label htmlFor="admin-image" className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">
-              Profile image
-            </label>
+            {/* Profile Image Field */}
+            <div>
+              <label htmlFor="admin-image" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                Profile Verification Image
+              </label>
 
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full border border-[#DEDBCF] bg-[#FCFBF7] shrink-0 overflow-hidden flex items-center justify-center">
-                {imagePreview ? (
-                  <img src={imagePreview} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A39C89" strokeWidth="1.8">
-                    <rect x="3" y="5" width="18" height="14" rx="2" />
-                    <circle cx="9" cy="10" r="2" />
-                    <path d="M21 16l-4.5-4.5a2 2 0 0 0-2.8 0L7 18" />
-                  </svg>
-                )}
+              <div className="flex items-center gap-3.5 p-2 bg-gray-50/60 border border-gray-200 rounded-2xl">
+                <div className="w-12 h-12 rounded-xl border border-gray-200 bg-white shrink-0 overflow-hidden flex items-center justify-center shadow-2xs">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <Upload size={18} className="text-gray-400" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <label
+                    htmlFor="admin-image"
+                    className="cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold text-gray-900 bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 transition-all px-3.5 py-2 rounded-xl shadow-2xs"
+                  >
+                    <Upload size={13} />
+                    {formData.profileImage ? "Change photo" : "Upload photo"}
+                  </label>
+                  {formData.profileImage && (
+                    <p className="text-[11px] text-gray-500 truncate mt-1 font-medium">
+                      {formData.profileImage.name}
+                    </p>
+                  )}
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  id="admin-image"
+                  type="file"
+                  name="profileImage"
+                  accept={ACCEPTED_IMAGE_TYPES.join(",")}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  aria-invalid={!!(errors.profileImage && touched.profileImage)}
+                  aria-describedby={errors.profileImage && touched.profileImage ? "profileImage-error" : undefined}
+                  className="sr-only"
+                />
               </div>
 
-              <label
-                htmlFor="admin-image"
-                className="cursor-pointer text-[13px] font-medium text-[#1B2537] border border-[#DEDBCF] bg-[#FCFBF7] hover:border-[#A2782E] hover:text-[#A2782E] transition-colors duration-150 rounded px-3.5 h-11 flex items-center"
-              >
-                {formData.profileImage ? "Change file" : "Choose file"}
-              </label>
-              <input
-                ref={fileInputRef}
-                id="admin-image"
-                type="file"
-                name="profileImage"
-                accept={ACCEPTED_IMAGE_TYPES.join(",")}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                aria-invalid={!!(errors.profileImage && touched.profileImage)}
-                aria-describedby={errors.profileImage && touched.profileImage ? "profileImage-error" : undefined}
-                className="sr-only"
-              />
-
-              {formData.profileImage && (
-                <span className="text-[12.5px] text-[#8C8676] truncate">
-                  {formData.profileImage.name}
-                </span>
-              )}
+              <p className="text-[11px] text-gray-400 mt-1 pl-1 font-medium">
+                JPG, PNG or WEBP format. Maximum file size {MAX_IMAGE_MB}MB.
+              </p>
+              <FieldError name="profileImage" />
             </div>
 
-            <p className="text-[11.5px] text-[#8C8676] mt-1.5">
-              JPG, PNG or WEBP, up to {MAX_IMAGE_MB}MB.
-            </p>
-            <FieldError name="profileImage" />
-          </div>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
+            >
+              {submitting && <Loader2 className="animate-spin" size={15} />}
+              {submitting
+                ? isEdit
+                  ? "Updating..."
+                  : "Sending OTP..."
+                : isEdit
+                  ? "Update Request"
+                  : "Continue & Send OTP"}
+            </button>
+          </form>
+        )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full h-11 rounded-[3px] font-['Inter',sans-serif] font-semibold text-[13.5px] bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A] disabled:opacity-60 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out cursor-pointer flex items-center justify-center gap-2 mt-2"
-          >
-            {submitting && (
-              <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M21 12a9 9 0 1 1-9-9" />
-              </svg>
-            )}
-            {submitting
-              ? isEdit
-                ? "Updating…"
-                : "Submitting…"
-              : isEdit
-                ? "Update request"
-                : "Submit request"}
-          </button>
-        </form>
+        {/* STEP 2: OTP Verification Form */}
+        {step === 2 && (
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <div>
+              <label htmlFor="admin-otp" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                Verification Code (OTP)
+              </label>
+              <div className="relative">
+                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  id="admin-otp"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="Enter 6-digit OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="w-full border pl-10 pr-3.5 h-11 rounded-xl text-xs font-bold outline-none transition-all bg-gray-50/50 text-gray-900 border-gray-200 focus:border-blue-500 focus:bg-white tracking-widest shadow-2xs"
+                />
+              </div>
+            </div>
 
-        <div className="mt-6 border-t border-[#DEDBCF] pt-4 space-y-2">
-          <p className="text-center text-[13px] text-[#8C8676]">
-            New user?{" "}
-            <Link to="/" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
-              Sign up as User
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
+            >
+              {submitting && <Loader2 className="animate-spin" size={15} />}
+              {submitting ? "Verifying..." : "Verify & Generate Tracking ID"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep(1); setOtp(""); setFormError(""); }}
+              className="w-full text-center text-xs text-gray-500 hover:text-gray-900 mt-3 font-medium transition cursor-pointer"
+            >
+              ← Back to application details
+            </button>
+          </form>
+        )}
+
+        {/* Simplified User & Login Navigation Footer */}
+        <div className="mt-8 border-t border-gray-100 pt-6 flex flex-col items-center justify-center gap-2 text-xs text-center">
+          <p className="text-gray-500 font-medium">
+            Looking for regular user account?{" "}
+            <Link to="/signup" className="text-gray-900 font-bold hover:text-blue-600 underline underline-offset-4">
+              Sign up as user
             </Link>
           </p>
-
-          <p className="text-center text-[13px] text-[#8C8676]">
+          <p className="text-gray-500 font-medium">
             Already have an account?{" "}
-            <Link to="/login" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
+            <Link to="/login" className="text-gray-900 font-bold hover:text-blue-600 underline underline-offset-4">
               Log in
             </Link>
           </p>
-
-          <p className="text-center text-[13px] text-[#8C8676]">
-            Already submitted an admin request?{" "}
-            <Link to="/checkStatus" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
-              Check Admin Status
-            </Link>
-          </p>
-
-          <p className="text-center text-[13px] text-[#8C8676]">
-            Already submitted a hotel request?{" "}
-            <Link to="/hotelStatus" className="text-[#1B2537] font-medium hover:text-[#A2782E]">
-              Check Hotel Status
-            </Link>
-          </p>
         </div>
+
+        {/* Sleek Vertical Status Tabs */}
+        <div className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Link
+            to="/checkStatus"
+            className="flex items-center justify-between p-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 hover:bg-blue-50/40 hover:border-blue-300 transition-all group shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-blue-600 group-hover:scale-105 transition shadow-2xs">
+                <FileText size={15} />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-['IBM_Plex_Mono',monospace] text-gray-400 uppercase font-bold">Tracker</p>
+                <p className="text-xs font-bold text-gray-900">Check Admin Status</p>
+              </div>
+            </div>
+            <ArrowRight size={14} className="text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+          </Link>
+
+          <Link
+            to="/hotelStatus"
+            className="flex items-center justify-between p-3.5 rounded-2xl border border-gray-200 bg-gray-50/50 hover:bg-blue-50/40 hover:border-blue-300 transition-all group shadow-2xs"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-blue-600 group-hover:scale-105 transition shadow-2xs">
+                <Building2 size={15} />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-['IBM_Plex_Mono',monospace] text-gray-400 uppercase font-bold">Tracker</p>
+                <p className="text-xs font-bold text-gray-900">Check Hotel Status</p>
+              </div>
+            </div>
+            <ArrowRight size={14} className="text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+          </Link>
+        </div>
+
       </div>
     </div>
   );

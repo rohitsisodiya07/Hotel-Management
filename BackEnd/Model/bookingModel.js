@@ -81,10 +81,11 @@ const bookingSchema = new mongoose.Schema(
         bookingStatus: {
             type: String,
             enum: [
-                "Pending",
-                "Confirmed",
-                "Cancelled",
-                "Completed",
+                "Pending",      // User ne reserve kiya
+                "Confirmed",    // Hotel admin ne accept kiya
+                "Checked In",   // Guest hotel me aa gaya
+                "Completed",    // Guest checkout karke stay complete
+                "Cancelled",    // Booking cancel
             ],
             default: "Pending",
         },
@@ -115,6 +116,26 @@ const bookingSchema = new mongoose.Schema(
             type: String,
             trim: true,
             default: "",
+        },
+
+        // ==========================================
+        // ⭐ NEW ADDITIONS FOR REVIEW & CANCEL
+        // ==========================================
+        cancelReason: {
+            type: String,
+            trim: true,
+            default: "",
+        },
+
+        isReviewed: {
+            type: Boolean,
+            default: false,
+        },
+
+        review: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Review", // Review model ka ref
+            default: null,
         },
     },
     {

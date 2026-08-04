@@ -1,445 +1,372 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
+import { Plus, Search, Eye, Edit, Ban, RotateCcw, Trash2, Loader2, MapPin, CheckCircle2, AlertTriangle, X, RefreshCw } from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 const City = () => {
   const [showModal, setShowModal] = useState(false);
-
   const [showViewModal, setShowViewModal] = useState(false);
-
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [loading, setLoading] = useState(false);
-
   const [activeTab, setActiveTab] = useState("active");
 
   const [cityName, setCityName] = useState("");
-
   const [districtId, setDistrictId] = useState("");
 
   const [districts, setDistricts] = useState([]);
-
   const [cities, setCities] = useState([]);
-
   const [inactiveCities, setInactiveCities] = useState([]);
-
   const [viewData, setViewData] = useState(null);
 
   const [isEdit, setIsEdit] = useState(false);
-
   const [editId, setEditId] = useState("");
+  const [deleteId, setDeleteId] = useState(null);
 
-  // Search & Sort
   const [search, setSearch] = useState("");
-
   const [sort, setSort] = useState("asc");
-
   const [districtFilter, setDistrictFilter] = useState("");
 
-  // ================= DISTRICTS =================
-  const getDistricts = async () => {
-    try {
-      const response = await axios.get(`${signupApi}district/active`);
+  useEffect(() => {
+    fetchAllData();
+  }, []);
 
-      setDistricts(response.data.result);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  // ================= ACTIVE CITIES =================
-  const getCities = async () => {
+  const fetchAllData = async () => {
     try {
       setLoading(true);
-
-      const response = await axios.get(`${signupApi}city/active`);
-
-      setCities(response.data.result);
+      const [districtsRes, activeRes, inactiveRes] = await Promise.all([
+        axios.get(`${signupApi}district/active`),
+        axios.get(`${signupApi}city/active`),
+        axios.get(`${signupApi}city/inactive`),
+      ]);
+      setDistricts(districtsRes.data.result || []);
+      setCities(activeRes.data.result || []);
+      setInactiveCities(inactiveRes.data.result || []);
     } catch (error) {
-      console.log(error);
+      console.error(error);
+      toast.error("Failed to load city data.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ================= INACTIVE CITIES =================
-  const getInactiveCities = async () => {
-    try {
-      const response = await axios.get(`${signupApi}city/inactive`);
-
-      setInactiveCities(response.data.result);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  useEffect(() => {
-    getDistricts();
-    getCities();
-    getInactiveCities();
-  }, []);
-
-  // ================= CREATE & UPDATE =================
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!cityName.trim() || !districtId) {
-      return alert("City name and District are required");
+      toast.error("City name and District are required");
+      return;
     }
 
     try {
-      let response;
+      const endpoint = isEdit ? `city/update/${editId}` : `city/create`;
+      const method = isEdit ? axios.patch : axios.post;
 
-      if (isEdit) {
-        response = await axios.patch(`${signupApi}city/update/${editId}`, {
-          cityName,
-          districtId,
-        });
-      } else {
-        response = await axios.post(`${signupApi}city/create`, {
-          cityName,
-          districtId,
-        });
-      }
+      const response = await method(`${signupApi}${endpoint}`, {
+        cityName,
+        districtId,
+      });
 
-      alert(response.data.message);
-
+      toast.success(response.data.message || (isEdit ? "City successfully modified." : "City successfully created."));
       setCityName("");
       setDistrictId("");
       setShowModal(false);
       setIsEdit(false);
       setEditId("");
-
-      getCities();
-      getInactiveCities();
+      fetchAllData();
     } catch (error) {
-      alert(error.response?.data?.message || "Something went wrong");
+      toast.error(error.response?.data?.message || "Something went wrong.");
     }
   };
 
-  // ================= VIEW =================
   const handleView = async (id) => {
     try {
       const response = await axios.get(`${signupApi}city/${id}`);
-
       setViewData(response.data.result);
       setShowViewModal(true);
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to fetch city details.");
     }
   };
 
-  // ================= EDIT =================
   const handleEdit = (item) => {
     setIsEdit(true);
     setEditId(item._id);
     setCityName(item.cityName);
-    setDistrictId(item.districtId?._id);
+    setDistrictId(item.districtId?._id || "");
     setShowModal(true);
   };
 
-  // ================= INACTIVE =================
   const handleInactive = async (id) => {
     try {
       const response = await axios.patch(`${signupApi}city/inactive/${id}`);
-
-      alert(response.data.message);
-
-      getCities();
-      getInactiveCities();
+      toast.success(response.data.message || "City marked as inactive.");
+      fetchAllData();
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to update status.");
     }
   };
 
-  // ================= RESTORE =================
   const handleRestore = async (id) => {
     try {
       const response = await axios.patch(`${signupApi}city/restore/${id}`);
-
-      alert(response.data.message);
-
-      getCities();
-      getInactiveCities();
+      toast.success(response.data.message || "City restored successfully.");
+      fetchAllData();
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to restore city.");
     }
   };
 
-  // ================= DELETE =================
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this city? This can't be undone.")) return;
+  const confirmDelete = (id) => {
+    setDeleteId(id);
+    setShowDeleteModal(true);
+  };
 
+  const handleDelete = async () => {
+    if (!deleteId) return;
     try {
-      const response = await axios.delete(`${signupApi}city/${id}`);
-
-      alert(response.data.message);
-
-      getCities();
-      getInactiveCities();
+      const response = await axios.delete(`${signupApi}city/${deleteId}`);
+      toast.success(response.data.message || "City permanently deleted.");
+      setShowDeleteModal(false);
+      setDeleteId(null);
+      fetchAllData();
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Error executing deletion.");
     }
   };
 
-  // Registry-style code chip derived from the city name (visual only)
-  const codeFor = (name = "") =>
-    name
-      .trim()
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join("")
-      .slice(0, 3)
-      .toUpperCase();
+  const codeFor = (name = "") => name.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
 
-  // ================= SEARCH & SORT =================
   const filteredCities = useMemo(() => {
     let data = activeTab === "active" ? [...cities] : [...inactiveCities];
 
-    if (search) {
-      data = data.filter((item) =>
-        item.cityName.toLowerCase().includes(search.toLowerCase())
-      );
-    }
+    if (search) data = data.filter((item) => item.cityName.toLowerCase().includes(search.toLowerCase()));
+    if (districtFilter) data = data.filter((item) => item.districtId?._id === districtFilter);
 
-    if (districtFilter) {
-      data = data.filter((item) => item.districtId?._id === districtFilter);
-    }
-
-    data.sort((a, b) =>
-      sort === "asc"
-        ? a.cityName.localeCompare(b.cityName)
-        : b.cityName.localeCompare(a.cityName)
-    );
-
+    data.sort((a, b) => sort === "asc" ? a.cityName.localeCompare(b.cityName) : b.cityName.localeCompare(a.cityName));
     return data;
   }, [cities, inactiveCities, search, sort, districtFilter, activeTab]);
 
   const activeCount = cities.length;
   const inactiveCount = inactiveCities.length;
+  const totalCount = activeCount + inactiveCount;
 
   return (
-    <div
-      className="font-sans min-h-screen"
-      style={{
-        background:
-          "radial-gradient(1200px 480px at 8% -10%, #F3F1EA 0%, #ECE9DF 42%, #E6E2D5 100%)",
-      }}
-    >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Inter:wght@400;500;600&display=swap');
-        .font-sans { font-family: 'Inter', sans-serif; }
-        .font-mono { font-family: 'IBM Plex Mono', monospace; }
-        .icon-btn {
-          width: 30px; height: 30px; border-radius: 8px;
-          display: flex; align-items: center; justify-content: center;
-          border: 1px solid #E3E0D4; background: #FFFFFF;
-          color: #6B6659; transition: all .15s ease; cursor: pointer;
-        }
-        .icon-btn:hover { border-color: #C9C4B3; background: #FBFAF6; color: #24221C; }
-        .icon-btn.danger:hover { border-color: #C6564A; color: #C6564A; background: #FCF4F3; }
-        .reg-row:hover { background: #FBFAF5; }
-        .reg-card {
-          background: #FFFEFB;
-          box-shadow: 0 1px 2px rgba(30,28,20,0.04), 0 10px 30px -14px rgba(30,28,20,0.10);
-        }
-      `}</style>
+    <div className="space-y-6 font-['Inter',sans-serif] text-gray-800 pb-12 max-w-[1600px] mx-auto">
+      <Toaster position="top-right" richColors />
 
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        {/* Header */}
-        <div className="flex justify-between items-end mb-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-200 shadow-2xs">
+        <div>
+          <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-[0.2em] text-blue-600 mb-1 uppercase">
+            LOCATION HIERARCHY
+          </p>
+          <h1 className="font-['Space_Grotesk'] font-bold text-2xl text-gray-900 tracking-tight m-0">
+            City Management
+          </h1>
+          <p className="text-gray-500 text-xs mt-1 font-medium m-0">
+            Manage operational urban nodes, district associations, and geographical routing.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button
+            onClick={fetchAllData}
+            className="p-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-600 transition shadow-2xs cursor-pointer"
+            title="Refresh Data"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <button
+            onClick={() => { setShowModal(true); setIsEdit(false); setCityName(""); setDistrictId(""); }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 h-11 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-2xs cursor-pointer flex-1 sm:flex-none"
+          >
+            <Plus size={16} />
+            Add City
+          </button>
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="font-mono text-[11px] tracking-[0.16em] text-[#9A927D] mb-1.5">
-              LOCATION HIERARCHY
-            </p>
-            <h1 className="text-[22px] font-medium text-[#201F19] tracking-tight">
-              Cities
-            </h1>
-            <p className="text-[#8B8474] text-[13px] mt-1">
-              {activeCount + inactiveCount} on record · {activeCount} active · grouped by district
-            </p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Total Records</p>
+            <h3 className="text-2xl font-bold text-gray-900 font-['Space_Grotesk']">{totalCount}</h3>
           </div>
-
-          <button
-            onClick={() => {
-              setShowModal(true);
-              setIsEdit(false);
-              setCityName("");
-              setDistrictId("");
-            }}
-            className="flex items-center gap-2 bg-[#201F19] text-[#F3EFE3] px-4 h-10 rounded-lg text-[13px] font-medium hover:bg-[#332F26] transition-colors duration-150 cursor-pointer"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Add city
-          </button>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <MapPin size={20} />
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-6 mb-5 border-b border-[#E3E0D4]">
-          <button
-            onClick={() => setActiveTab("active")}
-            className={`pb-3 -mb-px text-[13px] font-medium border-b-2 transition-colors duration-150 cursor-pointer flex items-center gap-1.5 ${activeTab === "active"
-                ? "border-[#201F19] text-[#201F19]"
-                : "border-transparent text-[#A39B8B] hover:text-[#201F19]"
-              }`}
-          >
-            Active
-            <span className="font-mono text-[11px] text-[#A39B8B]">{activeCount}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("inactive")}
-            className={`pb-3 -mb-px text-[13px] font-medium border-b-2 transition-colors duration-150 cursor-pointer flex items-center gap-1.5 ${activeTab === "inactive"
-                ? "border-[#201F19] text-[#201F19]"
-                : "border-transparent text-[#A39B8B] hover:text-[#201F19]"
-              }`}
-          >
-            Inactive
-            <span className="font-mono text-[11px] text-[#A39B8B]">{inactiveCount}</span>
-          </button>
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Active Cities</p>
+            <h3 className="text-2xl font-bold text-emerald-600 font-['Space_Grotesk']">{activeCount}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <CheckCircle2 size={20} />
+          </div>
         </div>
 
-        {/* Filters */}
-        <div className="grid md:grid-cols-3 gap-3 mb-5">
-          <div className="relative">
-            <svg
-              className="absolute left-3.5 top-1/2 -translate-y-1/2"
-              width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A39B8B" strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-3.5-3.5" />
-            </svg>
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Inactive Cities</p>
+            <h3 className="text-2xl font-bold text-amber-600 font-['Space_Grotesk']">{inactiveCount}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <Ban size={20} />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 gap-2 overflow-x-auto scrollbar-none">
+        <button
+          onClick={() => setActiveTab("active")}
+          className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "active"
+              ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+              : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+            }`}
+        >
+          Active Cities
+          <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "active" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+            }`}>
+            {activeCount}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("inactive")}
+          className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "inactive"
+              ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+              : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+            }`}
+        >
+          Inactive Cities
+          <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "inactive" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+            }`}>
+            {inactiveCount}
+          </span>
+        </button>
+      </div>
+
+      {/* Controls Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row justify-between gap-4 items-center">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto flex-1">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
-              placeholder="Search city"
+              placeholder="Search city name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="border border-[#E3E0D4] pl-9 pr-3 h-10 rounded-lg w-full text-[13px] outline-none focus:border-[#B3AC97] focus:ring-2 focus:ring-[#B3AC97]/15 transition-all duration-150 bg-white"
+              className="w-full bg-white border border-gray-200 pl-10 pr-4 h-11 rounded-xl text-xs font-medium outline-none focus:border-blue-500 transition shadow-2xs text-gray-900"
             />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           <select
             value={districtFilter}
             onChange={(e) => setDistrictFilter(e.target.value)}
-            className="border border-[#E3E0D4] px-3 h-10 rounded-lg text-[13px] outline-none focus:border-[#B3AC97] bg-white cursor-pointer"
+            className="w-full sm:w-48 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
           >
-            <option value="">All districts</option>
-
+            <option value="">All Districts</option>
             {districts.map((item) => (
-              <option key={item._id} value={item._id}>
-                {item.districtName}
-              </option>
+              <option key={item._id} value={item._id}>{item.districtName}</option>
             ))}
-          </select>
-
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="border border-[#E3E0D4] px-3 h-10 rounded-lg text-[13px] outline-none focus:border-[#B3AC97] bg-white cursor-pointer"
-          >
-            <option value="asc">A to Z</option>
-            <option value="desc">Z to A</option>
           </select>
         </div>
 
-        {/* Table */}
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          className="w-full sm:w-44 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
+        >
+          <option value="asc">Sort A to Z</option>
+          <option value="desc">Sort Z to A</option>
+        </select>
+      </div>
+
+      {/* Table Card */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs overflow-hidden">
         {loading ? (
-          <div className="reg-card text-center py-16 text-[#A39B8B] text-sm rounded-2xl border border-[#E3E0D4]">
-            Loading…
+          <div className="flex flex-col justify-center items-center py-20 gap-3">
+            <Loader2 className="animate-spin text-blue-600" size={28} />
+            <p className="font-['IBM_Plex_Mono'] text-[11px] text-gray-400 uppercase tracking-widest font-bold">
+              Synchronizing Cities...
+            </p>
           </div>
         ) : (
-          <div className="reg-card border border-[#E3E0D4] rounded-2xl overflow-hidden">
-            <table className="w-full border-collapse">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
               <thead>
-                <tr className="bg-[#FAF8F2]">
-                  <th className="p-3.5 pl-5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                    CODE
-                  </th>
-                  <th className="p-3.5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                    CITY
-                  </th>
-                  <th className="p-3.5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                    DISTRICT
-                  </th>
-                  <th className="p-3.5 text-left text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                    STATUS
-                  </th>
-                  <th className="p-3.5 pr-5 text-right text-[11px] tracking-[0.1em] text-[#9A927D] font-medium font-mono">
-                    ACTIONS
-                  </th>
+                <tr className="bg-gray-50 text-gray-500 border-b border-gray-200 font-['IBM_Plex_Mono'] text-[10px] uppercase tracking-wider font-bold">
+                  <th className="px-6 py-3.5 w-24">Code</th>
+                  <th className="px-6 py-3.5">City Name</th>
+                  <th className="px-6 py-3.5">District</th>
+                  <th className="px-6 py-3.5">Status</th>
+                  <th className="px-6 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
-
-              <tbody>
-                {filteredCities.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center p-14 text-[#A39B8B] text-sm">
-                      No cities match your search.
-                    </td>
-                  </tr>
-                ) : (
+              <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
+                {filteredCities.length > 0 ? (
                   filteredCities.map((item) => (
-                    <tr
-                      key={item._id}
-                      className="reg-row border-t border-[#EFEBDF] transition-colors duration-150"
-                    >
-                      <td className="p-3.5 pl-5">
-                        <span className="font-mono text-[11px] bg-[#F3F1E6] text-[#71695A] px-2 py-1 rounded">
+                    <tr key={item._id} className="hover:bg-gray-50/60 transition-colors">
+                      {/* Code */}
+                      <td className="px-6 py-3.5">
+                        <span className="font-['IBM_Plex_Mono'] text-[10px] font-bold bg-gray-100 border border-gray-200 text-gray-700 py-1 px-2.5 rounded-md">
                           {codeFor(item.cityName)}
                         </span>
                       </td>
 
-                      <td className="p-3.5 capitalize text-[#201F19] font-medium text-[14px]">
+                      {/* Name */}
+                      <td className="px-6 py-3.5 font-bold text-gray-900 capitalize">
                         {item.cityName}
                       </td>
 
-                      <td className="p-3.5 capitalize text-[#5A554C] text-[13px]">
-                        {item.districtId?.districtName}
+                      {/* District */}
+                      <td className="px-6 py-3.5 font-semibold text-gray-600 capitalize">
+                        {item.districtId?.districtName || "N/A"}
                       </td>
 
-                      <td className="p-3.5">
-                        <span className="inline-flex items-center gap-1.5 text-[13px]">
-                          <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{
-                              background: activeTab === "active" ? "#4C8B5B" : "#A39B8B",
-                            }}
-                          />
-                          <span style={{ color: activeTab === "active" ? "#3E6E4A" : "#8B8474" }}>
-                            {activeTab === "active" ? "Active" : "Inactive"}
-                          </span>
+                      {/* Status */}
+                      <td className="px-6 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-2xs ${activeTab === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${activeTab === "active" ? "bg-emerald-600" : "bg-gray-400"}`} />
+                          {activeTab === "active" ? "Active" : "Inactive"}
                         </span>
                       </td>
 
-                      <td className="p-3.5 pr-5">
-                        <div className="flex justify-end gap-1.5">
+                      {/* Actions */}
+                      <td className="px-6 py-3.5">
+                        <div className="flex justify-end gap-2">
                           {activeTab === "active" ? (
                             <>
-                              <button onClick={() => handleView(item._id)} className="icon-btn" title="View" aria-label="View">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-                              </button>
-                              <button onClick={() => handleEdit(item)} className="icon-btn" title="Edit" aria-label="Edit">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                              </button>
-                              <button onClick={() => handleInactive(item._id)} className="icon-btn" title="Mark inactive" aria-label="Mark inactive">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.8 0" /></svg>
-                              </button>
-                              <button onClick={() => handleDelete(item._id)} className="icon-btn danger" title="Delete" aria-label="Delete">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
-                              </button>
+                              <button onClick={() => handleView(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="View Details"><Eye size={14} /></button>
+                              <button onClick={() => handleEdit(item)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Edit City"><Edit size={14} /></button>
+                              <button onClick={() => handleInactive(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-amber-600 hover:border-amber-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Mark Inactive"><Ban size={14} /></button>
+                              <button onClick={() => confirmDelete(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Delete City"><Trash2 size={14} /></button>
                             </>
                           ) : (
                             <>
-                              <button onClick={() => handleRestore(item._id)} className="icon-btn" title="Restore" aria-label="Restore">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
-                              </button>
-                              <button onClick={() => handleDelete(item._id)} className="icon-btn danger" title="Delete" aria-label="Delete">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
-                              </button>
+                              <button onClick={() => handleRestore(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-emerald-600 hover:border-emerald-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Restore City"><RotateCcw size={14} /></button>
+                              <button onClick={() => confirmDelete(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Delete Permanently"><Trash2 size={14} /></button>
                             </>
                           )}
                         </div>
                       </td>
                     </tr>
                   ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-16 text-gray-400 text-xs font-medium">
+                      No cities found matching your criteria.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -447,115 +374,163 @@ const City = () => {
         )}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Add / Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-[#1A1712]/45 backdrop-blur-[3px] flex justify-center items-center z-50 px-4">
-          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-105 border border-[#E3E0D4]">
-            <h2 className="text-[18px] font-medium text-[#201F19] mb-5">
-              {isEdit ? "Update city" : "Add city"}
-            </h2>
-
-            <label className="block text-[12px] font-medium text-[#8B8474] mb-1.5">
-              City name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Jodhpur"
-              value={cityName}
-              onChange={(e) => setCityName(e.target.value)}
-              autoFocus
-              className="w-full border border-[#E3E0D4] px-3.5 h-10 rounded-lg mb-4 text-[13px] outline-none focus:border-[#B3AC97] focus:ring-2 focus:ring-[#B3AC97]/15 transition-all duration-150"
-            />
-
-            <label className="block text-[12px] font-medium text-[#8B8474] mb-1.5">
-              District
-            </label>
-            <select
-              value={districtId}
-              onChange={(e) => setDistrictId(e.target.value)}
-              className="w-full border border-[#E3E0D4] px-3.5 h-10 rounded-lg mb-6 text-[13px] outline-none focus:border-[#B3AC97] bg-white cursor-pointer"
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[420px] shadow-2xl relative animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => { setShowModal(false); setCityName(""); setDistrictId(""); setIsEdit(false); }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer"
             >
-              <option value="">Select district</option>
+              <X size={16} />
+            </button>
 
-              {districts.map((item) => (
-                <option key={item._id} value={item._id}>
-                  {item.districtName}
-                </option>
-              ))}
-            </select>
+            <h2 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900 mb-1">
+              {isEdit ? "Update City Record" : "Add New City"}
+            </h2>
+            <p className="text-gray-500 text-xs font-medium mb-6">
+              Configure city nomenclature and district association.
+            </p>
 
-            <div className="flex gap-2.5 justify-end">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 h-10 bg-[#F5F3EA] text-[#8B8474] rounded-lg text-[13px] font-medium hover:bg-[#EFEBDF] transition-colors duration-150 cursor-pointer"
-              >
-                Cancel
-              </button>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest font-['IBM_Plex_Mono'] mb-2">City Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jodhpur"
+                  value={cityName}
+                  onChange={(e) => setCityName(e.target.value)}
+                  autoFocus
+                  className="w-full h-11 rounded-xl border border-gray-200 px-4 text-xs outline-none transition focus:border-blue-500 shadow-2xs text-gray-900 font-semibold bg-white"
+                />
+              </div>
 
-              <button
-                onClick={handleSubmit}
-                className="px-4 h-10 bg-[#201F19] text-[#F3EFE3] rounded-lg text-[13px] font-medium hover:bg-[#332F26] transition-colors duration-150 cursor-pointer"
-              >
-                {isEdit ? "Save changes" : "Create city"}
-              </button>
-            </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest font-['IBM_Plex_Mono'] mb-2">Select District</label>
+                <select
+                  value={districtId}
+                  onChange={(e) => setDistrictId(e.target.value)}
+                  className="w-full h-11 rounded-xl border border-gray-200 px-4 text-xs outline-none transition focus:border-blue-500 shadow-2xs text-gray-700 font-semibold bg-white cursor-pointer"
+                >
+                  <option value="">Select a district...</option>
+                  {districts.map((item) => (
+                    <option key={item._id} value={item._id}>{item.districtName}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); setCityName(""); setDistrictId(""); setIsEdit(false); }}
+                  className="h-10 px-5 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-700 bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="h-10 px-6 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 transition shadow-2xs cursor-pointer"
+                >
+                  {isEdit ? "Save Changes" : "Create City"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* View Modal */}
-      {showViewModal && viewData && (
-        <div className="fixed inset-0 bg-[#1A1712]/45 backdrop-blur-[3px] flex justify-center items-center z-50 px-4">
-          <div className="reg-card bg-white p-7 rounded-2xl w-full max-w-105 border border-[#E3E0D4]">
-            <h2 className="text-[18px] font-medium text-[#201F19] mb-5">
-              City details
+      {/* View Details Modal */}
+      {showViewModal && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[400px] shadow-2xl relative animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => setShowViewModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            <h2 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900 mb-4">
+              City Inspection Profile
             </h2>
 
-            <div className="space-y-4 mb-6">
-              <div className="pb-4 border-b border-[#EFEBDF]">
-                <p className="text-[11px] tracking-widest font-mono text-[#9A927D] mb-1.5">
-                  CITY NAME
+            <div className="space-y-3 text-xs mb-6">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  City Name
                 </p>
-                <p className="text-[16px] text-[#201F19] font-medium capitalize">
-                  {viewData.cityName}
-                </p>
-              </div>
-
-              <div className="pb-4 border-b border-[#EFEBDF]">
-                <p className="text-[11px] tracking-widest font-mono text-[#9A927D] mb-1.5">
-                  DISTRICT
-                </p>
-                <p className="text-[16px] text-[#201F19] font-medium capitalize">
-                  {viewData.districtId?.districtName}
+                <p className="text-sm font-bold text-gray-900 capitalize">
+                  {viewData?.cityName}
                 </p>
               </div>
 
-              <div>
-                <p className="text-[11px] tracking-widest font-mono text-[#9A927D] mb-1.5">
-                  STATUS
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  Parent District
                 </p>
-                <span
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium capitalize"
-                  style={{
-                    background: viewData.status === "active" ? "#EAF3EC" : "#F3F1E6",
-                    color: viewData.status === "active" ? "#3E6E4A" : "#8B8474",
-                  }}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: viewData.status === "active" ? "#4C8B5B" : "#A39B8B" }}
-                  />
-                  {viewData.status}
-                </span>
+                <p className="text-sm font-bold text-gray-900 capitalize">
+                  {viewData?.districtId?.districtName || "N/A"}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  Regional Code
+                </p>
+                <p className="font-['IBM_Plex_Mono'] font-bold text-blue-600 text-sm">
+                  {codeFor(viewData?.cityName)}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  System ID Hash
+                </p>
+                <p className="font-mono text-[11px] text-gray-600 truncate">
+                  {viewData?._id}
+                </p>
               </div>
             </div>
 
             <div className="flex justify-end">
               <button
                 onClick={() => setShowViewModal(false)}
-                className="bg-[#201F19] text-[#F3EFE3] px-4 h-10 rounded-lg text-[13px] font-medium hover:bg-[#332F26] transition-colors duration-150 cursor-pointer"
+                className="w-full h-10 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gray-900 hover:bg-gray-800 transition shadow-2xs cursor-pointer"
               >
-                Close
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[380px] shadow-2xl text-center relative animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto mb-4 shadow-2xs">
+              <AlertTriangle size={24} />
+            </div>
+
+            <h3 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900 mb-2">
+              Confirm Deletion
+            </h3>
+            <p className="text-xs text-gray-500 font-medium mb-6 leading-relaxed">
+              Are you sure you want to delete this city record? This action cannot be undone and may affect linked hotel listings.
+            </p>
+
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeleteId(null); }}
+                className="flex-1 h-10 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-700 bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 h-10 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-700 transition shadow-2xs cursor-pointer"
+              >
+                Delete
               </button>
             </div>
           </div>

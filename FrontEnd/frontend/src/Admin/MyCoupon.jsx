@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
+import { Search, Plus, Eye, Edit, Trash2, Power, PowerOff, X, TicketPercent, Loader2, Copy, Check } from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 const MyCoupon = () => {
     const navigate = useNavigate();
@@ -10,10 +12,11 @@ const MyCoupon = () => {
     const [loading, setLoading] = useState(true);
     const [coupons, setCoupons] = useState([]);
     const [search, setSearch] = useState("");
-    const [statusFilter, setStatusFilter] = useState("All"); // "All", "Active", "Inactive"
+    const [statusFilter, setStatusFilter] = useState("All");
 
     const [selectedCoupon, setSelectedCoupon] = useState(null);
     const [showView, setShowView] = useState(false);
+    const [copiedCode, setCopiedCode] = useState(null);
 
     useEffect(() => {
         fetchCoupons();
@@ -26,7 +29,8 @@ const MyCoupon = () => {
             const response = await axios.get(`${signupApi}coupon/all`, { headers });
             setCoupons(response.data.result || []);
         } catch (error) {
-            console.error("Fetch coupons pipeline exception:", error);
+            console.error("Fetch coupons exception:", error);
+            toast.error("Failed to load discount coupons.");
         } finally {
             setLoading(false);
         }
@@ -37,7 +41,6 @@ const MyCoupon = () => {
             const headers = { Authorization: `Bearer ${token}` };
             await axios.patch(`${signupApi}coupon/toggle-status/${id}`, {}, { headers });
 
-
             setCoupons((prev) =>
                 prev.map((c) => (c._id === id ? { ...c, status: c.status === "Active" ? "Inactive" : "Active" } : c))
             );
@@ -45,24 +48,33 @@ const MyCoupon = () => {
             if (selectedCoupon && selectedCoupon._id === id) {
                 setSelectedCoupon((prev) => ({ ...prev, status: prev.status === "Active" ? "Inactive" : "Active" }));
             }
+            toast.success("Coupon status updated successfully.");
         } catch (error) {
-            alert(error.response?.data?.message || "Failed to alter target validation mapping variables.");
+            toast.error(error.response?.data?.message || "Failed to update coupon status.");
         }
     };
 
     const handleDelete = async (id) => {
-        const confirmDelete = window.confirm("Are you absolutely sure you want to drop this coupon deployment configuration permanently?");
+        const confirmDelete = window.confirm("Are you absolutely sure you want to delete this coupon permanently?");
         if (!confirmDelete) return;
 
         try {
             const headers = { Authorization: `Bearer ${token}` };
             await axios.delete(`${signupApi}coupon/delete/${id}`, { headers });
-            alert("Coupon record successfully dropped from production cluster maps.");
+            toast.success("Coupon successfully deleted.");
             setCoupons((prev) => prev.filter((c) => c._id !== id));
             if (showView) setShowView(false);
         } catch (error) {
-            alert(error.response?.data?.message || "Internal framework protection error executing node deletion.");
+            toast.error(error.response?.data?.message || "Error executing deletion.");
         }
+    };
+
+    const handleCopyCode = (code, e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(code);
+        setCopiedCode(code);
+        toast.success(`Copied "${code}" to clipboard!`);
+        setTimeout(() => setCopiedCode(null), 2000);
     };
 
     const handleView = (coupon) => {
@@ -71,10 +83,8 @@ const MyCoupon = () => {
     };
 
     const handleEdit = (id) => {
-
         navigate(`/admin/addCoupon?id=${id}`);
     };
-
 
     const filteredCoupons = useMemo(() => {
         let data = [...coupons];
@@ -101,40 +111,46 @@ const MyCoupon = () => {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <div className="text-center space-y-2">
-                    <div className="w-8 h-8 border-2 border-[#1B2537] border-t-transparent rounded-full animate-spin mx-auto"></div>
-                    <h2 className="text-[#8C8676] font-['IBM_Plex_Mono',monospace] text-[11px] uppercase tracking-wider">
-                        Loading vouchers database logs...
-                    </h2>
-                </div>
+            <div className="flex flex-col justify-center items-center min-h-[400px] gap-3">
+                <Loader2 className="animate-spin text-blue-600" size={32} />
+                <h2 className="text-gray-500 font-['IBM_Plex_Mono',monospace] text-[12px] uppercase tracking-wider font-semibold">
+                    Loading Coupons...
+                </h2>
             </div>
         );
     }
 
     return (
-        <div className="text-[#232320]">
+        <div className="text-gray-800 font-['Inter',sans-serif]">
+            <Toaster position="top-right" richColors />
+            <style>{`
+                .scrollbar-hide::-webkit-scrollbar { display: none; }
+                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+            `}</style>
+
             {/* Header controls interface bar */}
             <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <div className="relative w-full sm:flex-1">
+                <div className="relative w-full sm:flex-1 max-w-md">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                         type="text"
-                        placeholder="Search coupon tokens code layout..."
+                        placeholder="Search coupon codes..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full border border-[#E1DECF] rounded-[3px] px-4 py-3 text-[13.5px] focus:outline-none focus:border-[#A2782E] transition bg-white"
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 h-11 text-xs font-medium focus:outline-none focus:border-blue-500 transition bg-white shadow-2xs"
                     />
                 </div>
                 <button
                     onClick={() => navigate("/admin/addCoupon")}
-                    className="w-full sm:w-auto bg-[#1B2537] hover:bg-[#26314A] text-[#FFF9EC] px-6 py-3 rounded-[3px] font-['Space_Grotesk',sans-serif] font-medium text-[13.5px] transition-colors whitespace-nowrap uppercase tracking-wider"
+                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 h-11 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
                 >
-                    + Create Coupon
+                    <Plus size={16} />
+                    Create Coupon
                 </button>
             </div>
 
             {/* Tabs Switcher Panels Control Layout */}
-            <div className="flex border-b border-[#E1DECF] mb-8 overflow-x-auto gap-2 scrollbar-none">
+            <div className="flex border-b border-gray-200 mb-8 overflow-x-auto gap-2 scrollbar-none">
                 {["All", "Active", "Inactive"].map((status) => {
                     const isActive = statusFilter === status;
                     const count = status === "All" ? stats.total : status === "Active" ? stats.active : stats.inactive;
@@ -143,13 +159,13 @@ const MyCoupon = () => {
                         <button
                             key={status}
                             onClick={() => setStatusFilter(status)}
-                            className={`px-5 py-3 font-['Space_Grotesk',sans-serif] font-medium text-[14px] rounded-t-[3px] transition whitespace-nowrap border-b-2 -mb-[1px] ${isActive
-                                ? "border-[#A2782E] text-[#1B2537] bg-[rgba(162,120,46,0.04)] font-semibold"
-                                : "border-transparent text-[#8C8676] hover:text-[#1B2537] hover:bg-[#FCFBF7]"
+                            className={`px-5 py-3 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${isActive
+                                    ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                                    : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                                 }`}
                         >
-                            {status} Campaigns
-                            <span className={`ml-1.5 px-2 py-0.5 rounded-[2px] text-[11px] font-['IBM_Plex_Mono',monospace] font-bold ${isActive ? "bg-[#1B2537] text-[#FFF9EC]" : "bg-[#E1DECF] text-[#4A473D]"
+                            {status} Coupons
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${isActive ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
                                 }`}>
                                 {count}
                             </span>
@@ -161,9 +177,10 @@ const MyCoupon = () => {
             {/* Main Grid Render Structure */}
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredCoupons.length === 0 && (
-                    <div className="col-span-full bg-[#FCFBF7] rounded-[3px] border border-dashed border-[#E1DECF] p-16 text-center">
-                        <h3 className="font-['Space_Grotesk',sans-serif] font-semibold text-[16px] text-[#1B2537]">No discount tokens available</h3>
-                        <p className="text-[#8C8676] text-[13px] mt-1">Try tweaking your dynamic tab categories or keyword filters.</p>
+                    <div className="col-span-full bg-white rounded-2xl border border-dashed border-gray-300 p-16 text-center shadow-2xs">
+                        <TicketPercent className="mx-auto text-gray-300 mb-3" size={40} />
+                        <h3 className="font-['Space_Grotesk',sans-serif] font-bold text-base text-gray-900">No discount coupons available</h3>
+                        <p className="text-gray-500 text-xs mt-1 font-medium">Try adjusting your filters or create a new coupon.</p>
                     </div>
                 )}
 
@@ -172,78 +189,86 @@ const MyCoupon = () => {
                     return (
                         <div
                             key={coupon._id}
-                            className="bg-white rounded-[3px] border border-[#E1DECF] shadow-[0_1px_2px_rgba(30,28,20,0.02)] hover:shadow-[0_4px_12px_rgba(30,28,20,0.04)] transition-all flex flex-col justify-between overflow-hidden group"
+                            className="bg-white rounded-2xl border border-gray-200 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
                         >
-                            {/* Top Banner Block details metrics */}
-                            <div className="p-5 border-b border-[#FCFBF7] bg-[#FCFBF7]/50 relative flex justify-between items-start">
+                            {/* Top Banner Block */}
+                            <div className="p-6 border-b border-gray-100 bg-gray-50/50 relative flex justify-between items-start">
                                 <div>
-                                    <span className="font-['IBM_Plex_Mono',monospace] text-[10px] uppercase text-[#A2782E] tracking-wider font-semibold block mb-1">Voucher Token</span>
-                                    <h2 className="font-['Space_Grotesk',sans-serif] text-[19px] font-bold text-[#1B2537] font-mono tracking-wide">
-                                        {coupon.couponCode}
-                                    </h2>
+                                    <span className="font-['IBM_Plex_Mono',monospace] text-[10px] uppercase text-blue-600 tracking-wider font-bold block mb-1">Coupon Code</span>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="font-['Space_Grotesk',sans-serif] text-xl font-bold text-gray-900 tracking-wider">
+                                            {coupon.couponCode}
+                                        </h2>
+                                        <button
+                                            onClick={(e) => handleCopyCode(coupon.couponCode, e)}
+                                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition border border-transparent hover:border-gray-200 shadow-2xs cursor-pointer"
+                                            title="Copy Code"
+                                        >
+                                            {copiedCode === coupon.couponCode ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-1.5">
-                                    <span className={`px-2 py-0.5 text-[10px] font-['IBM_Plex_Mono',monospace] font-semibold uppercase tracking-wider border rounded-[2px] ${coupon.status === "Active"
-                                        ? "bg-[#E8F5E9] border-[#C8E6C9] text-[#2E7D32]"
-                                        : "bg-[#F5F5F5] border-[#E0E0E0] text-[#616161]"
+                                    <span className={`px-2.5 py-1 text-[10px] font-['IBM_Plex_Mono',monospace] font-bold uppercase tracking-wider border rounded-md shadow-2xs ${coupon.status === "Active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-gray-100 border-gray-200 text-gray-600"
                                         }`}>
                                         {coupon.status}
                                     </span>
                                     {isExpired && (
-                                        <span className="bg-[#FFEBEE] border border-[#FFCDD2] text-[#C62828] text-[9px] font-bold px-1.5 py-0.5 rounded-[2px] uppercase font-mono">
+                                        <span className="bg-rose-50 border border-rose-200 text-rose-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase font-['IBM_Plex_Mono',monospace] shadow-2xs">
                                             Expired
                                         </span>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Central Dynamic specifications section */}
-                            <div className="p-5 space-y-3 text-[13px] border-b border-[#FCFBF7]">
-                                <div className="flex justify-between">
-                                    <span className="text-[#8C8676]">Reduction Type</span>
-                                    <span className="font-semibold text-[#1B2537]">{coupon.discountType}</span>
+                            {/* Central Details */}
+                            <div className="p-6 space-y-3.5 text-xs">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 font-medium">Discount Type</span>
+                                    <span className="font-bold text-gray-900">{coupon.discountType}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8C8676]">Discount Benefit</span>
-                                    <span className="font-bold text-[#A2782E] text-[14px]">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 font-medium">Value</span>
+                                    <span className="font-bold text-blue-600 text-sm">
                                         {coupon.discountType === "Percentage" ? `${coupon.discountValue}% Off` : `₹${coupon.discountValue} Flat`}
                                     </span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8C8676]">Lower Bounds Limit</span>
-                                    <span className="font-medium text-[#232320]">Min. Spend ₹{coupon.minBookingAmount}</span>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 font-medium">Min. Booking</span>
+                                    <span className="font-bold text-gray-900">₹{coupon.minBookingAmount || 0}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8C8676]">Expiration Target</span>
-                                    <span className="font-['IBM_Plex_Mono',monospace] text-[12px] text-[#4A473D]">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 font-medium">Valid Until</span>
+                                    <span className="font-['IBM_Plex_Mono',monospace] text-[11px] font-bold text-gray-900">
                                         {new Date(coupon.expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Bottom utilities actions clusters bar panel */}
-                            <div className="p-4 bg-white grid grid-cols-4 gap-2 items-center">
+                            {/* Bottom Actions Array */}
+                            <div className="p-4 border-t border-gray-100 bg-white grid grid-cols-4 gap-2 items-center">
                                 <button
                                     onClick={() => handleView(coupon)}
-                                    className="col-span-2 bg-[#1B2537] hover:bg-[#26314A] text-[#FFF9EC] text-[12.5px] py-2 rounded-[2px] font-medium text-center transition-colors"
+                                    className="col-span-2 flex items-center justify-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white text-[11px] py-2 rounded-xl font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
                                 >
-                                    View
+                                    <Eye size={13} /> View
                                 </button>
                                 <button
                                     onClick={() => handleEdit(coupon._id)}
-                                    className="bg-white hover:bg-[#FCFBF7] border border-[#E1DECF] text-[#4A473D] text-[12.5px] py-2 rounded-[2px] font-medium text-center transition-colors"
+                                    className="bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-800 flex items-center justify-center py-2 rounded-xl transition shadow-2xs cursor-pointer"
+                                    title="Edit Coupon"
                                 >
-                                    Edit
+                                    <Edit size={14} />
                                 </button>
                                 <button
                                     onClick={() => handleToggleStatus(coupon._id)}
-                                    className={`text-[12.5px] py-2 rounded-[2px] font-medium border text-center transition-all ${coupon.status === "Active"
-                                        ? "bg-[#FFF8E1] hover:bg-[#FFF3E0] border-[#FFECB3] text-[#E65100]"
-                                        : "bg-[#E8F5E9] hover:bg-[#E8F5E9]/80 border-[#C8E6C9] text-[#2E7D32]"
+                                    className={`flex items-center justify-center py-2 rounded-xl border transition shadow-2xs cursor-pointer ${coupon.status === "Active"
+                                            ? "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700"
+                                            : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
                                         }`}
-                                    title={coupon.status === "Active" ? "Deactivate Campaign" : "Restore & Activate Campaign"}
+                                    title={coupon.status === "Active" ? "Deactivate Coupon" : "Activate Coupon"}
                                 >
-                                    {coupon.status === "Active" ? "Hold" : "Resto."}
+                                    {coupon.status === "Active" ? <PowerOff size={14} /> : <Power size={14} />}
                                 </button>
                             </div>
                         </div>
@@ -251,111 +276,110 @@ const MyCoupon = () => {
                 })}
             </div>
 
-            {/* Expanded Modal Layer Profile Inspection View */}
+            {/* View Details Modal Layer */}
             {showView && selectedCoupon && (
-                <div className="fixed inset-0 bg-[#1B2537]/40 flex justify-center items-center z-50 p-4 backdrop-blur-[2px]">
-                    <div className="bg-white rounded-[3px] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-[0_24px_48px_-12px_rgba(30,28,20,0.25)] border border-[#E1DECF] animate-in fade-in zoom-in-95 duration-150">
+                <div className="fixed inset-0 bg-gray-900/50 flex justify-center items-center z-50 p-4 backdrop-blur-xs">
+                    <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
                         {/* Modal Header */}
-                        <div className="flex justify-between items-center border-b border-[#E1DECF] p-5 sticky top-0 bg-white z-10">
+                        <div className="flex justify-between items-center border-b border-gray-100 p-6 sticky top-0 bg-white z-10">
                             <div>
-                                <h2 className="font-['Space_Grotesk',sans-serif] text-[18px] font-semibold text-[#1B2537]">Campaign Specification Profile</h2>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[10px] text-[#A2782E] mt-0.5 uppercase tracking-wider">Unique Node mapping data</p>
+                                <h2 className="font-['Space_Grotesk',sans-serif] text-base font-bold text-gray-900">Coupon Inspection Profile</h2>
                             </div>
                             <button
                                 onClick={() => {
                                     setShowView(false);
                                     setSelectedCoupon(null);
                                 }}
-                                className="text-[#8C8676] hover:text-[#1B2537] text-[16px] w-7 h-7 bg-[#FCFBF7] rounded-[3px] flex items-center justify-center transition border border-[#E1DECF]"
+                                className="text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer"
                             >
-                                ✕
+                                <X size={16} />
                             </button>
                         </div>
 
-                        {/* Content parameters payload table */}
-                        <div className="p-6 space-y-5 text-[13.5px]">
-                            <div className="grid grid-cols-2 gap-4 bg-[#FCFBF7] rounded-[3px] border border-[#E1DECF] p-4 font-sans">
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] text-[#8C8676] uppercase tracking-wider">Coupon Code</p>
-                                    <h3 className="font-['Space_Grotesk',sans-serif] font-bold text-[#1B2537] text-[17px] tracking-wide mt-0.5">{selectedCoupon.couponCode}</h3>
+                        {/* Content */}
+                        <div className="p-6 space-y-5 text-xs">
+                            {/* Grid Details */}
+                            <div className="grid grid-cols-2 gap-3.5">
+                                <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Coupon Code</p>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <h3 className="font-['Space_Grotesk',sans-serif] font-bold text-gray-900 text-base tracking-wider">{selectedCoupon.couponCode}</h3>
+                                        <button
+                                            onClick={(e) => handleCopyCode(selectedCoupon.couponCode, e)}
+                                            className="p-1 text-gray-400 hover:text-blue-600 bg-white rounded-md border border-gray-200 shadow-2xs cursor-pointer"
+                                        >
+                                            <Copy size={13} />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] text-[#8C8676] uppercase tracking-wider">System Status</p>
-                                    <span className={`px-2 py-0.5 text-[10px] font-['IBM_Plex_Mono',monospace] font-semibold uppercase tracking-wider border rounded-[2px] mt-1 inline-block ${selectedCoupon.status === "Active" ? "bg-[#E8F5E9] border-[#C8E6C9] text-[#2E7D32]" : "bg-[#F5F5F5] border-[#E0E0E0] text-[#616161]"
+                                <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</p>
+                                    <span className={`px-2.5 py-1 text-[10px] font-['IBM_Plex_Mono',monospace] font-bold uppercase tracking-wider border rounded-md mt-1.5 inline-block shadow-2xs ${selectedCoupon.status === "Active" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-gray-100 border-gray-200 text-gray-600"
                                         }`}>
                                         {selectedCoupon.status}
                                     </span>
                                 </div>
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] text-[#8C8676] uppercase tracking-wider">Reduction Engine Class</p>
-                                    <h4 className="font-medium text-[#232320] mt-0.5">{selectedCoupon.discountType}</h4>
+                                <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Discount Type</p>
+                                    <h4 className="font-bold text-gray-900 mt-1">{selectedCoupon.discountType}</h4>
                                 </div>
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] text-[#8C8676] uppercase tracking-wider">Discount Magnitude</p>
-                                    <h4 className="font-bold text-[#A2782E] text-[15px] mt-0.5">
+                                <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Discount Value</p>
+                                    <h4 className="font-bold text-blue-600 text-sm mt-1">
                                         {selectedCoupon.discountType === "Percentage" ? `${selectedCoupon.discountValue}%` : `₹${selectedCoupon.discountValue}`}
                                     </h4>
                                 </div>
                             </div>
 
-                            {/* Extended limits parameter logs lists */}
-                            <div className="border border-[#E1DECF] rounded-[3px] p-4 space-y-3.5 bg-white">
-                                <div className="flex justify-between border-b pb-2 border-[#FCFBF7]">
-                                    <span className="text-[#8C8676]">Minimum Spend Trigger</span>
-                                    <span className="font-semibold text-[#1B2537]">₹{selectedCoupon.minBookingAmount || 0}</span>
+                            {/* Additional Info */}
+                            <div className="space-y-3">
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 flex justify-between items-center shadow-2xs">
+                                    <span className="font-bold text-gray-500">Minimum Booking Amount</span>
+                                    <span className="font-bold text-gray-900">₹{selectedCoupon.minBookingAmount || 0}</span>
                                 </div>
-                                <div className="flex justify-between border-b pb-2 border-[#FCFBF7]">
-                                    <span className="text-[#8C8676]">Max Dynamic Usage Limits</span>
-                                    <span className="font-semibold text-[#1B2537]">{selectedCoupon.maxUses || 100} System Conversions</span>
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 flex justify-between items-center shadow-2xs">
+                                    <span className="font-bold text-gray-500">Maximum Uses Allowed</span>
+                                    <span className="font-bold text-gray-900">{selectedCoupon.maxUses || "Unlimited"}</span>
                                 </div>
-                                <div className="flex justify-between border-b pb-2 border-[#FCFBF7]">
-                                    <span className="text-[#8C8676]">Campaign Launch Timeline</span>
-                                    <span className="font-['IBM_Plex_Mono',monospace] text-[#4A473D]">
-                                        {new Date(selectedCoupon.createdAt).toLocaleString("en-IN")}
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 flex justify-between items-center shadow-2xs">
+                                    <span className="font-bold text-gray-500">Creation Date</span>
+                                    <span className="font-['IBM_Plex_Mono',monospace] font-bold text-gray-900">
+                                        {new Date(selectedCoupon.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                                     </span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8C8676]">Campaign Termination Timeline</span>
-                                    <span className="font-['IBM_Plex_Mono',monospace] font-medium text-[#C62828]">
-                                        {new Date(selectedCoupon.expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 flex justify-between items-center shadow-2xs">
+                                    <span className="font-bold text-gray-500">Expiry Date</span>
+                                    <span className="font-['IBM_Plex_Mono',monospace] font-bold text-rose-600">
+                                        {new Date(selectedCoupon.expiryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Operational Action footer controls bar layout inside component modal */}
-                            <div className="mt-8 flex flex-wrap justify-between items-center gap-3 border-t pt-4 border-[#E1DECF]">
+                            {/* Modal Actions */}
+                            <div className="mt-8 flex flex-wrap justify-between items-center gap-3 border-t pt-5 border-gray-100">
                                 <button
                                     onClick={() => handleDelete(selectedCoupon._id)}
-                                    className="bg-[#FFEBEE] hover:bg-[#FFCDD2] border border-[#FFCDD2] text-[#C62828] font-medium px-4 py-2.5 text-xs rounded-[2px] transition"
+                                    className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold px-4 py-2.5 text-xs rounded-xl transition shadow-2xs cursor-pointer uppercase tracking-wider"
                                 >
-                                    Wipe Out Token
+                                    <Trash2 size={14} /> Delete Coupon
                                 </button>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-3">
                                     <button
                                         onClick={() => handleToggleStatus(selectedCoupon._id)}
-                                        className={`px-4 py-2.5 text-xs font-medium rounded-[2px] text-white transition ${selectedCoupon.status === "Active" ? "bg-[#E65100] hover:bg-[#E65100]/90" : "bg-[#2E7D32] hover:bg-[#2E7D32]/90"
+                                        className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition shadow-2xs cursor-pointer uppercase tracking-wider ${selectedCoupon.status === "Active"
+                                                ? "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700"
+                                                : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
                                             }`}
                                     >
-                                        {selectedCoupon.status === "Active" ? "Deactivate Token" : "Restore (Activate)"}
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setShowView(false);
-                                            setSelectedCoupon(null);
-                                        }}
-                                        className="bg-white hover:bg-[#FCFBF7] border border-[#E1DECF] text-[#4A473D] px-4 py-2.5 text-xs font-medium rounded-[2px] transition"
-                                    >
-                                        Close Profile
+                                        {selectedCoupon.status === "Active" ? <><PowerOff size={14} /> Deactivate</> : <><Power size={14} /> Activate</>}
                                     </button>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>
             )}
-
         </div>
     );
 };

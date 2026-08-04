@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios"; // Use standard app instances matching your setup
 import axiosInstance from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { signupApi } from "../api";
+import { ArrowLeft, Loader2, TicketPercent } from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 const AddCoupon = () => {
     const navigate = useNavigate();
-
-    // URL query parameters (?id=value) ko capture karne ke liye useSearchParams hook lagaya
     const [searchParams] = useSearchParams();
     const id = searchParams.get("id");
 
@@ -35,17 +34,12 @@ const AddCoupon = () => {
         }
     }, [id]);
 
-
     const getCouponById = async () => {
         try {
             setLoading(true);
-            const headers = {
-                Authorization: `Bearer ${token}`,
-            };
-
+            const headers = { Authorization: `Bearer ${token}` };
             const response = await axiosInstance.get(`${signupApi}coupon/${id}`, { headers });
             const coupon = response.data.result;
-
 
             let formattedExpiry = "";
             if (coupon.expiryDate) {
@@ -62,7 +56,8 @@ const AddCoupon = () => {
                 status: coupon.status || "Active",
             });
         } catch (error) {
-            console.error("Fetch coupon dynamic query tracking error:", error);
+            console.error("Fetch coupon error:", error);
+            toast.error("Failed to load coupon configuration.");
         } finally {
             setLoading(false);
         }
@@ -78,7 +73,7 @@ const AddCoupon = () => {
         }
 
         if (!form.discountValue || Number(form.discountValue) <= 0) {
-            newErrors.discountValue = "Discount Value must be greater than 0";
+            newErrors.discountValue = "Must be greater than 0";
         } else if (form.discountType === "Percentage" && Number(form.discountValue) > 100) {
             newErrors.discountValue = "Percentage cannot exceed 100%";
         }
@@ -107,26 +102,23 @@ const AddCoupon = () => {
 
         try {
             setLoading(true);
-            const headers = {
-                Authorization: `Bearer ${token}`,
-            };
-
+            const headers = { Authorization: `Bearer ${token}` };
             let response;
+
             if (id) {
-                
                 response = await axiosInstance.patch(`${signupApi}coupon/update/${id}`, form, { headers });
-                alert(response.data.message || "Coupon successfully modified.");
+                toast.success(response.data.message || "Coupon successfully modified.");
             } else {
-            
                 response = await axiosInstance.post(`${signupApi}coupon/create`, form, { headers });
-                alert(response.data.message || "Coupon successfully deployed.");
+                toast.success(response.data.message || "Coupon successfully deployed.");
             }
 
-    
-            navigate("/admin/dashboard");
+            setTimeout(() => {
+                navigate("/admin/myCoupon");
+            }, 1000);
         } catch (error) {
             console.error(error);
-            alert(error?.response?.data?.message || "Something went wrong while compiling coupon metadata.");
+            toast.error(error?.response?.data?.message || "Something went wrong.");
         } finally {
             setLoading(false);
         }
@@ -134,64 +126,70 @@ const AddCoupon = () => {
 
     if (loading && id && !form.couponCode) {
         return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <div className="text-center space-y-2">
-                    <div className="w-8 h-8 border-2 border-[#1B2537] border-t-transparent rounded-full animate-spin mx-auto"></div>
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[11px] text-[#8C8676] uppercase tracking-wider">
-                        Fetching Configurations Map...
-                    </p>
-                </div>
+            <div className="flex flex-col justify-center items-center min-h-[400px] gap-3">
+                <Loader2 className="animate-spin text-blue-600" size={32} />
+                <h2 className="text-gray-500 font-['IBM_Plex_Mono',monospace] text-xs uppercase tracking-wider font-semibold">
+                    Fetching Configuration...
+                </h2>
             </div>
         );
     }
 
     return (
-        <div className="max-w-4xl mx-auto text-[#232320]">
-            <div className="bg-white rounded-[3px] border border-[#E1DECF] shadow-[0_1px_2px_rgba(30,28,20,0.02)]">
+        <div className="max-w-[1000px] mx-auto text-gray-800 font-['Inter',sans-serif] pb-12">
+            <Toaster position="top-right" richColors />
 
-                {/* Component Header Block */}
-                <div className="border-b border-[#E1DECF] px-6 py-5">
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.22em] text-[#A2782E] mt-0 mb-2.5 uppercase">
-                        {id ? "METADATA CONFIGURATION EDIT" : "MARKETING CAMPAIGN"}
-                    </p>
-                    <h2 className="font-['Space_Grotesk',sans-serif] text-[24px] font-semibold text-[#1B2537] m-0">
-                        {id ? "Modify Existing Discount Coupon" : "Generate New Discount Coupon"}
+            <button
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-6 font-semibold text-xs transition cursor-pointer"
+            >
+                <ArrowLeft size={16} /> Back to Coupons
+            </button>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
+
+                {/* Header Block */}
+                <div className="border-b border-gray-100 px-8 py-6 bg-gray-50/50">
+                    <div className="flex items-center gap-2.5 mb-1.5">
+                        <TicketPercent size={18} className="text-blue-600" />
+                        <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-widest text-blue-600 uppercase m-0">
+                            {id ? "Edit Campaign Token" : "New Marketing Campaign"}
+                        </p>
+                    </div>
+                    <h2 className="font-['Space_Grotesk'] text-2xl font-bold text-gray-900 m-0 tracking-tight">
+                        {id ? "Modify Discount Coupon" : "Generate Discount Coupon"}
                     </h2>
-                    <p className="text-[#8C8676] text-[13.5px] mt-2 mb-0">
+                    <p className="text-gray-500 text-xs mt-1 m-0 font-medium">
                         Configure target reduction tokens for booking checkouts.
                     </p>
                 </div>
 
                 {/* Input Form Fields Grid */}
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                    <div className="grid md:grid-cols-2 gap-6">
+                <form onSubmit={handleSubmit} className="p-8">
+                    <div className="grid md:grid-cols-2 gap-x-8 gap-y-6">
 
                         {/* Coupon Code */}
                         <div>
-                            <label className="block mb-2 text-[13px] font-medium text-[#4A473D]">Coupon Code</label>
+                            <label className="block mb-2 text-xs font-bold text-gray-900">Coupon Code</label>
                             <input
                                 type="text"
                                 name="couponCode"
                                 value={form.couponCode}
                                 onChange={handleChange}
-                                placeholder="e.g. SUMMER50, WELCOME2026"
-                                className="w-full bg-white border border-[#E1DECF] text-[13.5px] rounded-[3px] px-4 py-3 outline-none focus:border-[#A2782E] transition uppercase font-mono tracking-wider"
+                                placeholder="e.g. SUMMER50, WELCOME26"
+                                className="w-full bg-white border border-gray-200 text-xs rounded-xl px-4 h-11 outline-none focus:border-blue-500 transition uppercase font-['IBM_Plex_Mono'] tracking-wider shadow-2xs font-semibold"
                             />
-                            {errors.couponCode && (
-                                <p className="text-[#C62828] font-['IBM_Plex_Mono',monospace] text-[11px] mt-1.5">
-                                    ✕ {errors.couponCode}
-                                </p>
-                            )}
+                            {errors.couponCode && <p className="text-rose-500 text-[11px] font-medium mt-1.5">✕ {errors.couponCode}</p>}
                         </div>
 
                         {/* Discount Type */}
                         <div>
-                            <label className="block mb-2 text-[13px] font-medium text-[#4A473D]">Discount Engine Class</label>
+                            <label className="block mb-2 text-xs font-bold text-gray-900">Discount Engine Class</label>
                             <select
                                 name="discountType"
                                 value={form.discountType}
                                 onChange={handleChange}
-                                className="w-full bg-white border border-[#E1DECF] text-[13.5px] rounded-[3px] px-4 py-3 outline-none focus:border-[#A2782E] transition text-[#4A473D] font-medium"
+                                className="w-full bg-white border border-gray-200 text-xs rounded-xl px-4 h-11 outline-none focus:border-blue-500 transition text-gray-700 font-semibold shadow-2xs cursor-pointer"
                             >
                                 {discountTypes.map((type) => (
                                     <option key={type} value={type}>
@@ -203,73 +201,65 @@ const AddCoupon = () => {
 
                         {/* Discount Value */}
                         <div>
-                            <label className="block mb-2 text-[13px] font-medium text-[#4A473D]">Discount Reduction Value</label>
+                            <label className="block mb-2 text-xs font-bold text-gray-900">Discount Reduction Value</label>
                             <input
                                 type="number"
                                 name="discountValue"
                                 value={form.discountValue}
                                 onChange={handleChange}
                                 placeholder={form.discountType === "Percentage" ? "e.g. 10 (for 10%)" : "e.g. 500 (for ₹500)"}
-                                className="w-full bg-white border border-[#E1DECF] text-[13.5px] rounded-[3px] px-4 py-3 outline-none focus:border-[#A2782E] transition"
+                                className="w-full bg-white border border-gray-200 text-xs rounded-xl px-4 h-11 outline-none focus:border-blue-500 transition shadow-2xs font-medium"
                             />
-                            {errors.discountValue && (
-                                <p className="text-[#C62828] font-['IBM_Plex_Mono',monospace] text-[11px] mt-1.5">
-                                    ✕ {errors.discountValue}
-                                </p>
-                            )}
+                            {errors.discountValue && <p className="text-rose-500 text-[11px] font-medium mt-1.5">✕ {errors.discountValue}</p>}
                         </div>
 
                         {/* Minimum Booking Amount */}
                         <div>
-                            <label className="block mb-2 text-[13px] font-medium text-[#4A473D]">Minimum Order Limit Requirement</label>
+                            <label className="block mb-2 text-xs font-bold text-gray-900">Minimum Order Limit Requirement</label>
                             <input
                                 type="number"
                                 name="minBookingAmount"
                                 value={form.minBookingAmount}
                                 onChange={handleChange}
                                 placeholder="e.g. 1999 (0 for no limit)"
-                                className="w-full bg-white border border-[#E1DECF] text-[13.5px] rounded-[3px] px-4 py-3 outline-none focus:border-[#A2782E] transition"
+                                className="w-full bg-white border border-gray-200 text-xs rounded-xl px-4 h-11 outline-none focus:border-blue-500 transition shadow-2xs font-medium"
                             />
                         </div>
 
                         {/* Expiry Date */}
                         <div>
-                            <label className="block mb-2 text-[13px] font-medium text-[#4A473D]">Campaign Expiry Timeline</label>
+                            <label className="block mb-2 text-xs font-bold text-gray-900">Campaign Expiry Timeline</label>
                             <input
                                 type="date"
                                 name="expiryDate"
                                 value={form.expiryDate}
                                 onChange={handleChange}
-                                className="w-full bg-white border border-[#E1DECF] text-[13.5px] rounded-[3px] px-4 py-3 outline-none focus:border-[#A2782E] transition text-[#4A473D]"
+                                className="w-full bg-white border border-gray-200 text-xs rounded-xl px-4 h-11 outline-none focus:border-blue-500 transition text-gray-700 font-semibold shadow-2xs cursor-pointer"
                             />
-                            {errors.expiryDate && (
-                                <p className="text-[#C62828] font-['IBM_Plex_Mono',monospace] text-[11px] mt-1.5">
-                                    ✕ {errors.expiryDate}
-                                </p>
-                            )}
+                            {errors.expiryDate && <p className="text-rose-500 text-[11px] font-medium mt-1.5">✕ {errors.expiryDate}</p>}
                         </div>
 
                         {/* Max Uses */}
                         <div>
-                            <label className="block mb-2 text-[13px] font-medium text-[#4A473D]">Usage Capacity Threshold</label>
+                            <label className="block mb-2 text-xs font-bold text-gray-900">Usage Capacity Threshold</label>
                             <input
                                 type="number"
                                 name="maxUses"
                                 value={form.maxUses}
                                 onChange={handleChange}
                                 placeholder="e.g. 100 times usable"
-                                className="w-full bg-white border border-[#E1DECF] text-[13.5px] rounded-[3px] px-4 py-3 outline-none focus:border-[#A2782E] transition"
+                                className="w-full bg-white border border-gray-200 text-xs rounded-xl px-4 h-11 outline-none focus:border-blue-500 transition shadow-2xs font-medium"
                             />
                         </div>
 
                         {/* Coupon Status */}
                         <div>
-                            <label className="block mb-2 text-[13px] font-medium text-[#4A473D]">Coupon Current Status</label>
+                            <label className="block mb-2 text-xs font-bold text-gray-900">Coupon Current Status</label>
                             <select
                                 name="status"
                                 value={form.status}
                                 onChange={handleChange}
-                                className="w-full bg-white border border-[#E1DECF] text-[13.5px] rounded-[3px] px-4 py-3 outline-none focus:border-[#A2782E] transition text-[#4A473D] font-medium"
+                                className="w-full bg-white border border-gray-200 text-xs rounded-xl px-4 h-11 outline-none focus:border-blue-500 transition text-gray-700 font-semibold shadow-2xs cursor-pointer"
                             >
                                 {statusOptions.map((opt) => (
                                     <option key={opt} value={opt}>
@@ -281,20 +271,21 @@ const AddCoupon = () => {
                     </div>
 
                     {/* Action Footer Buttons */}
-                    <div className="flex justify-end gap-3 pt-6 border-t border-[#E1DECF]">
+                    <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-10 pt-6 border-t border-gray-100">
                         <button
                             type="button"
-                            onClick={() => navigate("/admin/dashboard")}
-                            className="px-6 py-2.5 text-[13px] font-medium rounded-[3px] border border-[#E1DECF] text-[#4A473D] hover:bg-[#FCFBF7] transition-colors"
+                            onClick={() => navigate("/admin/myCoupon")}
+                            className="w-full sm:w-auto h-11 px-8 text-xs font-bold uppercase tracking-wider rounded-xl bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition cursor-pointer"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="bg-[#1B2537] text-[#FFF9EC] px-8 py-2.5 text-[13px] font-medium rounded-[3px] hover:bg-[#26314A] disabled:opacity-40 transition-colors uppercase tracking-wide font-semibold"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white h-11 px-8 text-xs font-bold uppercase tracking-wider rounded-xl disabled:opacity-50 transition shadow-2xs cursor-pointer"
                         >
-                            {loading ? "Compiling..." : id ? "Update Metadata" : "Deploy Coupon"}
+                            {loading && <Loader2 size={16} className="animate-spin" />}
+                            {id ? "Update Metadata" : "Deploy Coupon"}
                         </button>
                     </div>
                 </form>
@@ -304,4 +295,4 @@ const AddCoupon = () => {
     );
 };
 
-export default AddCoupon;
+export default AddCoupon;   

@@ -9,10 +9,18 @@ const superAdmin = require("../Middleware/superAdmin");
 const adminOrSuperAdmin = require("../Middleware/adminOrSuperAdmin");
 
 // ==========================
+// 🟢 PUBLIC ROUTES (No Auth Required - MUST BE AT THE TOP)
+// ==========================
+router.get("/public/all", hotelController.getAllPublicHotels);
+router.get("/public/:id", hotelController.getPublicHotelById);
+
+// Check Status (Public)
+router.post("/checkStatus", hotelController.checkHotelStatus);
+
+
+// ==========================
 // Admin
 // ==========================
-
-// Create Hotel
 router.post(
     "/create",
     auth,
@@ -20,7 +28,6 @@ router.post(
     hotelController.createHotel
 );
 
-// My Hotels
 router.get(
     "/my-hotels",
     auth,
@@ -28,7 +35,6 @@ router.get(
     hotelController.getMyHotels
 );
 
-// Update Hotel
 router.patch(
     "/update/:id",
     auth,
@@ -36,7 +42,6 @@ router.patch(
     hotelController.updateHotel
 );
 
-// Change Active / Inactive
 router.patch(
     "/change-status/:id",
     auth,
@@ -44,7 +49,6 @@ router.patch(
     hotelController.changeHotelStatus
 );
 
-// Active Hotels
 router.get(
     "/active",
     auth,
@@ -52,7 +56,6 @@ router.get(
     hotelController.getActiveHotels
 );
 
-// Inactive Hotels
 router.get(
     "/inactive",
     auth,
@@ -60,11 +63,10 @@ router.get(
     hotelController.getInactiveHotels
 );
 
+
 // ==========================
 // Admin + Super Admin
 // ==========================
-
-// Pending Hotels
 router.get(
     "/pending",
     auth,
@@ -72,7 +74,6 @@ router.get(
     hotelController.getPendingHotels
 );
 
-// Approved Hotels
 router.get(
     "/approved",
     auth,
@@ -80,7 +81,6 @@ router.get(
     hotelController.getApprovedHotels
 );
 
-// Rejected Hotels
 router.get(
     "/rejected",
     auth,
@@ -88,11 +88,10 @@ router.get(
     hotelController.getRejectedHotels
 );
 
+
 // ==========================
 // Super Admin
 // ==========================
-
-// Approve Hotel
 router.patch(
     "/approve/:id",
     auth,
@@ -100,7 +99,6 @@ router.patch(
     hotelController.approveHotel
 );
 
-// Reject Hotel
 router.patch(
     "/reject/:id",
     auth,
@@ -108,40 +106,26 @@ router.patch(
     hotelController.rejectHotel
 );
 
-// ==========================
-// Public
-// ==========================
-
-// Check Status
-router.post(
-    "/checkStatus",
-    hotelController.checkHotelStatus
-);
 
 // ==========================
 // 💥 Approved Hotel Dashboard Portal
 // ==========================
-
-// Particular login hotel ka poora data secure tarike se fetch karne ke liye
 router.get(
     "/particular-dashboard",
-    auth, // ◄--- Sirf authorized logged-in hotels hi access kar payenge
+    auth,
     hotelController.getParticularHotelDashboard
 );
 
-// ==========================
-// Common
-// ==========================
+router.get("/all", auth, hotelController.getAllHotels);
 
-// Hotel By Id
+
+// ==========================
+// Common (Protected Parameter Route)
+// ==========================
 router.get(
     "/:id",
     auth,
     hotelController.getHotelById
 );
-
-// PUBLIC ROUTES (No Auth Required)
-router.get("/public/all", hotelController.getAllPublicHotels);
-router.get("/public/:id", hotelController.getPublicHotelById);
 
 module.exports = router;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { signupApi } from "./api";
+import { Hotel, Mail, Lock, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 const EyeIcon = ({ open }) =>
     open ? (
@@ -17,12 +18,11 @@ const EyeIcon = ({ open }) =>
         </svg>
     );
 
-// Sahi redirection paths aapki App.jsx ke routes ke mutabik
 const ROLE_ROUTES = {
-    user: "/",
+    user: "/signup",
     admin: "/admin/dashboard",
     superAdmin: "/superAdmin/state",
-    hotel: "/hotel", // ◄--- /hotel se badalkar ab ye /hotel/dashboard par bhejega
+    hotel: "/hotel/hotelDashboard",
 };
 
 const Login = () => {
@@ -43,7 +43,6 @@ const Login = () => {
     useEffect(() => {
         if (location.state?.signupMessage) {
             setInfoMessage(location.state.signupMessage);
-
             navigate(location.pathname, {
                 replace: true,
                 state: {},
@@ -53,17 +52,14 @@ const Login = () => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-
         setFormData((prev) => ({
             ...prev,
             [name]: value,
         }));
-
         setErrors((prev) => ({
             ...prev,
             [name]: "",
         }));
-
         setFormError("");
     };
 
@@ -72,10 +68,8 @@ const Login = () => {
 
         if (!formData.email.trim()) {
             newErrors.email = "Email is required";
-        } else if (
-            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
-        ) {
-            newErrors.email = "Enter valid email";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            newErrors.email = "Enter a valid email address";
         }
 
         if (!formData.password.trim()) {
@@ -83,7 +77,6 @@ const Login = () => {
         }
 
         setErrors(newErrors);
-
         return Object.keys(newErrors).length === 0;
     };
 
@@ -95,31 +88,21 @@ const Login = () => {
 
         try {
             setLoading(true);
-
-            const response = await axios.post(
-                `${signupApi}userSignup/login`,
-                formData
-            );
-
+            const response = await axios.post(`${signupApi}userSignup/login`, formData);
             const { token, user } = response.data;
 
-            // Session Data Save karein
             localStorage.setItem("token", token);
             localStorage.setItem("user", JSON.stringify(user));
 
-            // Form Clear karein
             setFormData({
                 email: "",
                 password: "",
             });
 
-            // Sahi role par redirect karein
             navigate(ROLE_ROUTES[user.role] || "/user");
-
         } catch (error) {
             setFormError(
-                error.response?.data?.message ||
-                "Login failed. Please try again."
+                error.response?.data?.message || "Login failed. Please check your credentials."
             );
         } finally {
             setLoading(false);
@@ -127,82 +110,75 @@ const Login = () => {
     };
 
     const fieldClass = (name) =>
-        `w-full border pl-10 pr-10 h-11 text-[13.5px] rounded-[3px] outline-none transition bg-white font-medium text-[#232320] ${errors[name]
-            ? "border-[#8E3B30] focus:border-[#8E3B30] bg-[#FFF8F7]"
-            : "border-[#E1DECF] focus:border-[#A2782E]"
+        `w-full border pl-10 pr-10 h-11 text-xs font-medium rounded-xl outline-none transition-all bg-gray-50/50 text-gray-900 shadow-2xs ${errors[name]
+            ? "border-rose-300 focus:border-rose-500 bg-rose-50/20"
+            : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
         }`;
 
     const FieldError = ({ name }) =>
         errors[name] ? (
-            <p id={`${name}-error`} role="alert" className="text-[11.5px] font-['IBM_Plex_Mono',monospace] text-[#8E3B30] mt-1.5 flex items-center gap-1.5 font-medium">
-                ✕ {errors[name]}
+            <p id={`${name}-error`} role="alert" className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+                <AlertCircle size={12} />
+                {errors[name]}
             </p>
         ) : null;
 
     return (
-        <div className="min-h-screen bg-[#F7F6F0] bg-[radial-gradient(1000px_450px_at_100%_0%,rgba(162,120,46,0.04),transparent_60%)] font-['Inter',sans-serif] text-[#232320] antialiased flex items-center justify-center px-4 py-12">
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');`}</style>
+        <div className="min-h-screen bg-gray-50 text-gray-800 font-['Inter',sans-serif] flex items-center justify-center px-4 py-12 relative overflow-hidden">
 
-            <div className="w-full max-w-md bg-white border border-[#E5E2D5] rounded-[3px] p-8 lg:p-10 shadow-[0_4px_24px_rgba(30,28,20,0.02)]">
+            {/* Background Decorative Glows */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div className="w-full max-w-md bg-white border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl relative z-10">
 
                 {/* Brand Identity Block */}
-                <div className="text-center mb-9">
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.24em] text-[#A2782E] mt-0 mb-2.5 font-semibold uppercase">
-                        ACCOUNT ACCESS GATEWAY
-                    </p>
-                    <h1 className="font-['Space_Grotesk',sans-serif] font-bold text-[28px] tracking-tight m-0 text-[#1B2537]">
+                <div className="text-center mb-8">
+                    <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <Hotel size={22} />
+                    </div>
+                    <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
+                        Secure Authentication
+                    </span>
+                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 m-0 tracking-tight">
                         Welcome Back
                     </h1>
-                    <p className="text-[#8C8676] text-[13.5px] mt-2 mb-0 font-medium">
-                        Log in to coordinate your platform node operations.
+                    <p className="text-gray-500 text-xs mt-1 font-medium">
+                        Log in to access your dashboard & reservations.
                     </p>
                 </div>
 
                 {/* Info Messages Alert */}
                 {infoMessage && (
-                    <div
-                        role="status"
-                        className="mb-5 rounded-[3px] border border-[#E1DECF] bg-[#FCFBF7] text-[#A2782E] text-[13px] font-medium p-3.5 flex items-start gap-2.5 shadow-sm"
-                    >
-                        <svg className="mt-[2px] shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M20 6L9 17l-5-5" />
-                        </svg>
+                    <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
+                        <CheckCircle2 className="mt-0.5 shrink-0" size={14} />
                         <span>{infoMessage}</span>
                     </div>
                 )}
 
                 {/* Failure Error Alert */}
                 {formError && (
-                    <div
-                        role="alert"
-                        className="mb-5 rounded-[3px] border border-[#E7C9C3]/50 bg-[#FFF8F7] text-[#8E3B30] text-[13px] font-medium p-3.5 flex items-start gap-2.5"
-                    >
-                        <svg className="mt-[2px] shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="9" />
-                            <path d="M12 8v5" />
-                            <path d="M12 16h.01" />
-                        </svg>
+                    <div role="alert" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
+                        <AlertCircle className="mt-0.5 shrink-0" size={14} />
                         <span>{formError}</span>
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} noValidate className="space-y-5">
+                <form onSubmit={handleSubmit} noValidate className="space-y-4">
+
                     {/* Email Input */}
                     <div>
-                        <label htmlFor="login-email" className="block text-[12.5px] font-medium text-[#4A473D] mb-2">
-                            Email Identifier
+                        <label htmlFor="login-email" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
+                            Email Address
                         </label>
                         <div className="relative">
-                            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A39C89]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                                <rect x="2" y="4" width="20" height="16" rx="2" />
-                                <path d="M2 7l10 6 10-6" />
-                            </svg>
+                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                             <input
                                 id="login-email"
                                 type="email"
                                 name="email"
                                 autoComplete="email"
-                                placeholder="name@domain.com"
+                                placeholder="name@example.com"
                                 value={formData.email}
                                 onChange={handleChange}
                                 aria-invalid={!!errors.email}
@@ -215,25 +191,22 @@ const Login = () => {
 
                     {/* Password Input */}
                     <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <label htmlFor="login-password" className="block text-[12.5px] font-medium text-[#4A473D]">
-                                Security Password
+                        <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="login-password" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 font-['IBM_Plex_Mono']">
+                                Password
                             </label>
-                            <Link to="/forgot" className="text-[12px] font-semibold text-[#8C8676] hover:text-[#A2782E] transition">
-                                Forgot?
+                            <Link to="/forgot" className="text-xs font-bold text-blue-600 hover:underline underline-offset-2">
+                                Forgot password?
                             </Link>
                         </div>
                         <div className="relative">
-                            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A39C89]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                                <rect x="3" y="11" width="18" height="10" rx="2" />
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                            </svg>
+                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                             <input
                                 id="login-password"
                                 type={showPassword ? "text" : "password"}
                                 name="password"
                                 autoComplete="current-password"
-                                placeholder="••••••••"
+                                placeholder="Enter your password"
                                 value={formData.password}
                                 onChange={handleChange}
                                 aria-invalid={!!errors.password}
@@ -245,7 +218,7 @@ const Login = () => {
                                 aria-label={showPassword ? "Hide password" : "Show password"}
                                 aria-pressed={showPassword}
                                 onClick={() => setShowPassword((v) => !v)}
-                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#A39C89] hover:text-[#1B2537] transition duration-150"
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition cursor-pointer"
                             >
                                 <EyeIcon open={showPassword} />
                             </button>
@@ -257,38 +230,27 @@ const Login = () => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full h-11 rounded-[3px] font-['Space_Grotesk',sans-serif] font-bold text-[13.5px] bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A] disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider shadow-sm active:scale-[0.99]"
+                        className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
                     >
-                        {loading && (
-                            <svg className="animate-spin text-[#FFF9EC]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M21 12a9 9 0 1 1-9-9" />
-                            </svg>
-                        )}
-                        {loading ? "Authenticating…" : "Sign In"}
+                        {loading && <Loader2 className="animate-spin" size={15} />}
+                        {loading ? "Authenticating..." : "Log In"}
                     </button>
                 </form>
 
-                {/* Redirect Footer Links */}
-                <div className="mt-8 border-t border-[#E5E2D5] pt-5 space-y-3 font-sans">
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-2 text-[13px]">
-                        <span className="text-[#8C8676] font-medium">New around here?</span>
-                        <div className="flex gap-3">
-                            <Link to="/" className="text-[#1B2537] font-semibold hover:text-[#A2782E] transition">User Join</Link>
-                            <span className="text-[#E5E2D5]">|</span>
-                            <Link to="/adminSignup" className="text-[#1B2537] font-semibold hover:text-[#A2782E] transition">Partner Join</Link>
-                        </div>
-                    </div>
-
-                    <div className="bg-[#FCFBF9] p-3 rounded-[3px] border border-[#E5E2D5] space-y-2 text-[12px] font-medium">
-                        <div className="flex justify-between items-center">
-                            <span className="text-[#8C8676]">Track Admin Application Status</span>
-                            <Link to="/checkStatus" className="text-[#A2782E] font-semibold hover:underline">Verify Key</Link>
-                        </div>
-                        <div className="flex justify-between items-center border-t pt-2 border-[#FAF9F5]">
-                            <span className="text-[#8C8676]">Track Hotel Document Status</span>
-                            <Link to="/hotelStatus" className="text-[#A2782E] font-semibold hover:underline">Audit Log</Link>
-                        </div>
-                    </div>
+                {/* Clean Streamlined Footer Links */}
+                <div className="mt-8 border-t border-gray-100 pt-6 flex flex-col items-center justify-center gap-2 text-xs text-center">
+                    <p className="text-gray-500 font-medium">
+                        Don't have an account?{" "}
+                        <Link to="/signup" className="text-gray-900 font-bold hover:text-blue-600 underline underline-offset-4">
+                            Sign up as user
+                        </Link>
+                    </p>
+                    <p className="text-gray-500 font-medium">
+                        Want to manage properties?{" "}
+                        <Link to="/adminSignup" className="text-blue-600 font-bold hover:underline underline-offset-4">
+                            Sign up as admin
+                        </Link>
+                    </p>
                 </div>
 
             </div>

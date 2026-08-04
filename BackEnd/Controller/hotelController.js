@@ -42,52 +42,141 @@ const createHotel = async (req, res) => {
             hotelType,
             totalRooms,
             amenities,
+            adminId,
         } = req.body;
 
         if (!hotelName?.trim()) {
-            return res.status(400).json({ success: false, message: "Hotel name is required" });
+            return res.status(400).json({
+                success: false,
+                message: "Hotel name is required",
+            });
         }
+
         if (hotelName.trim().length < 3) {
-            return res.status(400).json({ success: false, message: "Hotel name must be at least 3 characters" });
+            return res.status(400).json({
+                success: false,
+                message: "Hotel name must be at least 3 characters",
+            });
         }
+
         if (!hotelEmail?.trim()) {
-            return res.status(400).json({ success: false, message: "Hotel email is required" });
+            return res.status(400).json({
+                success: false,
+                message: "Hotel email is required",
+            });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
         if (!emailRegex.test(hotelEmail)) {
-            return res.status(400).json({ success: false, message: "Invalid hotel email" });
-        }
-        if (!city) {
-            return res.status(400).json({ success: false, message: "City is required" });
-        }
-        if (!address?.trim()) {
-            return res.status(400).json({ success: false, message: "Address is required" });
-        }
-        if (address.trim().length < 8) {
-            return res.status(400).json({ success: false, message: "Please enter complete address" });
-        }
-        if (!description?.trim()) {
-            return res.status(400).json({ success: false, message: "Description is required" });
-        }
-        if (description.trim().length < 20) {
-            return res.status(400).json({ success: false, message: "Description must be at least 20 characters" });
-        }
-        if (!totalRooms || Number(totalRooms) <= 0) {
-            return res.status(400).json({ success: false, message: "Enter valid total rooms" });
+            return res.status(400).json({
+                success: false,
+                message: "Invalid hotel email",
+            });
         }
 
-        // Duplicate Check using exact matching key layout 'hotelEmail'
+        if (!city) {
+            return res.status(400).json({
+                success: false,
+                message: "City is required",
+            });
+        }
+
+        if (!address?.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Address is required",
+            });
+        }
+
+        if (address.trim().length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter complete address",
+            });
+        }
+
+        if (!description?.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Description is required",
+            });
+        }
+
+        if (description.trim().length < 20) {
+            return res.status(400).json({
+                success: false,
+                message: "Description must be at least 20 characters",
+            });
+        }
+
+        if (!totalRooms || Number(totalRooms) <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Enter valid total rooms",
+            });
+        }
+
         const existingHotel = await hotelModel.findOne({
             hotelEmail: hotelEmail.toLowerCase().trim(),
         });
 
         if (existingHotel) {
-            return res.status(400).json({ success: false, message: "Hotel email already exists" });
+            return res.status(400).json({
+                success: false,
+                message: "Hotel email already exists",
+            });
         }
 
+        // ==========================
+        // Assign Admin & Status
+        // ==========================
+
+        let assignedAdmin;
+        let hotelStatus;
+
+        if (req.user.role === "admin") {
+            assignedAdmin = req.user._id;
+            hotelStatus = "Pending";
+        } else if (req.user.role === "superAdmin") {
+            if (!adminId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Please select an admin",
+                });
+            }
+
+            const admin = await signupModel.findOne({
+                _id: adminId,
+                role: "admin",
+                status: "Approved",
+            });
+
+            if (!admin) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Approved admin not found",
+                });
+            }
+
+            assignedAdmin = admin._id;
+            hotelStatus = "Approved";
+        } else {
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        // ==========================
+        // Upload Images
+        // ==========================
+
         if (!req.files?.hotelImages) {
-            return res.status(400).json({ success: false, message: "Hotel images are required" });
+            return res.status(400).json({
+                success: false,
+                message: "Hotel images are required",
+            });
         }
 
         const images = Array.isArray(req.files.hotelImages)
@@ -95,24 +184,43 @@ const createHotel = async (req, res) => {
             : [req.files.hotelImages];
 
         if (images.length < 3) {
-            return res.status(400).json({ success: false, message: "Please upload at least 3 hotel images" });
+            return res.status(400).json({
+                success: false,
+                message: "Please upload at least 3 hotel images",
+            });
         }
 
         const uploadResult = await uploadImage(images);
-        const hotelImages = uploadResult.map((image) => image.secure_url);
+
+        const hotelImages = uploadResult.map(
+            (image) => image.secure_url
+        );
+
+        // ==========================
+        // Amenities
+        // ==========================
 
         let amenitiesArray = [];
+
         if (Array.isArray(amenities)) {
             amenitiesArray = amenities;
         } else if (typeof amenities === "string") {
-            amenitiesArray = amenities.split(",").map(item => item.trim());
+            amenitiesArray = amenities
+                .split(",")
+                .map((item) => item.trim());
         }
 
         const trackingId = uuidv4();
 
+        // ==========================
+        // Create Hotel
+        // ==========================
+
         const hotel = await hotelModel.create({
             hotelName: hotelName.trim(),
-            hotelEmail: hotelEmail.toLowerCase().trim(),
+            hotelEmail: hotelEmail
+                .toLowerCase()
+                .trim(),
             city,
             address: address.trim(),
             description: description.trim(),
@@ -121,35 +229,74 @@ const createHotel = async (req, res) => {
             amenities: amenitiesArray,
             hotelImages,
             trackingId,
-            adminId: req.user._id,
-            status: "Pending",
+            adminId: assignedAdmin,
+            status: hotelStatus,
         });
 
-        await sendEmail(
-            hotel.hotelEmail,
-            "Hotel Registration Submitted",
-            `
-            <h2>Hello,</h2>
-            <p>Your hotel registration request has been submitted successfully.</p>
-            <p><strong>Tracking ID :</strong> ${trackingId}</p>
-            <p>Please save this Tracking ID. You can use it to check your hotel request status.</p>
-            `
-        );
+        // ==========================
+        // Send Email
+        // ==========================
 
-        const populatedHotel = await hotelModel.findById(hotel._id).populate({
-            path: "city",
-            populate: { path: "districtId", populate: { path: "stateId" } },
-        });
+        if (req.user.role === "admin") {
+            await sendEmail(
+                hotel.hotelEmail,
+                "Hotel Registration Submitted",
+                `
+                <h2>Hello,</h2>
+
+                <p>Your hotel registration request has been submitted successfully.</p>
+
+                <p><strong>Tracking ID :</strong> ${trackingId}</p>
+
+                <p>Please save this Tracking ID. You can use it to check your hotel request status.</p>
+                `
+            );
+        }
+
+        if (req.user.role === "superAdmin") {
+            await sendEmail(
+                hotel.hotelEmail,
+                "Hotel Created Successfully",
+                `
+                <h2>Welcome</h2>
+
+                <p>Your hotel has been created successfully by the Super Admin.</p>
+
+                <p>You can now access the platform once your credentials are generated.</p>
+                `
+            );
+        }
+
+        const populatedHotel = await hotelModel.findById(hotel._id)
+            .populate({
+                path: "adminId",
+                select: "name email",
+            })
+            .populate({
+                path: "city",
+                populate: {
+                    path: "districtId",
+                    populate: {
+                        path: "stateId",
+                    },
+                },
+            });
 
         return res.status(201).json({
             success: true,
-            message: "Hotel request submitted successfully",
+            message:
+                req.user.role === "superAdmin"
+                    ? "Hotel created successfully"
+                    : "Hotel request submitted successfully",
             hotel: populatedHotel,
         });
-
     } catch (error) {
         console.log("Create Hotel Error :", error);
-        return res.status(500).json({ success: false, message: error.message });
+
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
     }
 };
 
@@ -372,6 +519,8 @@ const updateHotel = async (req, res) => {
         } = req.body;
 
         const hotel = await hotelModel.findById(id);
+        // console.log(">>>>>hotelId", hotel);
+
         if (!hotel) {
             return res.status(404).json({ success: false, message: "Hotel not found" });
         }
@@ -397,10 +546,19 @@ const updateHotel = async (req, res) => {
             }
         }
 
-        let amenitiesArray = hotel.amenities;
+        let amenitiesArray = hotel.amenities; // Default: purani amenities
+
         if (amenities) {
-            amenitiesArray = amenities.split(",").map((item) => item.trim());
+            if (Array.isArray(amenities)) {
+                amenitiesArray = amenities.map(item => item.trim());
+            } else {
+                amenitiesArray = amenities
+                    .split(",")
+                    .map(item => item.trim());
+            }
         }
+
+        console.log("Amenities:", amenitiesArray);
 
         let hotelImages = hotel.hotelImages;
         if (req.files?.hotelImages) {
@@ -663,6 +821,7 @@ const getAllPublicHotels = async (req, res) => {
 const getPublicHotelById = async (req, res) => {
     try {
         const { id } = req.params;
+        console.log("Hotel ID:", req.params.id);
 
         const hotel = await hotelModel
             .findOne({
@@ -700,12 +859,44 @@ const getPublicHotelById = async (req, res) => {
     }
 };
 
+// =========================================================================
+// GET ALL HOTELS (For SuperAdmin Dashboard - Shows all hotels with admins)
+// =========================================================================
+const getAllHotels = async (req, res) => {
+    try {
+        const hotels = await hotelModel
+            .find({})
+            .populate({
+                path: "adminId",
+                select: "name email mobile"
+            })
+            .populate({
+                path: "city",
+                populate: {
+                    path: "districtId",
+                    populate: { path: "stateId" }
+                },
+            })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            success: true,
+            totalHotels: hotels.length,
+            hotels
+        });
+    } catch (error) {
+        console.log("Get All Hotels Error :", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 
 // =========================================================================
 // MODULE EXPORTS (Updated to include the new dynamic node handler)
 // =========================================================================
 module.exports = {
     createHotel,
+    getAllHotels,
     getPendingHotels,
     getApprovedHotels,
     getRejectedHotels,

@@ -1,521 +1,536 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
+import { Plus, Search, Eye, Edit, Ban, RotateCcw, Trash2, Loader2, MapPin, CheckCircle2, AlertTriangle, X, RefreshCw } from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 const District = () => {
   const [showModal, setShowModal] = useState(false);
-
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
 
   const [districtName, setDistrictName] = useState("");
-
   const [stateId, setStateId] = useState("");
-
   const [states, setStates] = useState([]);
-
   const [districts, setDistricts] = useState([]);
-
   const [inactiveDistricts, setInactiveDistricts] = useState([]);
-
   const [viewData, setViewData] = useState(null);
 
-  const [showViewModal, setShowViewModal] = useState(false);
-
   const [isEdit, setIsEdit] = useState(false);
-
   const [editId, setEditId] = useState("");
+  const [deleteId, setDeleteId] = useState(null);
 
   const [search, setSearch] = useState("");
   const [filterState, setFilterState] = useState("");
   const [sortOrder, setSortOrder] = useState("asc");
   const [loading, setLoading] = useState(false);
 
-  // States
-  const getStates = async () => {
-    try {
-      const response = await axios.get(`${signupApi}state/active`);
-
-      setStates(response.data.result);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  // Active
-  const getDistricts = async () => {
-    try {
-      setLoading(true);
-
-      const response = await axios.get(`${signupApi}district/active`);
-
-      setDistricts(response.data.result);
-    } catch (error) {
-      console.log(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Inactive
-  const getInactiveDistricts = async () => {
-    try {
-      setLoading(true);
-
-      const response = await axios.get(`${signupApi}district/inactive`);
-
-      setInactiveDistricts(response.data.result);
-    } catch (error) {
-      console.log(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    getStates();
-    getDistricts();
-    getInactiveDistricts();
+    fetchAllData();
   }, []);
 
-  // Create and Update
-  const handleSubmit = async () => {
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      const [statesRes, activeRes, inactiveRes] = await Promise.all([
+        axios.get(`${signupApi}state/active`),
+        axios.get(`${signupApi}district/active`),
+        axios.get(`${signupApi}district/inactive`),
+      ]);
+      setStates(statesRes.data.result || []);
+      setDistricts(activeRes.data.result || []);
+      setInactiveDistricts(inactiveRes.data.result || []);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load district data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!districtName.trim() || !stateId) {
-      return alert("District name and State are required");
+      toast.error("District name and State are required");
+      return;
     }
 
     try {
-      let response;
+      const endpoint = isEdit ? `district/update/${editId}` : `district/create`;
+      const method = isEdit ? axios.patch : axios.post;
 
-      if (isEdit) {
-        response = await axios.patch(`${signupApi}district/update/${editId}`, {
-          districtName,
-          stateId,
-        });
-      } else {
-        response = await axios.post(`${signupApi}district/create`, {
-          districtName,
-          stateId,
-        });
-      }
+      const response = await method(`${signupApi}${endpoint}`, {
+        districtName,
+        stateId,
+      });
 
-      alert(response.data.message);
-
+      toast.success(response.data.message || (isEdit ? "District successfully modified." : "District successfully created."));
       setDistrictName("");
       setStateId("");
       setShowModal(false);
       setIsEdit(false);
       setEditId("");
-
-      getDistricts();
-      getInactiveDistricts();
+      fetchAllData();
     } catch (error) {
-      alert(error.response?.data?.message || "Something went wrong");
+      toast.error(error.response?.data?.message || "Something went wrong.");
     }
   };
 
-  // View
   const handleView = async (id) => {
     try {
       const response = await axios.get(`${signupApi}district/${id}`);
-
       setViewData(response.data.result);
-
       setShowViewModal(true);
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to fetch district details.");
     }
   };
 
-  // Edit
   const handleEdit = (item) => {
     setIsEdit(true);
     setEditId(item._id);
     setDistrictName(item.districtName);
-    setStateId(item.stateId?._id);
+    setStateId(item.stateId?._id || "");
     setShowModal(true);
   };
 
-  // Inactive
   const handleInactive = async (id) => {
     try {
       const response = await axios.patch(`${signupApi}district/inactive/${id}`);
-
-      alert(response.data.message);
-
-      getDistricts();
-      getInactiveDistricts();
+      toast.success(response.data.message || "District marked as inactive.");
+      fetchAllData();
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to update status.");
     }
   };
 
-  // Restore
   const handleRestore = async (id) => {
     try {
       const response = await axios.patch(`${signupApi}district/restore/${id}`);
-
-      alert(response.data.message);
-
-      getDistricts();
-      getInactiveDistricts();
+      toast.success(response.data.message || "District restored successfully.");
+      fetchAllData();
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Failed to restore district.");
     }
   };
 
-  // Delete
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this district? This can't be undone.")) return;
+  const confirmDelete = (id) => {
+    setDeleteId(id);
+    setShowDeleteModal(true);
+  };
 
+  const handleDelete = async () => {
+    if (!deleteId) return;
     try {
-      const response = await axios.delete(`${signupApi}district/${id}`);
-
-      alert(response.data.message);
-
-      getDistricts();
-      getInactiveDistricts();
+      const response = await axios.delete(`${signupApi}district/${deleteId}`);
+      toast.success(response.data.message || "District permanently deleted.");
+      setShowDeleteModal(false);
+      setDeleteId(null);
+      fetchAllData();
     } catch (error) {
-      console.log(error);
+      toast.error(error.response?.data?.message || "Error executing deletion.");
     }
   };
 
-  // Registry-style code chip derived from the district name (visual only)
-  const codeFor = (name = "") =>
-    name
-      .trim()
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join("")
-      .slice(0, 3)
-      .toUpperCase();
+  const codeFor = (name = "") => name.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
 
   const currentData = activeTab === "active" ? districts : inactiveDistricts;
-
   const filteredData = currentData
     .filter((item) => {
-      const districtMatch = item.districtName
-        ?.toLowerCase()
-        .includes(search.toLowerCase());
-
-      const stateMatch =
-        filterState === "" ? true : item.stateId?._id === filterState;
-
+      const districtMatch = item.districtName?.toLowerCase().includes(search.toLowerCase());
+      const stateMatch = filterState === "" ? true : item.stateId?._id === filterState;
       return districtMatch && stateMatch;
     })
-    .sort((a, b) => {
-      if (sortOrder === "asc") {
-        return a.districtName.localeCompare(b.districtName);
-      }
-
-      return b.districtName.localeCompare(a.districtName);
-    });
+    .sort((a, b) => sortOrder === "asc" ? a.districtName.localeCompare(b.districtName) : b.districtName.localeCompare(a.districtName));
 
   const activeCount = districts.length;
   const inactiveCount = inactiveDistricts.length;
+  const totalCount = activeCount + inactiveCount;
 
   return (
-    <div className="min-h-screen font-['Inter',sans-serif] text-[#232320]">
-      {/* Google Fonts import (kept as-is; Tailwind utilities don't load fonts) */}
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
+    <div className="space-y-6 font-['Inter',sans-serif] text-gray-800 pb-12 max-w-[1600px] mx-auto">
+      <Toaster position="top-right" richColors />
 
-      <div className="max-w-[1080px] mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-end gap-4 flex-wrap mb-[30px]">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-200 shadow-2xs">
+        <div>
+          <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-[0.2em] text-blue-600 mb-1 uppercase">
+            LOCATION HIERARCHY
+          </p>
+          <h1 className="font-['Space_Grotesk'] font-bold text-2xl text-gray-900 tracking-tight m-0">
+            District Management
+          </h1>
+          <p className="text-gray-500 text-xs mt-1 font-medium m-0">
+            Manage regional district nodes, state associations, and jurisdictional breakdowns.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button
+            onClick={fetchAllData}
+            className="p-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-600 transition shadow-2xs cursor-pointer"
+            title="Refresh Data"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <button
+            onClick={() => { setShowModal(true); setIsEdit(false); setDistrictName(""); setStateId(""); }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 h-11 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-2xs cursor-pointer flex-1 sm:flex-none"
+          >
+            <Plus size={16} />
+            Add District
+          </button>
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.2em] text-[#A2782E] mb-2 mt-0">
-              LOCATION HIERARCHY
-            </p>
-            <h1 className="font-['Space_Grotesk',sans-serif] font-semibold text-2xl text-[#1B2537] m-0 tracking-[-0.01em]">
-              Districts
-            </h1>
-            <p className="text-[#8C8676] text-[13px] mt-[6px] mb-0">
-              {activeCount + inactiveCount} on record · {activeCount} active · grouped by state
-            </p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Total Records</p>
+            <h3 className="text-2xl font-bold text-gray-900 font-['Space_Grotesk']">{totalCount}</h3>
           </div>
-
-          <button
-            onClick={() => {
-              setShowModal(true);
-              setIsEdit(false);
-              setDistrictName("");
-              setStateId("");
-            }}
-            className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A]"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Add district
-          </button>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <MapPin size={20} />
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-[22px] mb-5 border-b border-[#E1DECF]">
-          <button
-            onClick={() => setActiveTab("active")}
-            className={`pb-3 -mb-px text-[13px] font-medium bg-transparent border-none border-b-2 cursor-pointer flex items-center gap-1.5 transition-colors duration-150 ease-in-out hover:text-[#1B2537] ${activeTab === "active"
-                ? "text-[#1B2537] border-b-[#A2782E]"
-                : "text-[#A39C89] border-b-transparent"
-              }`}
-          >
-            Active
-            <span className="font-['IBM_Plex_Mono',monospace] text-[11px] text-[#A39C89]">{activeCount}</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("inactive")}
-            className={`pb-3 -mb-px text-[13px] font-medium bg-transparent border-none border-b-2 cursor-pointer flex items-center gap-1.5 transition-colors duration-150 ease-in-out hover:text-[#1B2537] ${activeTab === "inactive"
-                ? "text-[#1B2537] border-b-[#A2782E]"
-                : "text-[#A39C89] border-b-transparent"
-              }`}
-          >
-            Inactive
-            <span className="font-['IBM_Plex_Mono',monospace] text-[11px] text-[#A39C89]">{inactiveCount}</span>
-          </button>
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Active Districts</p>
+            <h3 className="text-2xl font-bold text-emerald-600 font-['Space_Grotesk']">{activeCount}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <CheckCircle2 size={20} />
+          </div>
         </div>
 
-        {/* Search & Filters */}
-        <div className="flex gap-3 flex-wrap mb-[18px]">
-          <div className="relative w-[260px] max-[760px]:w-full">
-            <svg
-              className="absolute left-[14px] top-1/2 -translate-y-1/2 text-[#A39C89]"
-              width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-3.5-3.5" />
-            </svg>
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Inactive Districts</p>
+            <h3 className="text-2xl font-bold text-amber-600 font-['Space_Grotesk']">{inactiveCount}</h3>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <Ban size={20} />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 gap-2 overflow-x-auto scrollbar-none">
+        <button
+          onClick={() => setActiveTab("active")}
+          className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "active"
+              ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+              : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+            }`}
+        >
+          Active Districts
+          <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "active" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+            }`}>
+            {activeCount}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("inactive")}
+          className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "inactive"
+              ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+              : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+            }`}
+        >
+          Inactive Districts
+          <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "inactive" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+            }`}>
+            {inactiveCount}
+          </span>
+        </button>
+      </div>
+
+      {/* Controls Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row justify-between gap-4 items-center">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto flex-1">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
-              placeholder="Search district"
+              placeholder="Search district name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 rounded-md border border-[#E1DECF] bg-white pl-9 pr-3.5 text-[13px] outline-none transition-colors duration-150 ease-in-out focus:border-[#A2782E]"
+              className="w-full bg-white border border-gray-200 pl-10 pr-4 h-11 rounded-xl text-xs font-medium outline-none focus:border-blue-500 transition shadow-2xs text-gray-900"
             />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           <select
             value={filterState}
             onChange={(e) => setFilterState(e.target.value)}
-            className="h-10 rounded-md border border-[#E1DECF] bg-white px-3 text-[13px] cursor-pointer outline-none focus:border-[#A2782E]"
+            className="w-full sm:w-48 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
           >
-            <option value="">All states</option>
-
+            <option value="">All States</option>
             {states.map((item) => (
-              <option key={item._id} value={item._id}>
-                {item.stateName}
-              </option>
+              <option key={item._id} value={item._id}>{item.stateName}</option>
             ))}
           </select>
-
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            className="h-10 rounded-md border border-[#E1DECF] bg-white px-3 text-[13px] cursor-pointer outline-none focus:border-[#A2782E]"
-          >
-            <option value="asc">A to Z</option>
-            <option value="desc">Z to A</option>
-          </select>
         </div>
 
-        {/* Table */}
-        <div className="bg-white border border-[#E1DECF] rounded-[10px] overflow-hidden shadow-[0_1px_2px_rgba(30,28,20,0.03),0_16px_34px_-22px_rgba(30,28,20,0.18)]">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-[#FBFAF5]">
-                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">Code</th>
-                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">District</th>
-                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">State</th>
-                <th className="py-3.5 px-5 text-left font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">Status</th>
-                <th className="py-3.5 px-5 text-right font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] font-medium">Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-14 text-[#A39C89] text-[13px]">Loading…</td>
-                </tr>
-              ) : filteredData.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-14 text-[#A39C89] text-[13px]">No districts match your search.</td>
-                </tr>
-              ) : (
-                filteredData.map((item) => (
-                  <tr key={item._id} className="transition-colors duration-150 ease-in-out hover:bg-[#FBFAF5]">
-                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
-                      <span className="font-['IBM_Plex_Mono',monospace] text-[11px] bg-[#F3EEDD] text-[#7A6A3F] py-1 px-2 rounded">
-                        {codeFor(item.districtName)}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
-                      <span className="font-medium text-[#1B2537] capitalize">{item.districtName}</span>
-                    </td>
-
-                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
-                      <span className="text-[#6E695C] text-[13px] capitalize">{item.stateId?.stateName}</span>
-                    </td>
-
-                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px]">
-                      <span className={`inline-flex items-center gap-[7px] text-[13px] ${activeTab === "active" ? "text-[#2F6F4E]" : "text-[#8C8676]"}`}>
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${activeTab === "active" ? "bg-[#2F6F4E]" : "bg-[#C8C2AF]"}`}
-                        />
-                        {activeTab === "active" ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-5 border-t border-[#EAE7DA] text-[13.5px] text-right">
-                      <div className="flex justify-end gap-1.5">
-                        {activeTab === "active" ? (
-                          <>
-                            <button
-                              onClick={() => handleView(item._id)}
-                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
-                              title="View"
-                              aria-label="View"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-                            </button>
-                            <button
-                              onClick={() => handleEdit(item)}
-                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
-                              title="Edit"
-                              aria-label="Edit"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                            </button>
-                            <button
-                              onClick={() => handleInactive(item._id)}
-                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
-                              title="Mark inactive"
-                              aria-label="Mark inactive"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.8 0" /></svg>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item._id)}
-                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#8E3B30] hover:text-[#8E3B30] hover:bg-[#FBF0EE]"
-                              title="Delete"
-                              aria-label="Delete"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleRestore(item._id)}
-                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#A2782E] hover:text-[#A2782E] hover:bg-[#FBF6E9]"
-                              title="Restore"
-                              aria-label="Restore"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item._id)}
-                              className="w-[30px] h-[30px] rounded-md flex items-center justify-center border border-[#E1DECF] bg-white text-[#6E695C] cursor-pointer transition-all duration-150 ease-in-out hover:border-[#8E3B30] hover:text-[#8E3B30] hover:bg-[#FBF0EE]"
-                              title="Delete"
-                              aria-label="Delete"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <select
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+          className="w-full sm:w-44 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
+        >
+          <option value="asc">Sort A to Z</option>
+          <option value="desc">Sort Z to A</option>
+        </select>
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Table Card */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col justify-center items-center py-20 gap-3">
+            <Loader2 className="animate-spin text-blue-600" size={28} />
+            <p className="font-['IBM_Plex_Mono'] text-[11px] text-gray-400 uppercase tracking-widest font-bold">
+              Synchronizing Districts...
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 border-b border-gray-200 font-['IBM_Plex_Mono'] text-[10px] uppercase tracking-wider font-bold">
+                  <th className="px-6 py-3.5 w-24">Code</th>
+                  <th className="px-6 py-3.5">District Name</th>
+                  <th className="px-6 py-3.5">State</th>
+                  <th className="px-6 py-3.5">Status</th>
+                  <th className="px-6 py-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
+                {filteredData.length > 0 ? (
+                  filteredData.map((item) => (
+                    <tr key={item._id} className="hover:bg-gray-50/60 transition-colors">
+                      {/* Code */}
+                      <td className="px-6 py-3.5">
+                        <span className="font-['IBM_Plex_Mono'] text-[10px] font-bold bg-gray-100 border border-gray-200 text-gray-700 py-1 px-2.5 rounded-md">
+                          {codeFor(item.districtName)}
+                        </span>
+                      </td>
+
+                      {/* Name */}
+                      <td className="px-6 py-3.5 font-bold text-gray-900 capitalize">
+                        {item.districtName}
+                      </td>
+
+                      {/* State */}
+                      <td className="px-6 py-3.5 font-semibold text-gray-600 capitalize">
+                        {item.stateId?.stateName || "N/A"}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-6 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-2xs ${activeTab === "active" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-600 border-gray-200"
+                          }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${activeTab === "active" ? "bg-emerald-600" : "bg-gray-400"}`} />
+                          {activeTab === "active" ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-6 py-3.5">
+                        <div className="flex justify-end gap-2">
+                          {activeTab === "active" ? (
+                            <>
+                              <button onClick={() => handleView(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="View Details"><Eye size={14} /></button>
+                              <button onClick={() => handleEdit(item)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Edit District"><Edit size={14} /></button>
+                              <button onClick={() => handleInactive(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-amber-600 hover:border-amber-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Mark Inactive"><Ban size={14} /></button>
+                              <button onClick={() => confirmDelete(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Delete District"><Trash2 size={14} /></button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => handleRestore(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-emerald-600 hover:border-emerald-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Restore District"><RotateCcw size={14} /></button>
+                              <button onClick={() => confirmDelete(item._id)} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Delete Permanently"><Trash2 size={14} /></button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-16 text-gray-400 text-xs font-medium">
+                      No districts found matching your criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Add / Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-[rgba(27,22,14,0.35)] backdrop-blur-[4px] flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-[#E1DECF] rounded-[10px] p-7 w-full max-w-[460px] shadow-[0_30px_60px_-20px_rgba(30,28,20,0.28)]">
-            <h2 className="font-['Space_Grotesk',sans-serif] text-lg font-semibold text-[#1B2537] mt-0 mb-5">
-              {isEdit ? "Update district" : "Add district"}
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[420px] shadow-2xl relative animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => { setShowModal(false); setDistrictName(""); setStateId(""); setIsEdit(false); }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            <h2 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900 mb-1">
+              {isEdit ? "Update District Record" : "Add New District"}
+            </h2>
+            <p className="text-gray-500 text-xs font-medium mb-6">
+              Configure district nomenclature and state association.
+            </p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest font-['IBM_Plex_Mono'] mb-2">District Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jaipur"
+                  value={districtName}
+                  onChange={(e) => setDistrictName(e.target.value)}
+                  autoFocus
+                  className="w-full h-11 rounded-xl border border-gray-200 px-4 text-xs outline-none transition focus:border-blue-500 shadow-2xs text-gray-900 font-semibold bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest font-['IBM_Plex_Mono'] mb-2">Select State</label>
+                <select
+                  value={stateId}
+                  onChange={(e) => setStateId(e.target.value)}
+                  className="w-full h-11 rounded-xl border border-gray-200 px-4 text-xs outline-none transition focus:border-blue-500 shadow-2xs text-gray-700 font-semibold bg-white cursor-pointer"
+                >
+                  <option value="">Select a state...</option>
+                  {states.map((item) => (
+                    <option key={item._id} value={item._id}>{item.stateName}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); setDistrictName(""); setStateId(""); setIsEdit(false); }}
+                  className="h-10 px-5 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-700 bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="h-10 px-6 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 transition shadow-2xs cursor-pointer"
+                >
+                  {isEdit ? "Save Changes" : "Create District"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Details Modal */}
+      {showViewModal && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[400px] shadow-2xl relative animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => setShowViewModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            <h2 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900 mb-4">
+              District Inspection Profile
             </h2>
 
-            <label className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">District name</label>
-            <input
-              type="text"
-              placeholder="e.g. Jaipur"
-              value={districtName}
-              onChange={(e) => setDistrictName(e.target.value)}
-              autoFocus
-              className="w-full h-10 rounded-md border border-[#E1DECF] bg-white px-3.5 text-[13px] outline-none mb-4 transition-colors duration-150 ease-in-out focus:border-[#A2782E]"
-            />
+            <div className="space-y-3 text-xs mb-6">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  District Name
+                </p>
+                <p className="text-sm font-bold text-gray-900 capitalize">
+                  {viewData?.districtName}
+                </p>
+              </div>
 
-            <label className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">State</label>
-            <select
-              value={stateId}
-              onChange={(e) => setStateId(e.target.value)}
-              className="w-full h-10 rounded-md border border-[#E1DECF] bg-white px-3.5 text-[13px] outline-none mb-6 cursor-pointer transition-colors duration-150 ease-in-out focus:border-[#A2782E]"
-            >
-              <option value="">Select state</option>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  Parent State
+                </p>
+                <p className="text-sm font-bold text-gray-900 capitalize">
+                  {viewData?.stateId?.stateName || "N/A"}
+                </p>
+              </div>
 
-              {states.map((item) => (
-                <option key={item._id} value={item._id}>
-                  {item.stateName}
-                </option>
-              ))}
-            </select>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  Regional Code
+                </p>
+                <p className="font-['IBM_Plex_Mono'] font-bold text-blue-600 text-sm">
+                  {codeFor(viewData?.districtName)}
+                </p>
+              </div>
 
-            <div className="flex justify-end gap-2.5">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                  System ID Hash
+                </p>
+                <p className="font-mono text-[11px] text-gray-600 truncate">
+                  {viewData?._id}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
               <button
-                onClick={() => setShowModal(false)}
-                className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#F3F1E8] text-[#8C8676] hover:bg-[#EAE6D6] hover:text-[#1B2537]"
+                onClick={() => setShowViewModal(false)}
+                className="w-full h-10 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gray-900 hover:bg-gray-800 transition shadow-2xs cursor-pointer"
               >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleSubmit}
-                className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A]"
-              >
-                {isEdit ? "Save changes" : "Create district"}
+                Close Profile
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* View Modal */}
-      {showViewModal && (
-        <div className="fixed inset-0 bg-[rgba(27,22,14,0.35)] backdrop-blur-[4px] flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-[#E1DECF] rounded-[10px] p-7 w-full max-w-[460px] shadow-[0_30px_60px_-20px_rgba(30,28,20,0.28)]">
-            <h2 className="font-['Space_Grotesk',sans-serif] text-lg font-semibold text-[#1B2537] mt-0 mb-5">
-              District details
-            </h2>
-
-            <div className="pb-4 mb-4 border-b border-[#EAE7DA]">
-              <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-1.5">
-                District
-              </p>
-              <p className="text-[15.5px] text-[#1B2537] font-medium m-0 capitalize">
-                {viewData?.districtName}
-              </p>
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[380px] shadow-2xl text-center relative animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto mb-4 shadow-2xs">
+              <AlertTriangle size={24} />
             </div>
 
-            <div className="pb-5 mb-5 border-b border-[#EAE7DA]">
-              <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-1.5">
-                State
-              </p>
-              <p className="text-[15.5px] text-[#1B2537] font-medium m-0 capitalize">
-                {viewData?.stateId?.stateName}
-              </p>
-            </div>
+            <h3 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900 mb-2">
+              Confirm Deletion
+            </h3>
+            <p className="text-xs text-gray-500 font-medium mb-6 leading-relaxed">
+              Are you sure you want to delete this district record? This action cannot be undone and may affect linked cities.
+            </p>
 
-            <button
-              onClick={() => setShowViewModal(false)}
-              className="font-['Inter',sans-serif] text-[13px] font-medium rounded-md border border-transparent cursor-pointer transition-all duration-150 ease-in-out flex items-center gap-2 h-10 px-4 bg-[#1B2537] text-[#FFF9EC] hover:bg-[#26314A]"
-            >
-              Close
-            </button>
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeleteId(null); }}
+                className="flex-1 h-10 rounded-xl text-xs font-bold uppercase tracking-wider text-gray-700 bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 h-10 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-700 transition shadow-2xs cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

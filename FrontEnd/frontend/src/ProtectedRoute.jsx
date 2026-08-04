@@ -1,32 +1,42 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
-
+const ProtectedRoute = ({
+  children,
+  allowedRoles = [],
+}) => {
   const token = localStorage.getItem("token");
-  const user = JSON.parse(localStorage.getItem("user"));
+
+  let user = null;
+
+  try {
+    const storedUser = localStorage.getItem("user");
+    user = storedUser ? JSON.parse(storedUser) : null;
+  } catch (error) {
+    user = null;
+  }
 
   // Login nahi hai
   if (!token || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Agar role allow nahi hai
+  // Role wise redirect paths
+  const roleRedirect = {
+    superAdmin: "/superAdmin/dashboard",
+    admin: "/admin/dashboard",
+    hotel: "/hotel/hotelDashboard",
+    user: "/",
+  };
+
+  // Agar user ka role allowed nahi hai
   if (!allowedRoles.includes(user.role)) {
-
-    switch (user.role) {
-      case "superAdmin":
-        return <Navigate to="/superAdmin/state" replace />;
-
-      case "admin":
-        return <Navigate to="/admin/dashboard" replace />;
-
-      case "hotel":
-        return <Navigate to="/hotel" replace />;
-
-      default:
-        return <Navigate to="/" replace />;
-    }
+    return (
+      <Navigate
+        to={roleRedirect[user.role] || "/"}
+        replace
+      />
+    );
   }
 
   return children;

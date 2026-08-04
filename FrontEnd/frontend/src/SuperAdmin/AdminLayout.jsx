@@ -1,139 +1,197 @@
 import React from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-    Link,
-    Outlet,
-    useLocation,
-    useNavigate,
-} from "react-router-dom";
+    LayoutDashboard,
+    Map,
+    MapPin,
+    Building,
+    Building2,
+    UserCog,
+    ShieldCheck,
+    LogOut,
+    Bell,
+    ChevronRight
+} from "lucide-react";
 
 const AdminLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
-    const menu = [
-        { name: "State", path: "state", scale: "lg" },
-        { name: "District", path: "district", scale: "md" },
-        { name: "City", path: "city", scale: "sm" },
-        { name: "Hotels Request", path: "PendingHotels", scale: "sm" },
-        { name: "Admin Request", path: "pendingAdmin", scale: "sm" },
+    const menuGroups = [
+        {
+            title: "GENERAL",
+            items: [{ name: "Dashboard", path: "dashboard", icon: LayoutDashboard }]
+        },
+        {
+            title: "LOCATION HIERARCHY",
+            items: [
+                { name: "State", path: "state", icon: Map },
+                { name: "District", path: "district", icon: MapPin },
+                { name: "City", path: "city", icon: Building },
+            ]
+        },
+        {
+            title: "REQUESTS",
+            items: [
+                { name: "Hotels Request", path: "pendingHotels", icon: Building2 },
+                { name: "Admin Request", path: "pendingAdmin", icon: UserCog },
+            ]
+        }
     ];
 
     const handleLogout = () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        if (!window.confirm("Are you sure you want to end your session?")) return;
+        localStorage.clear();
         navigate("/login");
     };
 
-    // dot size classes based on hierarchy scale
-    const dotSize = { lg: "w-3 h-3", md: "w-2.5 h-2.5", sm: "w-2 h-2" };
+    let user = null;
+    try {
+        user = JSON.parse(localStorage.getItem("user"));
+    } catch (error) {
+        console.error("Error parsing user data:", error);
+    }
+
+    const initials = (name) => (name || "").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
+
+    const getPageTitle = () => {
+        if (location.pathname.includes("dashboard")) return "Dashboard Overview";
+        if (location.pathname.includes("state")) return "State Management";
+        if (location.pathname.includes("district")) return "District Management";
+        if (location.pathname.includes("city")) return "City Management";
+        if (location.pathname.includes("pendingHotels")) return "Hotel Approvals";
+        if (location.pathname.includes("pendingAdmin")) return "Admin Verification";
+        return "Control Center";
+    };
 
     return (
-        <div className="min-h-screen flex font-['Inter',sans-serif] bg-[#F5F4EF] bg-[radial-gradient(900px_420px_at_100%_-10%,rgba(31,42,68,0.05),transparent_60%)] text-[#232320]">
-            {/* Google Fonts import (Tailwind has no built-in @import mechanism, so keep this) */}
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
+        <div className="min-h-screen flex font-['Inter',sans-serif] bg-gray-50 text-gray-800 selection:bg-blue-600 selection:text-white">
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+                .scrollbar-hide::-webkit-scrollbar { display: none; }
+                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+            `}</style>
 
             {/* Sidebar */}
-            <div className="w-[288px] bg-white border-r border-[#E1DECF] flex flex-col justify-between flex-shrink-0 max-[900px]:w-full max-[900px]:flex-row max-[900px]:items-center max-[900px]:justify-between">
+            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between flex-shrink-0 z-10 sticky top-0 h-screen shadow-2xs">
                 <div>
                     {/* Brand */}
-                    <div className="px-7 pt-8 pb-[26px] border-b border-[#E1DECF]">
+                    <div className="px-6 py-6 border-b border-gray-100">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-md bg-[#1B2537] text-[#FFF9EC] font-['Space_Grotesk',sans-serif] text-base flex items-center justify-center">
-                                A
+                            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-['Space_Grotesk'] text-sm font-bold flex items-center justify-center shadow-2xs">
+                                {initials(user?.name) || "SA"}
                             </div>
                             <div>
-                                <h1 className="font-['Space_Grotesk',sans-serif] text-[16.5px] font-semibold text-[#1B2537] m-0 tracking-[-0.01em]">
+                                <h1 className="font-['Space_Grotesk'] text-base font-bold text-gray-900 tracking-tight m-0">
                                     Super Admin
                                 </h1>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.18em] text-[#A2782E] mt-[3px] mb-0">
-                                    HOTEL MANAGEMENT
+                                <p className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 mt-0.5 m-0 uppercase">
+                                    WORKSPACE
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Hierarchy Nav */}
-                    <div className="px-7 pt-[30px] pb-4 max-[900px]:hidden">
-                        <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.2em] text-[#A39C89] mb-[18px] mt-0">
-                            LOCATION HIERARCHY
-                        </p>
-                        <div className="relative">
-                            <div className="absolute left-[5px] top-2 bottom-2 w-px bg-[#E1DECF]" />
-                            <div className="flex flex-col gap-0.5">
-                                {menu.map((item) => {
-                                    const active = location.pathname === `/superAdmin/${item.path}`;
-                                    return (
-                                        <Link
-                                            key={item.path}
-                                            to={item.path}
-                                            className={`relative flex items-center gap-4 py-[13px] pr-4 pl-0 border-l-2 rounded-r-md no-underline transition-all duration-150 ease-in-out hover:bg-[#FBFAF6] group ${active
-                                                    ? "bg-[#FBF6E9] border-l-[#A2782E]"
-                                                    : "border-l-transparent"
-                                                }`}
-                                        >
-                                            <span
-                                                className={`relative z-10 ml-[3px] rounded-full flex-shrink-0 transition-colors duration-150 ease-in-out ${dotSize[item.scale]} ${active
-                                                        ? "!bg-[#A2782E]"
-                                                        : "bg-[#D8D1C2] group-hover:bg-[#B8AF9C]"
-                                                    }`}
-                                            />
-                                            <span
-                                                className={`text-sm tracking-[0.01em] transition-colors duration-150 ease-in-out group-hover:text-[#1B2537] ${active
-                                                        ? "text-[#1B2537] font-medium"
-                                                        : "text-[#8C8676]"
+                    {/* Navigation Groups */}
+                    <nav className="px-5 py-6 space-y-6 overflow-y-auto max-h-[calc(100vh-220px)] scrollbar-hide">
+                        {menuGroups.map((group, idx) => (
+                            <div key={idx}>
+                                <p className="font-['IBM_Plex_Mono'] text-[10px] tracking-[0.15em] text-gray-400 mb-2.5 px-2 font-bold uppercase">
+                                    {group.title}
+                                </p>
+                                <div className="space-y-1">
+                                    {group.items.map((item) => {
+                                        const active = location.pathname.includes(item.path);
+                                        const IconComponent = item.icon;
+
+                                        return (
+                                            <Link
+                                                key={item.path}
+                                                to={item.path}
+                                                className={`relative flex items-center justify-between px-3 py-2.5 transition-all duration-200 rounded-xl group ${active
+                                                        ? "bg-blue-600 text-white font-semibold shadow-2xs"
+                                                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                                                     }`}
                                             >
-                                                {item.name}
-                                            </span>
-                                        </Link>
-                                    );
-                                })}
+                                                <div className="flex items-center gap-3">
+                                                    <IconComponent size={17} className={`transition-colors ${active ? "text-white" : "text-gray-400 group-hover:text-gray-900"}`} />
+                                                    <span className="text-xs font-semibold">
+                                                        {item.name}
+                                                    </span>
+                                                </div>
+                                                {active && <ChevronRight size={14} className="text-white" />}
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </nav>
+                </div>
+
+                {/* Bottom Actions */}
+                <div className="p-4 border-t border-gray-100 flex flex-col gap-2.5 bg-gray-50/50">
+                    <button
+                        onClick={() => navigate("reset-password")}
+                        className="w-full h-9 rounded-xl text-xs font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer uppercase tracking-wider"
+                    >
+                        <ShieldCheck size={15} className="text-blue-600" />
+                        Reset Password
+                    </button>
+
+                    <button
+                        onClick={handleLogout}
+                        className="w-full h-9 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer uppercase tracking-wider"
+                    >
+                        <LogOut size={15} />
+                        Log Out
+                    </button>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 p-8 lg:p-10 overflow-x-hidden flex flex-col bg-gray-50/50">
+                {/* Header */}
+                <header className="flex justify-between items-center mb-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs">
+                    <div>
+                        <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-[0.2em] text-blue-600 mb-1 uppercase">
+                            SYSTEM CONTROL NODE
+                        </p>
+                        <h1 className="font-['Space_Grotesk'] text-2xl font-bold text-gray-900 tracking-tight m-0">
+                            {getPageTitle()}
+                        </h1>
+                        <p className="text-gray-500 mt-1 text-xs m-0 font-medium">
+                            Manage platform regions, review hotel submissions, and authorize admins.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <button className="relative p-2.5 text-gray-500 hover:text-gray-900 transition rounded-xl bg-gray-50 border border-gray-200 hover:bg-white cursor-pointer shadow-2xs">
+                            <Bell size={18} />
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
+                        </button>
+
+                        <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                            <div className="text-right hidden sm:block">
+                                <p className="text-xs font-bold text-gray-900 m-0">
+                                    {user?.name || "Super Admin"}
+                                </p>
+                                <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider font-['IBM_Plex_Mono'] m-0">
+                                    Super Workspace
+                                </p>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-['Space_Grotesk'] font-bold text-sm border border-gray-200 shadow-2xs flex items-center justify-center">
+                                {initials(user?.name) || "SA"}
                             </div>
                         </div>
                     </div>
-                </div>
+                </header>
 
-                <div className="p-6 border-t border-[#E1DECF] max-[900px]:border-t-0 max-[900px]:p-4">
-                    <button
-                        onClick={handleLogout}
-                        className="w-full h-11 rounded-md text-[13px] font-medium tracking-[0.01em] bg-[#1B2537] text-[#FFF9EC] border-none cursor-pointer flex items-center justify-center gap-2 transition-colors duration-150 ease-in-out hover:bg-[#26314A]"
-                    >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <path d="M16 17l5-5-5-5" />
-                            <path d="M21 12H9" />
-                        </svg>
-                        Log out
-                    </button>
-                </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 p-9 overflow-x-hidden">
-                {/* Top Bar */}
-                <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
-                    <div>
-                        <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.2em] text-[#A2782E] mb-2 mt-0">
-                            OVERVIEW
-                        </p>
-                        <h1 className="font-['Space_Grotesk',sans-serif] text-[25px] font-semibold text-[#1B2537] m-0 tracking-[-0.01em]">
-                            Welcome, Super Admin
-                        </h1>
-                        <p className="text-[#8C8676] mt-[6px] mb-0 text-[13.5px]">
-                            Manage states, districts and cities from one place.
-                        </p>
-                    </div>
-
-                    <div className="w-11 h-11 rounded-md bg-[#1B2537] text-[#FFF9EC] font-['IBM_Plex_Mono',monospace] text-[13px] font-medium border border-[#26314A] flex items-center justify-center">
-                        A
-                    </div>
-                </div>
-
-                {/* Outlet Container */}
-                <div className="bg-white border border-[#E1DECF] rounded-[10px] p-7 min-h-[500px] shadow-[0_1px_2px_rgba(30,28,20,0.03),0_16px_34px_-22px_rgba(30,28,20,0.18)]">
+                {/* Outlet */}
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 min-h-[500px] flex-1 shadow-2xs">
                     <Outlet />
                 </div>
-            </div>
+            </main>
         </div>
     );
 };

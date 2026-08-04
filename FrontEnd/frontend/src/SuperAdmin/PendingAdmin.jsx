@@ -1,332 +1,475 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
+import {
+    Loader2, Search, RefreshCw, Eye, CheckCircle2, XCircle,
+    UserCheck, ShieldAlert, KeyRound, AlertTriangle, X, Check, Copy, Sparkles, Lock, EyeOff, MessageSquare
+} from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 const PendingAdmins = () => {
     const [activeTab, setActiveTab] = useState("pending");
-
     const [pendingAdmins, setPendingAdmins] = useState([]);
-
     const [rejectedAdmins, setRejectedAdmins] = useState([]);
-
+    const [approvedAdmins, setApprovedAdmins] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const [showApprove, setShowApprove] = useState(false);
-
     const [showReject, setShowReject] = useState(false);
-
     const [showView, setShowView] = useState(false);
 
     const [selectedAdmin, setSelectedAdmin] = useState(null);
-
     const [viewAdmin, setViewAdmin] = useState(null);
 
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
-
     const [remark, setRemark] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+
+    // Search & Sort States
+    const [search, setSearch] = useState("");
+    const [sortOrder, setSortOrder] = useState("newest");
+
+    const token = localStorage.getItem("token");
 
     useEffect(() => {
-        getPendingAdmins();
-        getRejectedAdmins();
+        fetchAllAdmins();
     }, []);
 
-    const getPendingAdmins = async () => {
+    const fetchAllAdmins = async () => {
         try {
-            const response = await axios.get(`${signupApi}admin/pending`);
+            setLoading(true);
+            const headers = { Authorization: `Bearer ${token}` };
 
-            setPendingAdmins(response.data.admins);
+            const [pendingRes, rejectedRes, approvedRes] = await Promise.allSettled([
+                axios.get(`${signupApi}admin/pending`, { headers }),
+                axios.get(`${signupApi}admin/rejected`, { headers }),
+                axios.get(`${signupApi}admin/approved`, { headers }),
+            ]);
+
+            if (pendingRes.status === "fulfilled") {
+                setPendingAdmins(pendingRes.value.data.admins || pendingRes.value.data.result || []);
+            }
+            if (rejectedRes.status === "fulfilled") {
+                setRejectedAdmins(rejectedRes.value.data.admins || rejectedRes.value.data.result || []);
+            }
+            if (approvedRes.status === "fulfilled") {
+                setApprovedAdmins(approvedRes.value.data.admins || approvedRes.value.data.result || []);
+            }
         } catch (error) {
-            console.log(error);
+            console.error(error);
+            toast.error("Failed to load admin verification requests.");
         } finally {
             setLoading(false);
         }
     };
 
-    const getRejectedAdmins = async () => {
-        try {
-            const response = await axios.get(`${signupApi}admin/rejected`);
-
-            setRejectedAdmins(response.data.admins);
-        } catch (error) {
-            console.log(error);
+    const generateRandomPassword = () => {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!";
+        let pass = "";
+        for (let i = 0; i < 10; i++) {
+            pass += chars.charAt(Math.floor(Math.random() * chars.length));
         }
+        setPassword(pass);
+        toast.success("Secure random password generated.");
     };
 
     const handleApprove = async () => {
         if (!password.trim()) {
-            return alert("Password is required");
+            toast.error("Password is required");
+            return;
+        }
+        if (password.trim().length < 6) {
+            toast.error("Password must be at least 6 characters");
+            return;
         }
 
         try {
+            setSubmitting(true);
             const response = await axios.patch(
                 `${signupApi}admin/approve/${selectedAdmin._id}`,
-                { password }
+                { password },
+                { headers: { Authorization: `Bearer ${token}` } }
             );
-
-            alert(response.data.message);
+            toast.success(response.data.message || "Admin approved and access granted.");
 
             setPassword("");
             setShowApprove(false);
             setSelectedAdmin(null);
-
-            getPendingAdmins();
-            getRejectedAdmins();
+            fetchAllAdmins();
         } catch (error) {
-            alert(error.response?.data?.message || "Something went wrong");
+            toast.error(error.response?.data?.message || "Something went wrong during approval sync.");
+        } finally {
+            setSubmitting(false);
         }
     };
 
     const handleReject = async () => {
         if (!remark.trim()) {
-            return alert("Remark is required");
+            toast.error("Remark is required");
+            return;
         }
 
         try {
+            setSubmitting(true);
             const response = await axios.patch(
                 `${signupApi}admin/reject/${selectedAdmin._id}`,
-                { remark }
+                { remark },
+                { headers: { Authorization: `Bearer ${token}` } }
             );
-
-            alert(response.data.message);
+            toast.success(response.data.message || "Admin request rejected.");
 
             setRemark("");
             setShowReject(false);
             setSelectedAdmin(null);
-
-            getPendingAdmins();
-            getRejectedAdmins();
+            fetchAllAdmins();
         } catch (error) {
-            alert(error.response?.data?.message || "Something went wrong");
+            toast.error(error.response?.data?.message || "Something went wrong.");
+        } finally {
+            setSubmitting(false);
         }
     };
 
-    const admins = activeTab === "pending" ? pendingAdmins : rejectedAdmins;
+    const rawAdmins = activeTab === "pending" ? pendingAdmins : activeTab === "approved" ? approvedAdmins : rejectedAdmins;
 
-    const initials = (name) =>
-        (name || "")
-            .split(" ")
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((w) => w[0]?.toUpperCase())
-            .join("");
+    const filteredAdmins = useMemo(() => {
+        let data = [...rawAdmins];
+
+        if (search.trim()) {
+            const query = search.toLowerCase();
+            data = data.filter(
+                (a) =>
+                    a.name?.toLowerCase().includes(query) ||
+                    a.email?.toLowerCase().includes(query) ||
+                    a.trackingId?.toLowerCase().includes(query) ||
+                    a.mobile?.toLowerCase().includes(query)
+            );
+        }
+
+        data.sort((a, b) => {
+            if (sortOrder === "newest") return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            if (sortOrder === "oldest") return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+            if (sortOrder === "name") return (a.name || "").localeCompare(b.name || "");
+            return 0;
+        });
+
+        return data;
+    }, [rawAdmins, search, sortOrder]);
+
+    const initials = (name) => (name || "").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#F5F4EF] bg-[radial-gradient(900px_420px_at_100%_-10%,rgba(31,42,68,0.05),transparent_60%)] font-['Inter',sans-serif] text-[#232320] px-7 pt-10 pb-[60px] flex items-center justify-center">
-                <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
-                <p className="text-[#8C8676] text-[13px] tracking-[0.02em]">Opening the registry…</p>
+            <div className="flex flex-col justify-center items-center min-h-[400px] gap-3">
+                <Loader2 className="animate-spin text-blue-600" size={32} />
+                <h2 className="text-gray-500 font-['IBM_Plex_Mono',monospace] text-xs uppercase tracking-wider font-semibold">
+                    Opening the authorization queue...
+                </h2>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#F5F4EF] bg-[radial-gradient(900px_420px_at_100%_-10%,rgba(31,42,68,0.05),transparent_60%)] font-['Inter',sans-serif] text-[#232320] px-7 pt-10 pb-[60px]">
-            {/* Google Fonts import (kept as-is; Tailwind utilities don't load fonts) */}
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');`}</style>
+        <div className="space-y-6 font-['Inter',sans-serif] text-gray-800 pb-12 max-w-[1600px] mx-auto">
+            <Toaster position="top-right" richColors />
 
-            <div className="max-w-[1080px] mx-auto">
-                {/* Header */}
-                <div className="flex justify-between items-end gap-5 flex-wrap mb-[34px] pb-[26px] border-b border-[#DEDBCF]">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-gray-200 shadow-2xs">
+                <div>
+                    <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-[0.2em] text-blue-600 mb-1 uppercase">
+                        AUTHORIZATION QUEUE
+                    </p>
+                    <h1 className="font-['Space_Grotesk'] font-bold text-2xl text-gray-900 tracking-tight m-0">
+                        Admin Verification Requests
+                    </h1>
+                    <p className="text-gray-500 text-xs mt-1 font-medium m-0">
+                        Review identity credentials, validate tracking IDs, and grant enterprise access.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={fetchAllAdmins}
+                        className="p-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-600 transition shadow-2xs cursor-pointer"
+                        title="Refresh Data"
+                    >
+                        <RefreshCw size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Summary Statistics Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
-                        <p className="font-['IBM_Plex_Mono',monospace] text-[10.5px] tracking-[0.22em] text-[#A2782E] mt-0 mb-2.5">
-                            AUTHORIZATION QUEUE
-                        </p>
-                        <h1 className="font-['Space_Grotesk',sans-serif] font-semibold text-[32px] tracking-[-0.01em] m-0 text-[#1B2537]">
-                            Admin Registry
-                        </h1>
-                        <p className="text-[#8C8676] text-[13.5px] mt-2 mb-0">
-                            Every request awaiting a signature, on the record.
-                        </p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Pending Queue</p>
+                        <h3 className="text-2xl font-bold text-amber-600 font-['Space_Grotesk']">{pendingAdmins.length}</h3>
                     </div>
-
-                    <div className="border border-[#E1DECF] bg-white rounded px-[22px] py-3.5 text-right shadow-[0_1px_2px_rgba(30,28,20,0.03),0_12px_26px_-18px_rgba(30,28,20,0.18)]">
-                        <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.14em] text-[#A39C89] mt-0 mb-1">
-                            Total on file
-                        </p>
-                        <p className="font-['Space_Grotesk',sans-serif] text-[26px] text-[#A2782E] m-0">
-                            {pendingAdmins.length + rejectedAdmins.length}
-                        </p>
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <UserCheck size={20} />
                     </div>
                 </div>
 
-                {/* Tabs */}
-                <div className="flex gap-1 mb-7">
-                    <button
-                        onClick={() => setActiveTab("pending")}
-                        className={`font-['Inter',sans-serif] text-[13px] font-medium border border-transparent py-2.5 px-[18px] rounded-full cursor-pointer flex items-center gap-2 transition-all duration-150 ease-in-out hover:text-[#1B2537] ${activeTab === "pending"
-                                ? "text-[#FFF9EC] bg-[#1B2537] font-semibold"
-                                : "text-[#8C8676] bg-transparent"
-                            }`}
-                    >
-                        Pending
-                        <span className="font-['IBM_Plex_Mono',monospace] text-[11px] opacity-80">{pendingAdmins.length}</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("rejected")}
-                        className={`font-['Inter',sans-serif] text-[13px] font-medium border border-transparent py-2.5 px-[18px] rounded-full cursor-pointer flex items-center gap-2 transition-all duration-150 ease-in-out hover:text-[#1B2537] ${activeTab === "rejected"
-                                ? "text-[#FDF3F1] bg-[#8E3B30] font-semibold"
-                                : "text-[#8C8676] bg-transparent"
-                            }`}
-                    >
-                        Rejected
-                        <span className="font-['IBM_Plex_Mono',monospace] text-[11px] opacity-80">{rejectedAdmins.length}</span>
-                    </button>
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Approved List</p>
+                        <h3 className="text-2xl font-bold text-emerald-600 font-['Space_Grotesk']">{approvedAdmins.length}</h3>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <CheckCircle2 size={20} />
+                    </div>
                 </div>
 
-                {/* Ledger */}
-                {admins.length === 0 ? (
-                    <div className="border border-dashed border-[#D8D4C3] rounded-md py-[60px] px-5 text-center text-[#A39C89] text-[13.5px] bg-[#FCFBF7]">
-                        <p>No entries in this ledger yet.</p>
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Rejected List</p>
+                        <h3 className="text-2xl font-bold text-rose-600 font-['Space_Grotesk']">{rejectedAdmins.length}</h3>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                        <XCircle size={20} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Status Navigation Tabs */}
+            <div className="flex border-b border-gray-200 gap-2 overflow-x-auto scrollbar-none">
+                <button
+                    onClick={() => setActiveTab("pending")}
+                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "pending"
+                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        }`}
+                >
+                    Pending Review
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "pending" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+                        }`}>
+                        {pendingAdmins.length}
+                    </span>
+                </button>
+                <button
+                    onClick={() => setActiveTab("approved")}
+                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "approved"
+                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        }`}
+                >
+                    Approved (Success)
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "approved" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+                        }`}>
+                        {approvedAdmins.length}
+                    </span>
+                </button>
+                <button
+                    onClick={() => setActiveTab("rejected")}
+                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "rejected"
+                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        }`}
+                >
+                    Rejected Submissions
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "rejected" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+                        }`}>
+                        {rejectedAdmins.length}
+                    </span>
+                </button>
+            </div>
+
+            {/* Controls Bar: Search & Sort */}
+            <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row justify-between gap-4 items-center">
+                <div className="relative w-full sm:flex-1 max-w-md">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Search applicant name, email or ID..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full bg-white border border-gray-200 pl-10 pr-4 h-11 rounded-xl text-xs font-medium outline-none focus:border-blue-500 transition shadow-2xs text-gray-900"
+                    />
+                    {search && (
+                        <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
+
+                <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    className="w-full sm:w-44 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
+                >
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="name">Name (A-Z)</option>
+                </select>
+            </div>
+
+            {/* Table Card */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs overflow-hidden">
+                {filteredAdmins.length === 0 ? (
+                    <div className="text-center py-20">
+                        <ShieldAlert className="mx-auto text-gray-300 mb-3" size={40} />
+                        <h4 className="font-['Space_Grotesk'] text-base font-bold text-gray-900 mb-1">No requests found</h4>
+                        <p className="text-xs text-gray-500 font-medium">The {activeTab} queue is currently empty.</p>
                     </div>
                 ) : (
-                    <div className="border-t border-[#DEDBCF]">
-                        <div className="grid grid-cols-[1.6fr_1.6fr_1.1fr_0.9fr_1.4fr] gap-3 py-3 px-4 font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.12em] text-[#A39C89] border-b border-[#DEDBCF] max-[760px]:hidden">
-                            <span>Admin</span>
-                            <span>Contact</span>
-                            <span>Tracking ID</span>
-                            <span className="text-left">Status</span>
-                            <span className="text-left">Actions</span>
-                        </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                            <thead>
+                                <tr className="bg-gray-50 text-gray-500 border-b border-gray-200 font-['IBM_Plex_Mono'] text-[10px] uppercase tracking-wider font-bold">
+                                    <th className="px-6 py-3.5">Applicant</th>
+                                    <th className="px-6 py-3.5">Contact Details</th>
+                                    <th className="px-6 py-3.5">Tracking ID</th>
+                                    <th className="px-6 py-3.5">Status</th>
+                                    <th className="px-6 py-3.5 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
+                                {filteredAdmins.map((admin) => (
+                                    <tr key={admin._id} className="hover:bg-gray-50/60 transition-colors">
+                                        {/* Applicant */}
+                                        <td className="px-6 py-3.5">
+                                            <div className="flex items-center gap-3">
+                                                {admin.profileImage ? (
+                                                    <img src={admin.profileImage} alt="profile" className="w-10 h-10 rounded-xl object-cover border border-gray-200 shadow-2xs" />
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-xl border border-gray-200 bg-blue-50 text-blue-600 font-['Space_Grotesk'] text-sm font-bold flex items-center justify-center shadow-2xs">
+                                                        {initials(admin.name)}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <p className="font-bold text-gray-900 text-xs">{admin.name}</p>
+                                                    <p className="text-[11px] text-gray-500 mt-0.5 truncate max-w-[180px]">{admin.email}</p>
+                                                </div>
+                                            </div>
+                                        </td>
 
-                        {admins.map((admin) => (
-                            <div
-                                key={admin._id}
-                                className="relative grid grid-cols-[1.6fr_1.6fr_1.1fr_0.9fr_1.4fr] gap-3 items-center py-[18px] px-4 bg-white border-b border-[#EAE7DA] transition-shadow duration-150 ease-in-out hover:shadow-[0_8px_22px_-16px_rgba(30,28,20,0.25)] max-[760px]:grid-cols-1 max-[760px]:gap-2.5 max-[760px]:py-[18px] max-[760px]:px-3.5 max-[760px]:border max-[760px]:border-[#E1DECF] max-[760px]:rounded-md max-[760px]:mb-3 max-[760px]:shadow-[0_1px_2px_rgba(30,28,20,0.03),0_10px_24px_-18px_rgba(30,28,20,0.18)]"
-                            >
-                                <div className="flex items-center gap-3 min-w-0">
-                                    {admin.profileImage ? (
-                                        <img
-                                            src={admin.profileImage}
-                                            alt={`${admin.name} portrait`}
-                                            className="w-[38px] h-[38px] rounded-full object-cover border border-[#E1DECF] flex-shrink-0"
-                                        />
-                                    ) : (
-                                        <div className="w-[38px] h-[38px] rounded-full border border-[#E1DECF] flex-shrink-0 flex items-center justify-center bg-[#F3EEDD] text-[#A2782E] font-['Space_Grotesk',sans-serif] text-sm">
-                                            {initials(admin.name)}
-                                        </div>
-                                    )}
-                                    <span className="text-sm font-medium text-[#1B2537] overflow-hidden text-ellipsis whitespace-nowrap">{admin.name}</span>
-                                </div>
+                                        {/* Contact */}
+                                        <td className="px-6 py-3.5 font-semibold text-gray-900">
+                                            {admin.mobile || "N/A"}
+                                        </td>
 
-                                <div className="flex flex-col gap-0.5 min-w-0 max-[760px]:mt-1">
-                                    <span className="text-[12.5px] text-[#4A473D] overflow-hidden text-ellipsis whitespace-nowrap">{admin.email}</span>
-                                    <span className="text-xs text-[#A39C89]">{admin.mobile}</span>
-                                </div>
+                                        {/* Tracking ID */}
+                                        <td className="px-6 py-3.5">
+                                            <span className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 shadow-2xs">
+                                                {admin.trackingId || "N/A"}
+                                            </span>
+                                        </td>
 
-                                <div className="font-['IBM_Plex_Mono',monospace] text-xs text-[#8C8676]">{admin.trackingId}</div>
+                                        {/* Status */}
+                                        <td className="px-6 py-3.5">
+                                            {activeTab === "pending" ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                                                    Pending
+                                                </span>
+                                            ) : activeTab === "approved" ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                                    Approved
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                                                    Rejected
+                                                </span>
+                                            )}
+                                        </td>
 
-                                <div className="max-[760px]:mt-1">
-                                    <span
-                                        className={`inline-block font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.14em] font-medium py-[5px] px-2.5 rounded-[3px] -rotate-3 border-[1.5px] ${activeTab === "rejected"
-                                                ? "text-[#8E3B30] border-[rgba(142,59,48,0.5)] bg-[rgba(142,59,48,0.07)]"
-                                                : "text-[#A2782E] border-[rgba(162,120,46,0.55)] bg-[rgba(162,120,46,0.08)]"
-                                            }`}
-                                    >
-                                        {activeTab === "pending" ? "PENDING" : "REJECTED"}
-                                    </span>
-                                </div>
+                                        {/* Actions */}
+                                        <td className="px-6 py-3.5">
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => { setViewAdmin(admin); setShowView(true); }} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="View Details">
+                                                    <Eye size={14} />
+                                                </button>
 
-                                <div className="flex gap-1.5 flex-wrap">
-                                    <button
-                                        onClick={() => {
-                                            setViewAdmin(admin);
-                                            setShowView(true);
-                                        }}
-                                        className="font-['Inter',sans-serif] text-xs font-medium py-[7px] px-3.5 rounded-[3px] border border-[#DEDBCF] cursor-pointer transition-all duration-150 ease-in-out whitespace-nowrap bg-transparent text-[#4A473D] hover:border-[#A2782E] hover:text-[#A2782E]"
-                                    >
-                                        View
-                                    </button>
-
-                                    {activeTab === "pending" && (
-                                        <>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedAdmin(admin);
-                                                    setShowApprove(true);
-                                                }}
-                                                className="font-['Inter',sans-serif] text-xs font-medium py-[7px] px-3.5 rounded-[3px] border cursor-pointer transition-all duration-150 ease-in-out whitespace-nowrap bg-[rgba(59,110,74,0.1)] border-[rgba(59,110,74,0.35)] text-[#2F6F4E] hover:bg-[#2F6F4E] hover:text-white"
-                                            >
-                                                Approve
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedAdmin(admin);
-                                                    setShowReject(true);
-                                                }}
-                                                className="font-['Inter',sans-serif] text-xs font-medium py-[7px] px-3.5 rounded-[3px] border cursor-pointer transition-all duration-150 ease-in-out whitespace-nowrap bg-[rgba(142,59,48,0.1)] border-[rgba(142,59,48,0.35)] text-[#8E3B30] hover:bg-[#8E3B30] hover:text-white"
-                                            >
-                                                Reject
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-
-                                {activeTab === "rejected" && admin.remark && (
-                                    <div className="col-span-full mt-3 text-[12.5px] text-[#8E3B30] bg-[rgba(142,59,48,0.06)] border-l-2 border-[#8E3B30] py-2 px-3">
-                                        <span className="block font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.1em] text-[#8E3B30] mb-[3px]">
-                                            Reason
-                                        </span>
-                                        {admin.remark}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                                {activeTab === "pending" && (
+                                                    <>
+                                                        <button onClick={() => { setSelectedAdmin(admin); setPassword(""); setShowApprove(true); }} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-emerald-600 hover:border-emerald-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Approve">
+                                                            <CheckCircle2 size={14} />
+                                                        </button>
+                                                        <button onClick={() => { setSelectedAdmin(admin); setRemark(""); setShowReject(true); }} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="Reject">
+                                                            <XCircle size={14} />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>
 
+            {/* Modals */}
+
             {/* Approve Modal */}
             {showApprove && (
-                <div className="fixed inset-0 bg-[rgba(27,22,14,0.35)] backdrop-blur-[4px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-white border border-[#E1DECF] rounded-md p-[30px] w-full max-w-[440px] shadow-[0_30px_60px_-20px_rgba(30,28,20,0.28)]">
-                        <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.18em] text-[#A2782E] mt-0 mb-2.5">
+                <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[450px] shadow-2xl relative animate-in zoom-in-95 duration-150">
+                        <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.2em] text-blue-600 uppercase font-bold mt-0 mb-1">
                             GRANT ACCESS
                         </p>
-                        <h2 className="font-['Space_Grotesk',sans-serif] text-[21px] font-semibold text-[#1B2537] mt-0 mb-1.5">
+                        <h2 className="font-['Space_Grotesk',sans-serif] text-xl font-bold text-gray-900 mt-0 mb-1">
                             Approve {selectedAdmin?.name}
                         </h2>
-                        <p className="text-[#8C8676] text-[13px] mt-0 mb-[22px]">
-                            Set a login password to authorize this account.
+                        <p className="text-gray-500 text-xs font-medium mt-0 mb-6 leading-relaxed">
+                            Set a login password to authorize this administrator account.
                         </p>
 
-                        <label className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">Password</label>
-                        <div className="relative mb-1">
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block text-[10px] font-['IBM_Plex_Mono',monospace] text-gray-400 uppercase tracking-widest font-bold">Security Password</label>
+                            <button
+                                onClick={generateRandomPassword}
+                                className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                                <Sparkles size={13} /> Generate Random Password
+                            </button>
+                        </div>
+
+                        <div className="relative mb-3">
                             <input
                                 type={showPassword ? "text" : "password"}
-                                placeholder="Enter password"
+                                placeholder="Enter secure password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 autoFocus
-                                className="w-full bg-[#FCFBF7] border border-[#DEDBCF] text-[#232320] text-[13px] rounded font-['Inter',sans-serif] outline-none transition-colors duration-150 ease-in-out pr-10 h-11 pl-3.5 focus:border-[#A2782E]"
+                                disabled={submitting}
+                                className="w-full bg-white border border-gray-200 text-gray-900 text-xs rounded-xl outline-none pr-10 h-11 pl-4 focus:border-blue-500 font-medium transition shadow-2xs"
                             />
-                            <span
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A39C89] cursor-pointer hover:text-[#A2782E]"
-                                onClick={() => setShowPassword((v) => !v)}
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition cursor-pointer"
                             >
-                                {showPassword ? (
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6 0 10 6 10 6a13.3 13.3 0 0 1-3.06 3.66M6.1 6.1C3.4 7.9 2 10 2 10s4 6 10 6a9 9 0 0 0 3.9-.9" /></svg>
-                                ) : (
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
-                                )}
-                            </span>
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
                         </div>
 
-                        <div className="flex gap-2.5 mt-6">
+                        {/* Password Strength Indicator */}
+                        {password && (
+                            <div className="mb-6 flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-['IBM_Plex_Mono']">Strength:</span>
+                                <span className={`text-[11px] font-bold uppercase tracking-wider ${password.length < 6 ? "text-rose-600" : password.length < 10 ? "text-amber-600" : "text-emerald-600"
+                                    }`}>
+                                    {password.length < 6 ? "Weak" : password.length < 10 ? "Medium" : "Strong"}
+                                </span>
+                            </div>
+                        )}
+
+                        <div className="flex gap-2.5 pt-4 border-t border-gray-100">
                             <button
-                                onClick={() => {
-                                    setShowApprove(false);
-                                    setPassword("");
-                                }}
-                                className="font-['Inter',sans-serif] text-xs font-medium rounded-[3px] border border-[#DEDBCF] cursor-pointer transition-all duration-150 ease-in-out bg-transparent text-[#4A473D] hover:border-[#A2782E] hover:text-[#A2782E] flex-1 text-center py-[11px] px-3.5"
+                                onClick={() => { setShowApprove(false); setPassword(""); }}
+                                disabled={submitting}
+                                className="flex-1 font-bold rounded-xl border border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs py-2.5 transition cursor-pointer uppercase tracking-wider disabled:opacity-50"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleApprove}
-                                className="font-['Inter',sans-serif] text-xs font-medium rounded-[3px] border cursor-pointer transition-all duration-150 ease-in-out bg-[rgba(59,110,74,0.1)] border-[rgba(59,110,74,0.35)] text-[#2F6F4E] hover:bg-[#2F6F4E] hover:text-white flex-1 text-center py-[11px] px-3.5"
+                                disabled={submitting}
+                                className="flex-1 font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 text-xs py-2.5 transition flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider shadow-2xs disabled:opacity-50"
                             >
-                                Confirm approval
+                                {submitting && <Loader2 className="animate-spin" size={15} />}
+                                {submitting ? "Approving..." : "Confirm Approval"}
                             </button>
                         </div>
                     </div>
@@ -335,43 +478,56 @@ const PendingAdmins = () => {
 
             {/* Reject Modal */}
             {showReject && (
-                <div className="fixed inset-0 bg-[rgba(27,22,14,0.35)] backdrop-blur-[4px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-white border border-[#E1DECF] rounded-md p-[30px] w-full max-w-[440px] shadow-[0_30px_60px_-20px_rgba(30,28,20,0.28)]">
-                        <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.18em] text-[#8E3B30] mt-0 mb-2.5">
+                <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[450px] shadow-2xl relative animate-in zoom-in-95 duration-150">
+                        <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.2em] text-rose-600 uppercase font-bold mt-0 mb-1">
                             DENY ACCESS
                         </p>
-                        <h2 className="font-['Space_Grotesk',sans-serif] text-[21px] font-semibold text-[#1B2537] mt-0 mb-1.5">
+                        <h2 className="font-['Space_Grotesk',sans-serif] text-xl font-bold text-gray-900 mt-0 mb-1">
                             Reject {selectedAdmin?.name}
                         </h2>
-                        <p className="text-[#8C8676] text-[13px] mt-0 mb-[22px]">
-                            State the reason this request is being turned down.
-                        </p>
+                        <p className="text-gray-500 text-xs font-medium mt-0 mb-5 leading-relaxed">State the reason this request is being turned down.</p>
 
-                        <label className="block text-[11.5px] font-medium text-[#8C8676] mb-[7px]">Rejection reason</label>
+                        <label className="block text-[10px] font-['IBM_Plex_Mono',monospace] text-gray-400 uppercase tracking-widest font-bold mb-2">Rejection Reason</label>
                         <textarea
                             rows={4}
+                            placeholder="Enter rejection reason..."
                             value={remark}
                             onChange={(e) => setRemark(e.target.value)}
-                            placeholder="Enter rejection reason…"
                             autoFocus
-                            className="w-full bg-[#FCFBF7] border border-[#DEDBCF] text-[#232320] text-[13px] rounded font-['Inter',sans-serif] outline-none transition-colors duration-150 ease-in-out p-3.5 resize-none focus:border-[#A2782E]"
+                            disabled={submitting}
+                            className="w-full bg-white border border-gray-200 text-gray-900 text-xs rounded-xl outline-none p-4 resize-none transition focus:border-blue-500 font-medium shadow-2xs"
                         />
 
-                        <div className="flex gap-2.5 mt-6">
+                        {/* Quick Reasons Chips */}
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                            {["Invalid Credentials", "Unauthorized Entity", "Incomplete Profile", "Duplicate Request"].map((reason) => (
+                                <button
+                                    key={reason}
+                                    type="button"
+                                    onClick={() => setRemark(reason)}
+                                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer border border-gray-200"
+                                >
+                                    + {reason}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-2.5 pt-4 border-t border-gray-100">
                             <button
-                                onClick={() => {
-                                    setShowReject(false);
-                                    setRemark("");
-                                }}
-                                className="font-['Inter',sans-serif] text-xs font-medium rounded-[3px] border border-[#DEDBCF] cursor-pointer transition-all duration-150 ease-in-out bg-transparent text-[#4A473D] hover:border-[#A2782E] hover:text-[#A2782E] flex-1 text-center py-[11px] px-3.5"
+                                onClick={() => { setShowReject(false); setRemark(""); }}
+                                disabled={submitting}
+                                className="flex-1 font-bold rounded-xl border border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs py-2.5 transition cursor-pointer uppercase tracking-wider disabled:opacity-50"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleReject}
-                                className="font-['Inter',sans-serif] text-xs font-medium rounded-[3px] border cursor-pointer transition-all duration-150 ease-in-out bg-[rgba(142,59,48,0.1)] border-[rgba(142,59,48,0.35)] text-[#8E3B30] hover:bg-[#8E3B30] hover:text-white flex-1 text-center py-[11px] px-3.5"
+                                disabled={submitting}
+                                className="flex-1 font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 text-xs py-2.5 transition flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider shadow-2xs disabled:opacity-50"
                             >
-                                Confirm rejection
+                                {submitting && <Loader2 className="animate-spin" size={15} />}
+                                {submitting ? "Rejecting..." : "Confirm Rejection"}
                             </button>
                         </div>
                     </div>
@@ -380,67 +536,50 @@ const PendingAdmins = () => {
 
             {/* View Modal */}
             {showView && viewAdmin && (
-                <div className="fixed inset-0 bg-[rgba(27,22,14,0.35)] backdrop-blur-[4px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-white border border-[#E1DECF] rounded-md p-[30px] w-full max-w-[520px] max-h-[88vh] overflow-y-auto shadow-[0_30px_60px_-20px_rgba(30,28,20,0.28)]">
+                <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                    <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[480px] shadow-2xl relative animate-in zoom-in-95 duration-150">
                         <div className="flex items-center gap-4 mb-6">
                             {viewAdmin.profileImage ? (
-                                <img
-                                    src={viewAdmin.profileImage}
-                                    alt={`${viewAdmin.name} portrait`}
-                                    className="w-14 h-14 rounded-full object-cover border border-[#E1DECF] text-lg"
-                                />
+                                <img src={viewAdmin.profileImage} alt="profile" className="w-14 h-14 rounded-2xl object-cover border border-gray-200 shadow-2xs" />
                             ) : (
-                                <div className="w-14 h-14 rounded-full border border-[#E1DECF] flex items-center justify-center bg-[#F3EEDD] text-[#A2782E] font-['Space_Grotesk',sans-serif] text-lg">
+                                <div className="w-14 h-14 rounded-2xl border border-gray-200 bg-blue-50 text-blue-600 font-['Space_Grotesk'] text-lg font-bold flex items-center justify-center shadow-2xs">
                                     {initials(viewAdmin.name)}
                                 </div>
                             )}
                             <div>
-                                <h2 className="font-['Space_Grotesk',sans-serif] text-[21px] font-semibold text-[#1B2537] mt-0 mb-1">
+                                <h2 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900 leading-tight">
                                     {viewAdmin.name}
                                 </h2>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[11.5px] text-[#A39C89] m-0">
-                                    Tracking ID · {viewAdmin.trackingId}
+                                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">
+                                    TRACKING ID: {viewAdmin.trackingId || "N/A"}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-x-5 gap-y-[18px]">
-                            <div>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-[5px]">Email</p>
-                                <p className="text-[13.5px] text-[#232320] m-0">{viewAdmin.email}</p>
+                        <div className="grid grid-cols-2 gap-3.5 mb-6 text-xs">
+                            <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-200">
+                                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Email</p>
+                                <p className="text-gray-900 font-medium truncate">{viewAdmin.email}</p>
                             </div>
-                            <div>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-[5px]">Mobile</p>
-                                <p className="text-[13.5px] text-[#232320] m-0">{viewAdmin.mobile}</p>
-                            </div>
-                            <div>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-[5px]">Status</p>
-                                <p className="text-[13.5px] text-[#232320] m-0 capitalize">{viewAdmin.status}</p>
-                            </div>
-                            <div>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.12em] text-[#A39C89] mt-0 mb-[5px]">Tracking ID</p>
-                                <p className="text-[13.5px] text-[#232320] m-0">{viewAdmin.trackingId}</p>
+                            <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-200">
+                                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Mobile</p>
+                                <p className="text-gray-900 font-medium truncate">{viewAdmin.mobile || "N/A"}</p>
                             </div>
                         </div>
 
                         {viewAdmin.remark && (
-                            <div className="mt-5 text-[13px] text-[#8E3B30] bg-[rgba(142,59,48,0.06)] border-l-2 border-[#8E3B30] py-2.5 px-3.5">
-                                <span className="block font-['IBM_Plex_Mono',monospace] text-[9.5px] tracking-[0.1em] text-[#8E3B30] mb-[3px]">
-                                    Rejection reason
-                                </span>
-                                {viewAdmin.remark}
+                            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-6">
+                                <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-rose-700 uppercase tracking-widest mb-1">Rejection Reason</p>
+                                <p className="text-xs text-rose-900 font-medium">{viewAdmin.remark}</p>
                             </div>
                         )}
 
-                        <div className="flex gap-2.5 mt-6 justify-end">
+                        <div className="flex justify-end">
                             <button
-                                onClick={() => {
-                                    setShowView(false);
-                                    setViewAdmin(null);
-                                }}
-                                className="font-['Inter',sans-serif] text-xs font-medium rounded-[3px] border border-transparent cursor-pointer transition-all duration-150 ease-in-out bg-[#1B2537] text-[#FFF9EC] font-semibold py-2.5 px-[22px] hover:bg-[#26314A]"
+                                onClick={() => { setShowView(false); setViewAdmin(null); }}
+                                className="w-full h-11 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gray-900 hover:bg-gray-800 transition shadow-2xs cursor-pointer"
                             >
-                                Close
+                                Close Profile
                             </button>
                         </div>
                     </div>
