@@ -5,6 +5,7 @@ const Hotel = require('../Model/hotelModel'); // Hotel model require kiya gaya h
 const dayjs = require("dayjs");
 const mongoose = require('mongoose');
 const temporaryModel = require('../Model/temporaryModel');
+const signupModel = require('../Model/signupModel')
 
 const getAccessibleHotelIds = async (user) => {
     if (user.role === "hotel") {
@@ -363,73 +364,88 @@ const getBookingDetails = async (req, res) => {
 // =========================================================================
 // GET BOOKINGS FOR LOGGED-IN HOTEL (New Addition)
 // =========================================================================
+// =========================================================================
+// GET BOOKINGS FOR LOGGED-IN HOTEL (With Backend Search, Pagination & Sort)
+// =========================================================================
 const getHotelBookings = async (req, res) => {
     try {
         let hotelIds = [];
 
-        // Hotel Login
         if (req.user.role === "hotel") {
-
-            const hotel = await Hotel.findOne({
-                hotelEmail: req.user.email,
-            });
-
-            if (!hotel) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Hotel not found.",
-                });
-            }
-
+            const hotel = await Hotel.findOne({ hotelEmail: req.user.email });
+            if (!hotel) return res.status(404).json({ success: false, message: "Hotel not found." });
             hotelIds = [hotel._id];
-        }
-
-        // Admin Login
-        else if (req.user.role === "admin") {
-
-            const hotels = await Hotel.find({
-                adminId: req.user._id,
-            });
-
-            if (hotels.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    message: "No hotels found.",
-                });
+        } else if (req.user.role === "admin" || req.user.role === "superAdmin") {
+            if (req.user.role === "superAdmin") {
+                const allHotels = await Hotel.find({});
+                hotelIds = allHotels.map(h => h._id);
+            } else {
+                const hotels = await Hotel.find({ adminId: req.user._id });
+                hotelIds = hotels.map(h => h._id);
             }
-
-            hotelIds = hotels.map(hotel => hotel._id);
         }
 
-        else {
-            return res.status(403).json({
-                success: false,
-                message: "Unauthorized.",
-            });
+        const { search = "", status = "current", page = 1, limit = 10, sort = "newest" } = req.query;
+
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const skip = (pageNum - 1) * limitNum;
+
+        let query = { hotelId: { $in: hotelIds } };
+
+        // 🌟 Tab Status Filtering Logic
+        if (status === "current") {
+            query.bookingStatus = { $in: ["Pending", "Confirmed", "Checked In"] };
+        } else if (status === "completed") {
+            query.bookingStatus = "Completed";
+        } else if (status === "cancelled") {
+            query.bookingStatus = "Cancelled";
+        }
+        // If status === "all", no status restriction applied
+
+        // Search Logic
+        if (search.trim()) {
+            const searchRegex = new RegExp(search.trim(), "i");
+            const matchingUsers = await signupModel.find({
+                $or: [
+                    { name: searchRegex },
+                    { email: searchRegex }
+                ]
+            }).select("_id");
+
+            const matchingUserIds = matchingUsers.map(u => u._id);
+
+            query.$or = [
+                { bookingId: searchRegex },
+                { userId: { $in: matchingUserIds } }
+            ];
         }
 
-        const bookings = await Booking.find({
-            hotelId: { $in: hotelIds },
-        })
-            .populate("hotelId", "hotelName hotelEmail")
+        let sortOption = { createdAt: -1 };
+        if (sort === "oldest") sortOption = { createdAt: 1 };
+        else if (sort === "amount") sortOption = { finalAmount: -1 };
+
+        const bookings = await Booking.find(query)
+            .populate("hotelId", "hotelName hotelEmail hotelImages address")
             .populate("userId", "name email mobile")
-            .populate("roomId", "roomNumber roomType pricePerNight roomImages")
-            .populate("review") // ⭐ Added review population
-            .sort({ createdAt: -1 });
+            .populate("roomId", "roomNumber roomType roomImages pricePerNight")
+            .sort(sortOption)
+            .skip(skip)
+            .limit(limitNum);
+
+        const total = await Booking.countDocuments(query);
 
         return res.status(200).json({
             success: true,
-            totalBookings: bookings.length,
+            totalBookings: total,
             bookings,
+            page: pageNum,
+            totalPages: Math.ceil(total / limitNum),
         });
 
     } catch (error) {
         console.error("Get Hotel Bookings Error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 

@@ -12,22 +12,15 @@ router.post('/verifyAndCreateAdmin', adminController.verifyAndCreateAdmin);
 // router.post('/create', adminController.createAdminRequest);
 
 router.get("/pending", adminController.getPendingAdminRequests);
-
-// 👇 Added Approved Admin Requests Route
 router.get("/approved", adminController.getApprovedAdminRequests);
-
-router.patch("/approve/:id", adminController.approveAdminRequest);
-
-router.patch("/reject/:id", adminController.rejectAdminRequest);
-
-router.post("/sendOtp", adminController.sendOtp);
-
-router.post("/verifyOtp", adminController.verifyOtp);
-
-router.get("/:id", adminController.getAdminById);
-
-router.patch("/updateRequest/:id", adminController.updateRequest);
-
 router.get("/rejected", adminController.getRejectedAdminRequests);
 
+router.patch("/approve/:id", adminController.approveAdminRequest);
+router.patch("/reject/:id", adminController.rejectAdminRequest);
+router.patch("/updateRequest/:id", adminController.updateRequest);
+
+router.post("/sendOtp", adminController.sendOtp);
+router.post("/verifyOtp", adminController.verifyOtp);
+
+router.get("/:id", adminController.getAdminById); // ✅ Last
 module.exports = router;

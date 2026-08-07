@@ -319,7 +319,13 @@ const getPendingHotels = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+        return res.status(200).json({
+            success: true,
+            total: hotels.length,
+            page: 1,
+            totalPages: 1,
+            hotels
+        });
     } catch (error) {
         console.log("Get Pending Hotels Error :", error);
         return res.status(500).json({ success: false, message: error.message });
@@ -345,7 +351,13 @@ const getApprovedHotels = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+        return res.status(200).json({
+            success: true,
+            total: hotels.length,
+            page: 1,
+            totalPages: 1,
+            hotels
+        });
     } catch (error) {
         console.log("Get Approved Hotels Error :", error);
         return res.status(500).json({ success: false, message: error.message });
@@ -371,7 +383,13 @@ const getRejectedHotels = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
+        return res.status(200).json({
+            success: true,
+            total: hotels.length,
+            page: 1,
+            totalPages: 1,
+            hotels
+        });
     } catch (error) {
         console.log("Get Rejected Hotels Error :", error);
         return res.status(500).json({ success: false, message: error.message });
@@ -786,31 +804,115 @@ const getParticularHotelDashboard = async (req, res) => {
 
 const getAllPublicHotels = async (req, res) => {
     try {
-        const hotels = await hotelModel
-            .find({
-                status: "Approved",
-            })
-            .populate({
-                path: "city",
-                populate: {
-                    path: "districtId",
-                    populate: {
-                        path: "stateId",
-                    },
-                },
-            })
-            .sort({ createdAt: -1 });
+        const {
+            search = "",
+            state = "",
+            city = "",
+            propertyType = "",
+            amenities = "",
+            checkIn = "",
+            checkOut = "",
+            sortBy = "recommended",
+            page = 1,
+            limit = 6
+        } = req.query;
 
-        console.log("Public Hotels Count:", hotels.length);
-        console.log("Public Hotels:", hotels);
+        // Base Query: Ensuring only active and approved properties show up
+        let query = { status: "Approved" };
+
+        // 🔍 Search Filter (Hotel Name or Address)
+        if (search.trim()) {
+            const searchRegex = new RegExp(search.trim(), "i");
+            query.$or = [
+                { hotelName: searchRegex },
+                { address: searchRegex },
+                { city: searchRegex }
+            ];
+        }
+
+        // 🏨 Property Type Filter
+        if (propertyType) {
+            query.hotelType = new RegExp(`^${propertyType}$`, "i");
+        }
+
+        // 🏊 Amenities Filter ($all ensures hotel has ALL selected amenities)
+        if (amenities) {
+            const amenitiesArray = amenities.split(",").filter(Boolean);
+            if (amenitiesArray.length > 0) {
+                query.amenities = { $all: amenitiesArray };
+            }
+        }
+
+        // 📅 Date Availability Check (Only filters if dates are provided)
+        if (checkIn && checkOut) {
+            const requestedIn = new Date(checkIn);
+            const requestedOut = new Date(checkOut);
+            query.bookedDates = {
+                $not: {
+                    $elemMatch: {
+                        checkIn: { $lt: requestedOut },
+                        checkOut: { $gt: requestedIn }
+                    }
+                }
+            };
+        }
+
+        let hotelsQuery = hotelModel.find(query).populate({
+            path: "city",
+            populate: {
+                path: "districtId",
+                populate: { path: "stateId" },
+            },
+        });
+
+        let hotels = await hotelsQuery;
+
+        // 🗺️ Safe State & City Filter (Post-population check)
+        if (state) {
+            hotels = hotels.filter(h => {
+                const sName = h.city?.districtId?.stateId?.stateName || h.state || "";
+                return sName.toLowerCase() === state.toLowerCase();
+            });
+        }
+
+        if (city) {
+            hotels = hotels.filter(h => {
+                const cName = h.city?.cityName || h.city || "";
+                return cName.toLowerCase() === city.toLowerCase();
+            });
+        }
+
+        // 📊 Sorting Logic
+        hotels.sort((a, b) => {
+            const priceA = Number(a.pricePerNight || 2500);
+            const priceB = Number(b.pricePerNight || 2500);
+            const nameA = a.hotelName || "";
+            const nameB = b.hotelName || "";
+
+            if (sortBy === "price-low") return priceA - priceB;
+            if (sortBy === "price-high") return priceB - priceA;
+            if (sortBy === "name-asc") return nameA.localeCompare(nameB);
+            if (sortBy === "name-desc") return nameB.localeCompare(nameA);
+            return new Date(b.createdAt) - new Date(a.createdAt); // default recommended
+        });
+
+        // 📄 Pagination Calculation
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 6;
+        const totalHotels = hotels.length;
+        const startIndex = (pageNum - 1) * limitNum;
+        const paginatedHotels = hotels.slice(startIndex, startIndex + limitNum);
 
         return res.status(200).json({
             success: true,
-            hotels,
+            totalHotels,
+            hotels: paginatedHotels,
+            page: pageNum,
+            totalPages: Math.ceil(totalHotels / limitNum) || 1,
         });
+
     } catch (error) {
         console.log("Public Hotels Error:", error);
-
         return res.status(500).json({
             success: false,
             message: error.message,

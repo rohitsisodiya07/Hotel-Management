@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
+import { toast, Toaster } from "sonner";
 
 import {
     Search,
@@ -24,77 +25,24 @@ import {
     Coffee,
     Shield,
     Check,
-    Lock
+    Lock,
+    ArrowUpDown,
+    Loader2
 } from "lucide-react";
 
 const amenityIcons = {
     "Free Wi-Fi": <Wifi size={14} />,
     "Free Parking": <Car size={14} />,
     "Valet Parking": <Car size={14} />,
-    "24/7 Front Desk": "🛎️",
-    "Express Check-in": "⚡",
-    "Express Check-out": "⚡",
-    "Elevator/Lift": "🛗",
-    "Airport Shuttle": "✈️",
-    "Railway Station Pickup": "🚆",
-    "Taxi Service": "🚕",
-    "Car Rental": "🚗",
     "Swimming Pool": <Waves size={14} />,
-    "Indoor Pool": <Waves size={14} />,
-    "Outdoor Pool": <Waves size={14} />,
-    "Kids Pool": "🧒",
     "Gym / Fitness Center": <Dumbbell size={14} />,
     "Spa & Wellness Center": <Sparkles size={14} />,
-    "Steam Room": "💨",
-    "Sauna": "🔥",
-    "Yoga Center": "🧘",
     "Restaurant": <Utensils size={14} />,
-    "Multi-Cuisine Restaurant": "🍽️",
     "Cafe": <Coffee size={14} />,
-    "Bar / Lounge": "🍷",
-    "Rooftop Restaurant": "🏙️",
-    "Buffet Breakfast": "🍳",
-    "Complimentary Breakfast": "🥐",
-    "24/7 Room Service": "🛎️",
-    "Laundry Service": "🧺",
-    "Dry Cleaning": "👔",
-    "Ironing Service": "🥼",
-    "Business Center": "💻",
-    "Conference Room": "📊",
-    "Meeting Room": "💼",
-    "Banquet Hall": "🏛️",
-    "Wedding Venue": "💍",
-    "Garden": "🌿",
-    "Terrace": "🌅",
-    "Kids Play Area": "🎠",
-    "Game Room": "🎮",
-    "Library": "📚",
-    "BBQ Area": "🔥",
-    "Pet Friendly": "🐾",
-    "Wheelchair Accessible": "♿",
-    "Family Friendly": "👨‍👩‍👧‍👦",
-    "Non-Smoking Property": "🚭",
-    "Smoking Area": "🚬",
-    "Luggage Storage": "🧳",
-    "Concierge Service": "🎩",
-    "Travel Desk": "🧭",
-    "Tour Assistance": "🗺️",
-    "Currency Exchange": "💱",
-    "ATM": "🏧",
-    "Gift Shop": "🎁",
-    "Beauty Salon": "💄",
-    "Medical Assistance": "🩺",
-    "Doctor On Call": "👨‍⚕️",
-    "First Aid": "🩹",
-    "Power Backup": "⚡",
-    "CCTV Security": "📷",
-    "Fire Safety": "🧯",
-    "Smoke Detectors": "🚨",
-    "24/7 Security": <Shield size={14} />,
-    "EV Charging Station": "🔋"
+    "24/7 Security": <Shield size={14} />
 };
 
-// 🖼️ Swipeable/Scrollable Image Slider Component
+// 🖼️ Swipeable Image Slider Component
 const RoomImageSlider = ({ images, className = "h-60 rounded-none border-none" }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const scrollRef = useRef(null);
@@ -130,6 +78,10 @@ const RoomImageSlider = ({ images, className = "h-60 rounded-none border-none" }
                             src={img}
                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             alt={`Slide ${idx + 1}`}
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=2070";
+                            }}
                         />
                     </div>
                 ))}
@@ -147,8 +99,7 @@ const RoomImageSlider = ({ images, className = "h-60 rounded-none border-none" }
                                 e.stopPropagation();
                                 scrollToImage(idx);
                             }}
-                            className={`h-1.5 rounded-full transition-all cursor-pointer ${idx === currentIndex ? "bg-white w-4" : "bg-white/50 w-1.5"
-                                }`}
+                            className={`h-1.5 rounded-full transition-all cursor-pointer ${idx === currentIndex ? "bg-white w-4" : "bg-white/50 w-1.5"}`}
                         />
                     ))}
                 </div>
@@ -162,15 +113,23 @@ const PublicHome = () => {
 
     const [hotels, setHotels] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [allHotelsForDropdowns, setAllHotelsForDropdowns] = useState([]);
 
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedAmenities, setSelectedAmenities] = useState([]);
     const [selectedState, setSelectedState] = useState("");
     const [selectedCity, setSelectedCity] = useState("");
     const [selectedPropertyType, setSelectedPropertyType] = useState("");
+    const [sortBy, setSortBy] = useState("recommended");
 
     const [checkInDate, setCheckInDate] = useState("");
     const [checkOutDate, setCheckOutDate] = useState("");
+
+    // Continuous Flow (Load More) States
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalHotels, setTotalHotels] = useState(0);
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -178,20 +137,70 @@ const PublicHome = () => {
 
     const hotelAmenitiesList = Object.keys(amenityIcons);
 
+    // Initial metadata fetch for populating state/city dropdown options
     useEffect(() => {
-        const fetchHotels = async () => {
+        const fetchInitialMeta = async () => {
             try {
-                const res = await axios.get(`${signupApi}hotel/public/all`);
-                setHotels(res.data.hotels || []);
+                const res = await axios.get(`${signupApi}hotel/public/all?limit=100`);
+                setAllHotelsForDropdowns(res.data.hotels || []);
             } catch (err) {
                 console.log(err);
-            } finally {
-                setLoading(false);
             }
         };
-
-        fetchHotels();
+        fetchInitialMeta();
     }, []);
+
+    // 🌟 Fetch Data on Filter/Search/Sort Change (Reset to page 1)
+    useEffect(() => {
+        setPage(1);
+        fetchFilteredHotels(1, true);
+    }, [searchQuery, selectedState, selectedCity, selectedPropertyType, selectedAmenities, checkInDate, checkOutDate, sortBy]);
+
+    const fetchFilteredHotels = async (pageNum = 1, isNewFilter = false) => {
+        try {
+            if (pageNum === 1) setLoading(true);
+            else setLoadingMore(true);
+
+            const params = new URLSearchParams({
+                search: searchQuery,
+                state: selectedState,
+                city: selectedCity,
+                propertyType: selectedPropertyType,
+                amenities: selectedAmenities.join(","),
+                checkIn: checkInDate,
+                checkOut: checkOutDate,
+                sortBy,
+                page: pageNum,
+                limit: 6 // 6 items per batch
+            });
+
+            const res = await axios.get(`${signupApi}hotel/public/all?${params.toString()}`);
+            if (res.data.success) {
+                const fetchedHotels = res.data.hotels || [];
+                
+                if (isNewFilter || pageNum === 1) {
+                    setHotels(fetchedHotels);
+                } else {
+                    setHotels(prev => [...prev, ...fetchedHotels]);
+                }
+
+                setTotalHotels(res.data.totalHotels || 0);
+                setHasMore(pageNum < (res.data.totalPages || 1));
+            }
+        } catch (err) {
+            console.error("Fetch Hotels Error:", err);
+            toast.error("Failed to load properties.");
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
+    };
+
+    const handleLoadMore = () => {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        fetchFilteredHotels(nextPage, false);
+    };
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -218,29 +227,28 @@ const PublicHome = () => {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         navigate("/login");
-        window.location.reload();
     };
 
     const availablePropertyTypes = useMemo(() => {
         const typesSet = new Set();
-        hotels.forEach((h) => {
+        allHotelsForDropdowns.forEach((h) => {
             if (h.hotelType) typesSet.add(h.hotelType);
         });
         return Array.from(typesSet).sort();
-    }, [hotels]);
+    }, [allHotelsForDropdowns]);
 
     const availableStates = useMemo(() => {
         const statesSet = new Set();
-        hotels.forEach((h) => {
+        allHotelsForDropdowns.forEach((h) => {
             const stateName = h.city?.districtId?.stateId?.stateName || h.state;
             if (stateName) statesSet.add(stateName);
         });
         return Array.from(statesSet).sort();
-    }, [hotels]);
+    }, [allHotelsForDropdowns]);
 
     const availableCities = useMemo(() => {
         const citiesSet = new Set();
-        hotels.forEach((h) => {
+        allHotelsForDropdowns.forEach((h) => {
             const stateName = h.city?.districtId?.stateId?.stateName || h.state;
             const cityName = h.city?.cityName || h.city;
             if (cityName && (!selectedState || stateName === selectedState)) {
@@ -248,67 +256,16 @@ const PublicHome = () => {
             }
         });
         return Array.from(citiesSet).sort();
-    }, [hotels, selectedState]);
-
-    const filteredHotels = useMemo(() => {
-        return hotels.filter((hotel) => {
-            const cityName = typeof hotel.city === "object" ? hotel.city?.cityName || "" : hotel.city || "";
-            const stateName = hotel.city?.districtId?.stateId?.stateName || hotel.state || "";
-
-            const query = searchQuery.toLowerCase();
-            const searchMatch =
-                hotel.hotelName?.toLowerCase().includes(query) ||
-                cityName.toLowerCase().includes(query) ||
-                stateName.toLowerCase().includes(query);
-
-            const stateMatch = !selectedState || stateName.toLowerCase() === selectedState.toLowerCase();
-            const cityMatch = !selectedCity || cityName.toLowerCase() === selectedCity.toLowerCase();
-            const propertyTypeMatch = !selectedPropertyType || (hotel.hotelType && hotel.hotelType.toLowerCase() === selectedPropertyType.toLowerCase());
-
-            const hotelAmenities = Array.isArray(hotel.amenities)
-                ? hotel.amenities
-                : hotel.amenities
-                    ? hotel.amenities.split(",").map((i) => i.trim())
-                    : [];
-
-            const amenityMatch =
-                selectedAmenities.length === 0 ||
-                selectedAmenities.every((item) => hotelAmenities.includes(item));
-
-            let dateMatch = true;
-            if (checkInDate && checkOutDate && Array.isArray(hotel.bookedDates)) {
-                const requestedIn = new Date(checkInDate);
-                const requestedOut = new Date(checkOutDate);
-                const hasConflict = hotel.bookedDates.some(b => {
-                    const bIn = new Date(b.checkIn);
-                    const bOut = new Date(b.checkOut);
-                    return requestedIn < bOut && requestedOut > bIn;
-                });
-                if (hasConflict) dateMatch = false;
-            }
-
-            return searchMatch && stateMatch && cityMatch && propertyTypeMatch && amenityMatch && dateMatch;
-        });
-    }, [hotels, searchQuery, selectedAmenities, selectedState, selectedCity, selectedPropertyType, checkInDate, checkOutDate]);
-
-    if (loading) {
-        return (
-            <div className="h-screen flex flex-col items-center justify-center gap-3 bg-gray-50">
-                <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-gray-400 font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-[11px] uppercase font-semibold">Curating AuraStays...</p>
-            </div>
-        );
-    }
+    }, [allHotelsForDropdowns, selectedState]);
 
     return (
         <div className="min-h-screen bg-gray-50/50 text-gray-800 font-['Inter',sans-serif] flex flex-col justify-between">
+            <Toaster position="top-right" richColors />
 
             <div>
-                {/* 🌐 PERMANENT CLEAN WHITE STICKY NAVBAR */}
+                {/* Navbar */}
                 <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-2xs py-4 border-b border-gray-200">
                     <div className="max-w-[1600px] mx-auto px-6 sm:px-8 flex items-center justify-between">
-
-                        {/* Logo */}
                         <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => navigate("/")}>
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-600 text-white shadow-2xs">
                                 <Hotel size={18} />
@@ -318,29 +275,19 @@ const PublicHome = () => {
                             </span>
                         </div>
 
-                        {/* Desktop Navigation */}
                         <div className="hidden md:flex items-center gap-4">
                             {!token ? (
                                 <>
-                                    <button
-                                        onClick={() => navigate("/login")}
-                                        className="px-4 py-2 rounded-xl font-semibold text-xs uppercase tracking-wider text-gray-600 hover:bg-gray-100 transition cursor-pointer"
-                                    >
+                                    <button onClick={() => navigate("/login")} className="px-4 py-2 rounded-xl font-semibold text-xs uppercase tracking-wider text-gray-600 hover:bg-gray-100 transition cursor-pointer">
                                         Sign In
                                     </button>
-                                    <button
-                                        onClick={() => navigate("/signup")}
-                                        className="bg-blue-600 hover:bg-blue-700 transition text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider shadow-2xs cursor-pointer"
-                                    >
+                                    <button onClick={() => navigate("/signup")} className="bg-blue-600 hover:bg-blue-700 transition text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider shadow-2xs cursor-pointer">
                                         Get Started
                                     </button>
                                 </>
                             ) : (
                                 <div className="relative ml-2 pl-4 border-l border-gray-200" ref={dropdownRef}>
-                                    <button
-                                        onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition border border-gray-200 hover:bg-gray-50 text-gray-800 bg-white cursor-pointer shadow-2xs"
-                                    >
+                                    <button onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition border border-gray-200 hover:bg-gray-50 text-gray-800 bg-white cursor-pointer shadow-2xs">
                                         <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
                                             {user?.name?.charAt(0).toUpperCase() || "U"}
                                         </div>
@@ -356,16 +303,16 @@ const PublicHome = () => {
                                             <button onClick={() => { setProfileDropdownOpen(false); navigate("/myBookings"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
                                                 <Calendar size={14} className="text-blue-600" /> My Reservations
                                             </button>
-                                            {(user?.role === "admin" || user?.role === "hotel") && (
-                                                <button onClick={() => { setProfileDropdownOpen(false); navigate("/dashboard"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
+                                            {(user?.role === "admin" || user?.role === "hotel" || user?.role === "superAdmin") && (
+                                                <button onClick={() => { setProfileDropdownOpen(false); navigate(user?.role === "superAdmin" ? "/superAdmin/dashboard" : "/hotel/hotelDashboard"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
                                                     <LayoutDashboard size={14} className="text-blue-600" /> Management Console
                                                 </button>
                                             )}
-                                            <button onClick={() => { setProfileDropdownOpen(false); navigate("/reset-password"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
+                                            <button onClick={() => { setProfileDropdownOpen(false); navigate("/reset"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
                                                 <Lock size={14} className="text-blue-600" /> Reset Password
                                             </button>
                                             <div className="border-t border-gray-100 my-1"></div>
-                                            <button onClick={() => { setProfileDropdownOpen(false); handleLogout(); }} className="w-full text-left bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 mt-1">
+                                            <button onClick={() => { setProfileDropdownOpen(false); handleLogout(); }} className="w-full text-left bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 mt-1 cursor-pointer">
                                                 <LogOut size={14} /> Secure Logout
                                             </button>
                                         </div>
@@ -380,45 +327,7 @@ const PublicHome = () => {
                     </div>
                 </nav>
 
-                {/* Mobile Dropdown Menu */}
-                {mobileMenuOpen && (
-                    <div className="md:hidden fixed top-20 left-4 right-4 z-50 bg-white shadow-2xl rounded-2xl p-4 flex flex-col gap-2 border border-gray-200 animate-in fade-in duration-150">
-                        {!token ? (
-                            <>
-                                <button onClick={() => { navigate("/login"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wider text-gray-700 hover:bg-gray-50">
-                                    Sign In
-                                </button>
-                                <button onClick={() => { navigate("/signup"); setMobileMenuOpen(false); }} className="w-full bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-center shadow-2xs">
-                                    Get Started
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <div className="px-4 py-2.5 border-b border-gray-100 mb-1">
-                                    <p className="font-bold text-gray-900 text-xs">{user?.name}</p>
-                                    <p className="text-[11px] text-gray-400">{user?.email}</p>
-                                </div>
-                                <button onClick={() => { navigate("/myBookings"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2.5 text-gray-700">
-                                    <Calendar size={15} className="text-blue-600" /> My Reservations
-                                </button>
-                                {(user?.role === "admin" || user?.role === "hotel") && (
-                                    <button onClick={() => { navigate("/dashboard"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2.5 text-gray-700">
-                                        <LayoutDashboard size={15} className="text-blue-600" /> Management Console
-                                    </button>
-                                )}
-                                <button onClick={() => { navigate("/reset-password"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2.5 text-gray-700">
-                                    <Lock size={15} className="text-blue-600" /> Reset Password
-                                </button>
-                                <div className="border-t border-gray-100 my-1"></div>
-                                <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full text-left bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 mt-1">
-                                    <LogOut size={15} /> Secure Logout
-                                </button>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                {/* 🌟 HERO SECTION WITH ADVANCED TOP-CENTER CALENDAR & LOCATION BAR */}
+                {/* Hero Section */}
                 <section className="relative pt-36 pb-20 px-6 sm:px-8 bg-gray-900 text-white overflow-hidden">
                     <div className="absolute inset-0 opacity-20">
                         <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=2070" alt="" className="w-full h-full object-cover" />
@@ -433,16 +342,14 @@ const PublicHome = () => {
                             Find Your Sanctuary of Comfort
                         </h1>
                         <p className="text-gray-300 mt-2 text-xs md:text-sm font-medium max-w-lg mx-auto">
-                            Filter by destination, select your travel dates, and explore verified luxury properties with AuraStays.
+                            Filter by destination, select your travel dates, and explore verified luxury properties.
                         </p>
                     </div>
 
-                    {/* 🗺️ TOP CENTER FLOATING SEARCH & CALENDAR BAR */}
                     <div className="relative z-20 max-w-4xl mx-auto bg-white rounded-2xl p-2.5 shadow-xl border border-white/20 text-gray-800">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
-
                             <div className="px-3.5 py-2 border-b md:border-b-0 md:border-r border-gray-100">
-                                <label className="block text-[10px] font-['IBM_Plex_Mono',monospace] text-gray-400 uppercase font-bold mb-1">Destination / Hotel</label>
+                                <label className="block text-[10px] font-['IBM_Plex_Mono',monospace] text-gray-400 uppercase font-bold mb-1">Destination</label>
                                 <div className="flex items-center gap-2">
                                     <Search size={15} className="text-blue-600 shrink-0" />
                                     <input
@@ -475,39 +382,31 @@ const PublicHome = () => {
                                     <input
                                         type="date"
                                         value={checkOutDate}
-                                        onChange={(e) => setCheckOutDate(e.target.value)}
                                         min={checkInDate}
+                                        onChange={(e) => setCheckOutDate(e.target.value)}
                                         className="w-full outline-none text-xs font-semibold bg-transparent text-gray-800 cursor-pointer"
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <button
-                                    onClick={() => { }}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
-                                >
+                                <button onClick={() => toast.success("Availability updated!")} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer">
                                     Check Availability
                                 </button>
                             </div>
-
                         </div>
                     </div>
                 </section>
 
-                {/* 🏛️ MAIN CONTENT CONTAINER */}
+                {/* Main Content */}
                 <div className="max-w-[1600px] mx-auto px-6 sm:px-8 py-10 flex flex-col lg:flex-row gap-8">
-
-                    {/* 🎛️ SIDEBAR FILTERS */}
+                    {/* Sidebar */}
                     <aside className="lg:w-80 w-full shrink-0">
                         <div className="sticky top-24 bg-white rounded-3xl shadow-2xs border border-gray-200 p-6 space-y-5">
-
                             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                                 <h2 className="text-sm font-bold flex items-center gap-2 font-['Space_Grotesk'] text-gray-900">
-                                    <SlidersHorizontal size={15} className="text-blue-600" />
-                                    Filters & Amenities
+                                    <SlidersHorizontal size={15} className="text-blue-600" /> Filters & Amenities
                                 </h2>
-
                                 {(selectedAmenities.length > 0 || selectedState || selectedCity || selectedPropertyType || checkInDate) && (
                                     <button
                                         onClick={() => {
@@ -517,6 +416,7 @@ const PublicHome = () => {
                                             setSelectedPropertyType("");
                                             setCheckInDate("");
                                             setCheckOutDate("");
+                                            setSortBy("recommended");
                                         }}
                                         className="text-xs text-blue-600 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
                                     >
@@ -525,17 +425,13 @@ const PublicHome = () => {
                                 )}
                             </div>
 
-                            {/* State, City & Property Type Dropdowns */}
                             <div className="space-y-3.5 pb-4 border-b border-gray-100 text-xs">
-
                                 <div>
-                                    <label className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                                        Property Type
-                                    </label>
+                                    <label className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Property Type</label>
                                     <select
                                         value={selectedPropertyType}
                                         onChange={(e) => setSelectedPropertyType(e.target.value)}
-                                        className="w-full bg-gray-50/50 border border-gray-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 text-gray-800 capitalize cursor-pointer shadow-2xs"
+                                        className="w-full bg-gray-50/50 border border-gray-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 outline-none cursor-pointer"
                                     >
                                         <option value="">All Property Types</option>
                                         {availablePropertyTypes.map((pt) => (
@@ -545,16 +441,11 @@ const PublicHome = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                                        Filter by State
-                                    </label>
+                                    <label className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter by State</label>
                                     <select
                                         value={selectedState}
-                                        onChange={(e) => {
-                                            setSelectedState(e.target.value);
-                                            setSelectedCity("");
-                                        }}
-                                        className="w-full bg-gray-50/50 border border-gray-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 text-gray-800 capitalize cursor-pointer shadow-2xs"
+                                        onChange={(e) => { setSelectedState(e.target.value); setSelectedCity(""); }}
+                                        className="w-full bg-gray-50/50 border border-gray-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 outline-none cursor-pointer"
                                     >
                                         <option value="">All States</option>
                                         {availableStates.map((st) => (
@@ -564,13 +455,11 @@ const PublicHome = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                                        Filter by City
-                                    </label>
+                                    <label className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Filter by City</label>
                                     <select
                                         value={selectedCity}
                                         onChange={(e) => setSelectedCity(e.target.value)}
-                                        className="w-full bg-gray-50/50 border border-gray-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 text-gray-800 capitalize cursor-pointer shadow-2xs"
+                                        className="w-full bg-gray-50/50 border border-gray-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 outline-none cursor-pointer"
                                     >
                                         <option value="">All Cities</option>
                                         {availableCities.map((ct) => (
@@ -580,174 +469,150 @@ const PublicHome = () => {
                                 </div>
                             </div>
 
-                            {/* Full 60+ Amenities Checklist */}
+                            {/* Amenities */}
                             <div>
-                                <div className="flex justify-between items-center mb-2.5">
-                                    <h4 className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                        Amenities ({hotelAmenitiesList.length})
-                                    </h4>
-                                    {selectedAmenities.length > 0 && (
-                                        <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-md">
-                                            {selectedAmenities.length} selected
-                                        </span>
-                                    )}
-                                </div>
-
-                                <div className="space-y-1 max-h-[350px] overflow-y-auto pr-1">
+                                <h4 className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5">Amenities</h4>
+                                <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
                                     {hotelAmenitiesList.map((item) => {
                                         const isChecked = selectedAmenities.includes(item);
                                         return (
                                             <label
                                                 key={item}
-                                                className={`flex items-center justify-between rounded-xl cursor-pointer px-3 py-2 transition-all duration-150 border text-xs font-medium ${isChecked
-                                                        ? "bg-blue-600 text-white border-blue-600 shadow-2xs font-bold"
-                                                        : "border-gray-100 hover:bg-gray-50 text-gray-700 bg-white"
-                                                    }`}
+                                                onClick={() => toggleAmenity(item)}
+                                                className={`flex items-center justify-between rounded-xl cursor-pointer px-3 py-2 text-xs font-medium border transition ${
+                                                    isChecked ? "bg-blue-600 text-white border-blue-600 font-bold" : "border-gray-100 hover:bg-gray-50 text-gray-700 bg-white"
+                                                }`}
                                             >
-                                                <div className="flex items-center gap-2.5 truncate">
-                                                    <span className="w-4 flex justify-center text-xs shrink-0">{amenityIcons[item] || "✓"}</span>
+                                                <div className="flex items-center gap-2 truncate">
+                                                    <span>{amenityIcons[item] || "✓"}</span>
                                                     <span className="truncate">{item}</span>
                                                 </div>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => toggleAmenity(item)}
-                                                    className="hidden"
-                                                />
                                                 {isChecked && <div className="w-2 h-2 rounded-full bg-white shrink-0"></div>}
                                             </label>
                                         );
                                     })}
                                 </div>
                             </div>
-
                         </div>
                     </aside>
 
-                    {/* 🏨 HOTEL LISTINGS GRID */}
+                    {/* Listings */}
                     <section className="flex-1">
-                        <div className="flex justify-between items-end mb-5 bg-white px-6 py-4 rounded-2xl border border-gray-200 shadow-2xs">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 bg-white px-6 py-4 rounded-2xl border border-gray-200 gap-4">
                             <div>
-                                <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-0.5">
-                                    Verified Properties
-                                </span>
-                                <h2 className="text-lg font-bold font-['Space_Grotesk'] text-gray-900">
-                                    Available Stays {checkInDate && <span className="text-xs font-normal text-gray-400">(For selected dates)</span>}
-                                </h2>
+                                <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-0.5">Verified Properties</span>
+                                <h2 className="text-lg font-bold font-['Space_Grotesk'] text-gray-900">Available Stays</h2>
                             </div>
-                            <span className="text-[10px] font-bold font-['IBM_Plex_Mono',monospace] text-gray-600 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
-                                {filteredHotels.length} {filteredHotels.length === 1 ? "Property" : "Properties"} Found
-                            </span>
+
+                            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 h-10 rounded-xl text-xs font-semibold text-gray-700">
+                                    <ArrowUpDown size={13} className="text-blue-600 shrink-0" />
+                                    <select
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value)}
+                                        className="bg-transparent outline-none cursor-pointer font-bold text-gray-800"
+                                    >
+                                        <option value="recommended">Sort: Recommended</option>
+                                        <option value="price-low">Price: Low to High</option>
+                                        <option value="price-high">Price: High to Low</option>
+                                        <option value="name-asc">Name: A to Z</option>
+                                        <option value="name-desc">Name: Z to A</option>
+                                    </select>
+                                </div>
+
+                                <span className="text-[10px] font-bold font-['IBM_Plex_Mono',monospace] text-gray-600 bg-gray-50 px-3 py-2.5 rounded-xl border border-gray-200 shrink-0">
+                                    {totalHotels} Total
+                                </span>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {filteredHotels.length > 0 ? (
-                                filteredHotels.map((hotel) => {
-                                    const hotelAmenities = Array.isArray(hotel.amenities)
-                                        ? hotel.amenities
-                                        : hotel.amenities
-                                            ? hotel.amenities.split(",").map((item) => item.trim())
-                                            : [];
+                        <div className="relative min-h-[350px]">
+                            {loading && (
+                                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex justify-center items-center z-20 rounded-2xl">
+                                    <Loader2 className="animate-spin text-blue-600" size={32} />
+                                </div>
+                            )}
 
-                                    return (
-                                        <div
-                                            key={hotel._id}
-                                            onClick={() => navigate(`/hotel-details/${hotel._id}`)}
-                                            className="group cursor-pointer overflow-hidden rounded-3xl bg-white border border-gray-200 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
-                                        >
-                                            {/* HOTEL IMAGE SWIPER */}
-                                            <div className="relative h-56 overflow-hidden bg-gray-100">
-                                                <RoomImageSlider
-                                                    images={
-                                                        hotel.hotelImages?.length > 0
-                                                            ? hotel.hotelImages
-                                                            : ["https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=2070"]
-                                                    }
-                                                    className="w-full h-full rounded-none border-none"
-                                                />
+                            {hotels.length === 0 && !loading ? (
+                                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-dashed border-gray-300 text-center px-6">
+                                    <Search size={40} className="text-gray-300 mb-3" />
+                                    <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk']">No Properties Found</h3>
+                                    <p className="text-xs text-gray-500 mt-1 max-w-sm">No properties match your current search or date availability.</p>
+                                    <button onClick={() => { setSelectedState(""); setSelectedCity(""); setSearchQuery(""); }} className="mt-4 bg-gray-900 text-white text-xs font-bold px-4 py-2 rounded-xl uppercase cursor-pointer">
+                                        Reset Search
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    {hotels.map((hotel) => {
+                                        const hotelAmenities = Array.isArray(hotel.amenities)
+                                            ? hotel.amenities
+                                            : hotel.amenities ? hotel.amenities.split(",").map(i => i.trim()) : [];
 
-                                                <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md rounded-xl px-2.5 py-1 flex items-center gap-1 shadow-2xs z-10 pointer-events-none">
-                                                    <Star size={12} fill="#FACC15" className="text-yellow-400" />
-                                                    <span className="text-[11px] font-bold text-gray-900">4.9</span>
+                                        return (
+                                            <div
+                                                key={hotel._id}
+                                                onClick={() => navigate(`/hotel-details/${hotel._id}`)}
+                                                className="group cursor-pointer overflow-hidden rounded-3xl bg-white border border-gray-200 shadow-2xs hover:shadow-md transition flex flex-col justify-between"
+                                            >
+                                                <div className="relative h-56 overflow-hidden bg-gray-100">
+                                                    <RoomImageSlider images={hotel.hotelImages?.length > 0 ? hotel.hotelImages : ["https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=2070"]} />
+                                                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md rounded-xl px-2.5 py-1 flex items-center gap-1 shadow-2xs z-10">
+                                                        <Star size={12} fill="#FACC15" className="text-yellow-400" />
+                                                        <span className="text-[11px] font-bold text-gray-900">4.9</span>
+                                                    </div>
+                                                    <div className="absolute bottom-4 left-4 right-4 text-white z-10 pointer-events-none">
+                                                        <h3 className="text-lg font-bold font-['Space_Grotesk'] leading-tight">{hotel.hotelName}</h3>
+                                                        <p className="flex items-center gap-1 text-[11px] mt-1 text-gray-200 font-medium capitalize truncate">
+                                                            <MapPin size={12} className="text-blue-400 shrink-0" />
+                                                            {hotel.city?.cityName || hotel.city}, {hotel.city?.districtId?.stateId?.stateName || hotel.state}
+                                                        </p>
+                                                    </div>
                                                 </div>
 
-                                                <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-amber-300 text-[9px] font-bold px-2.5 py-1 rounded-xl tracking-wider uppercase border border-white/10 z-10 pointer-events-none font-['IBM_Plex_Mono']">
-                                                    Verified
-                                                </div>
-
-                                                <div className="absolute bottom-4 left-4 right-4 text-white z-10 pointer-events-none">
-                                                    <h3 className="text-lg font-bold font-['Space_Grotesk'] leading-tight">
-                                                        {hotel.hotelName}
-                                                    </h3>
-                                                    <p className="flex items-center gap-1 text-[11px] mt-1 text-gray-200 font-medium capitalize truncate">
-                                                        <MapPin size={12} className="text-blue-400 shrink-0" />
-                                                        {hotel.city?.cityName || hotel.city}, {hotel.city?.districtId?.stateId?.stateName || hotel.state}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="p-5 flex flex-col justify-between flex-1">
-                                                <div className="flex flex-wrap gap-1.5 min-h-[32px] mb-4">
-                                                    {hotelAmenities.length > 0 ? (
-                                                        hotelAmenities.slice(0, 4).map((item) => (
-                                                            <div
-                                                                key={item}
-                                                                className="flex items-center gap-1 bg-gray-50 text-gray-700 border border-gray-200 px-2.5 py-1 rounded-lg text-[10px] font-medium shadow-2xs"
-                                                            >
+                                                <div className="p-5 flex flex-col justify-between flex-1">
+                                                    <div className="flex flex-wrap gap-1.5 min-h-[32px] mb-4">
+                                                        {hotelAmenities.slice(0, 4).map((item) => (
+                                                            <div key={item} className="flex items-center gap-1 bg-gray-50 text-gray-700 border border-gray-200 px-2.5 py-1 rounded-lg text-[10px] font-medium">
                                                                 {amenityIcons[item] || <Check size={11} className="text-blue-600" />}
                                                                 <span>{item}</span>
                                                             </div>
-                                                        ))
-                                                    ) : (
-                                                        <span className="text-[11px] text-gray-400 italic">No amenities specified</span>
-                                                    )}
-                                                    {hotelAmenities.length > 4 && (
-                                                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-lg font-bold flex items-center">
-                                                            +{hotelAmenities.length - 4} more
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex items-center justify-between pt-3.5 border-t border-gray-100">
-                                                    <div>
-                                                        <span className="text-[10px] font-['IBM_Plex_Mono',monospace] text-gray-400 uppercase tracking-wider block">
-                                                            Starting from
-                                                        </span>
-                                                        <span className="font-bold text-gray-900 text-base font-['Space_Grotesk']">
-                                                            ₹{hotel.pricePerNight || "2,500"} <span className="text-xs text-gray-400 font-sans font-normal">/ night</span>
-                                                        </span>
+                                                        ))}
                                                     </div>
 
-                                                    <button className="rounded-xl bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 transition shadow-2xs cursor-pointer">
-                                                        View Details <ChevronRight size={13} />
-                                                    </button>
+                                                    <div className="flex items-center justify-between pt-3.5 border-t border-gray-100">
+                                                        <div>
+                                                            <span className="text-[10px] font-['IBM_Plex_Mono'] text-gray-400 uppercase tracking-wider block">Starting from</span>
+                                                            <span className="font-bold text-gray-900 text-base font-['Space_Grotesk']">
+                                                                ₹{hotel.pricePerNight || "2,500"} <span className="text-xs text-gray-400 font-sans font-normal">/ night</span>
+                                                            </span>
+                                                        </div>
+                                                        <button className="rounded-xl bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 transition cursor-pointer">
+                                                            View Details <ChevronRight size={13} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="col-span-full flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-dashed border-gray-300 text-center px-6 shadow-2xs">
-                                    <Search size={40} className="text-gray-300 mb-3 stroke-1" />
-                                    <h2 className="text-lg font-bold font-['Space_Grotesk'] text-gray-900">
-                                        No Properties Found
-                                    </h2>
-                                    <p className="text-gray-500 mt-1 text-xs max-w-sm font-medium">
-                                        We couldn't find any properties matching your current filter selections or selected dates. Try resetting your criteria.
-                                    </p>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* 🌟 CONTINUOUS "LOAD MORE" BUTTON */}
+                            {hasMore && hotels.length > 0 && (
+                                <div className="text-center mt-10">
                                     <button
-                                        onClick={() => {
-                                            setSearchQuery("");
-                                            setSelectedAmenities([]);
-                                            setSelectedState("");
-                                            setSelectedCity("");
-                                            setSelectedPropertyType("");
-                                            setCheckInDate("");
-                                            setCheckOutDate("");
-                                        }}
-                                        className="mt-5 bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-2xs"
+                                        onClick={handleLoadMore}
+                                        disabled={loadingMore}
+                                        className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-900 font-bold px-8 py-3 rounded-2xl text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer inline-flex items-center gap-2"
                                     >
-                                        Reset All Filters
+                                        {loadingMore ? (
+                                            <>
+                                                <Loader2 className="animate-spin text-blue-600" size={16} /> Loading More...
+                                            </>
+                                        ) : (
+                                            "Load More Properties"
+                                        )}
                                     </button>
                                 </div>
                             )}
@@ -755,7 +620,6 @@ const PublicHome = () => {
                     </section>
                 </div>
             </div>
-
         </div>
     );
 };

@@ -1,37 +1,83 @@
-const Booking = require('../Model/bookingModel');
-const City = require('../Model/cityModel');
-const State = require('../Model/stateModel');
-const District = require('../Model/districtModel');
-const Room = require('../Model/roomsModel');
-const Hotel = require('../Model/hotelModel');
-const Admin = require('../Model/adminModel');
-const mongoose = require('mongoose');
-const Review = require('../Model/reviewModel');
-const dayjs = require('dayjs');
-const relativeTime = require('dayjs/plugin/relativeTime');
+const mongoose = require("mongoose");
+const Booking = require("../Model/bookingModel");
+const Hotel = require("../Model/hotelModel");
+const Room = require("../Model/roomsModel");
+const City = require("../Model/cityModel");
+const District = require("../Model/districtModel");
+const State = require("../Model/stateModel");
+const Review = require("../Model/reviewModel");
+const SignupUser = require("../Model/signupModel");
+const dayjs = require("dayjs");
+const relativeTime = require("dayjs/plugin/relativeTime");
 dayjs.extend(relativeTime);
 
+/* ===========================================================
+   COMMON HELPERS
+=========================================================== */
+const SUCCESS_BOOKINGS = [
+    "Confirmed",
+    "Checked In",
+    "Completed"
+];
 
+const getBookingAmount = (booking) => {
+    return Number(
+        booking.finalAmount ||
+        booking.totalAmount ||
+        booking.amount ||
+        0
+    );
+};
+
+/* ===========================================================
+   GET ACCESSIBLE HOTEL IDS
+=========================================================== */
 const getAccessibleHotelIds = async (user) => {
-    if (user.role === "hotel") {
-        const hotel = await Hotel.findOne({ hotelEmail: user.email });
-        return hotel ? [hotel._id] : [];
-    }
-    if (user.role === "admin") {
-        const hotels = await Hotel.find({ adminId: user._id });
+    if (!user) return [];
+
+    // SUPER ADMIN
+    if (user.role === "superAdmin") {
+        const hotels = await Hotel.find({}, "_id");
         return hotels.map(h => h._id);
     }
+
+    // HOTEL LOGIN
+    if (user.role === "hotel") {
+        const hotel = await Hotel.findOne({
+            $or: [{ hotelEmail: user.email }, { email: user.email }]
+        });
+        return hotel ? [hotel._id] : [];
+    }
+
+    // ADMIN LOGIN
+    if (user.role === "admin") {
+        const hotels = await Hotel.find({
+            $or: [{ adminId: user._id }, { admin: user._id }]
+        }).select("_id");
+        return hotels.map(h => h._id);
+    }
+
     return [];
 };
 
+/* ===========================================================
+   DROPDOWN OPTIONS
+=========================================================== */
 exports.getDropdownOptions = async (req, res) => {
     try {
-        const admins = await Admin.find({ status: "Approved" }).select("name _id");
-        const cities = await City.find({ status: "active" }).select("cityName _id");
-        const states = await State.find({ status: "active" }).select("stateName _id");
-        const hotels = await Hotel.find().select("hotelName _id");
+        const [
+            admins,
+            cities,
+            states,
+            hotels
+        ] = await Promise.all([
+            SignupUser.find({ role: "admin" }).select("name email"),
+            City.find().select("cityName"),
+            State.find().select("stateName"),
+            Hotel.find({ status: "Approved" }).select("hotelName")
+        ]);
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             admins,
             cities,
@@ -39,226 +85,305 @@ exports.getDropdownOptions = async (req, res) => {
             hotels
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 };
 
-// ==========================================
-// 2. Global Scope Analytics Dashboard API for Super Admin
-// ==========================================
+exports.getAccessibleHotelIds = getAccessibleHotelIds;
+
+
+/* ===========================================================
+   SUPER ADMIN DASHBOARD ANALYTICS (With Server-Side Search, Sort & Pagination)
+=========================================================== */
 exports.getSuperAdminDashboardAnalytics = async (req, res) => {
     try {
-        const { filter, id, status } = req.query; // filter: all, admin, city, state, hotel | status: approved, pending, etc.
+        const { filter = "all", id = "all", status = "all", search = "", sortBy = "newest", page = 1, limit = 10 } = req.query;
 
-        let hotelPipeline = [
-            {
-                $lookup: {
-                    from: "admins",
-                    localField: "adminId",
-                    foreignField: "_id",
-                    as: "adminInfo"
+        let hotelQuery = {};
+
+        if (status && status !== "all") {
+            hotelQuery.status = status;
+        }
+
+        if (filter === "admin" && id && id !== "all") {
+            hotelQuery.adminId = id;
+        } else if (filter === "city" && id && id !== "all") {
+            hotelQuery.city = id;
+        } else if (filter === "state" && id && id !== "all") {
+            const citiesInState = await City.find().populate({
+                path: 'districtId',
+                match: { stateId: id }
+            });
+            const validCityIds = citiesInState.filter(c => c.districtId != null).map(c => c._id);
+            hotelQuery.city = { $in: validCityIds };
+        } else if (filter === "hotel" && id && id !== "all") {
+            hotelQuery._id = id;
+        }
+
+        if (search && search.trim() !== "") {
+            const searchRegex = new RegExp(search.trim(), "i");
+            hotelQuery.$or = [
+                { hotelName: searchRegex },
+                { hotelEmail: searchRegex },
+                { trackingId: searchRegex }
+            ];
+        }
+
+        const totalHotelsCount = await Hotel.countDocuments(hotelQuery);
+        const totalAdminsCount = await SignupUser.countDocuments({ role: "admin" });
+        const pendingHotelsCount = await Hotel.countDocuments({ status: "Pending" });
+        const approvedHotelsCount = await Hotel.countDocuments({ status: "Approved" });
+        const rejectedHotelsCount = await Hotel.countDocuments({ status: "Rejected" });
+
+        const totalCitiesCount = await City.countDocuments();
+        const totalStatesCount = await State.countDocuments();
+        const totalDistrictsCount = await District.countDocuments();
+
+        const allMatchedHotels = await Hotel.find(hotelQuery)
+            .populate({
+                path: 'city',
+                select: 'cityName districtId',
+                populate: {
+                    path: 'districtId',
+                    select: 'districtName stateId',
+                    populate: { path: 'stateId', select: 'stateName' }
                 }
-            },
-            { $unwind: { path: "$adminInfo", preserveNullAndEmptyArrays: true } },
-            {
-                $lookup: {
-                    from: "cities",
-                    localField: "city",
-                    foreignField: "_id",
-                    as: "cityInfo"
+            })
+            .populate('adminId', 'name email');
+
+        let totalRoomsCalc = 0;
+        let totalRevenueCalc = 0;
+        let maxRoomsVal = 0;
+        let largestHotelName = "N/A";
+
+        const enhancedHotels = await Promise.all(
+            allMatchedHotels.map(async (h) => {
+                const rooms = await Room.find({ hotelId: h._id });
+                const roomCount = rooms.length > 0 ? rooms.length : Number(h.totalRooms || 0);
+
+                const bookings = await Booking.find({ hotelId: h._id, bookingStatus: { $ne: "Cancelled" } });
+                const rev = bookings.reduce((acc, b) => acc + Number(b.finalAmount || b.totalAmount || b.amount || 0), 0);
+
+                totalRoomsCalc += roomCount;
+                totalRevenueCalc += rev;
+
+                if (roomCount > maxRoomsVal) {
+                    maxRoomsVal = roomCount;
+                    largestHotelName = h.hotelName || "N/A";
                 }
-            },
-            { $unwind: { path: "$cityInfo", preserveNullAndEmptyArrays: true } },
-            {
-                $lookup: {
-                    from: "districts",
-                    localField: "cityInfo.districtId",
-                    foreignField: "_id",
-                    as: "districtInfo"
-                }
-            },
-            { $unwind: { path: "$districtInfo", preserveNullAndEmptyArrays: true } },
-            {
-                $lookup: {
-                    from: "states",
-                    localField: "districtInfo.stateId",
-                    foreignField: "_id",
-                    as: "stateInfo"
-                }
-            },
-            { $unwind: { path: "$stateInfo", preserveNullAndEmptyArrays: true } }
+
+                const stateObj = h.city?.districtId?.stateId;
+                const stateId = stateObj?._id?.toString() || "other";
+                const stateName = stateObj?.stateName || "Unassigned";
+
+                return {
+                    ...h.toObject(),
+                    totalRooms: roomCount,
+                    totalRevenue: rev,
+                    stateId,
+                    stateName,
+                    cityInfo: h.city,
+                    adminInfo: h.adminId
+                };
+            })
+        );
+
+        // Sorting Logic
+        if (sortBy === "newest") {
+            enhancedHotels.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        } else if (sortBy === "oldest") {
+            enhancedHotels.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        } else if (sortBy === "name") {
+            enhancedHotels.sort((a, b) => (a.hotelName || "").localeCompare(b.hotelName || ""));
+        } else if (sortBy === "rooms") {
+            enhancedHotels.sort((a, b) => b.totalRooms - a.totalRooms);
+        } else if (sortBy === "revenue") {
+            enhancedHotels.sort((a, b) => b.totalRevenue - a.totalRevenue);
+        }
+
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const startIndex = (pageNum - 1) * limitNum;
+        const paginatedHotels = enhancedHotels.slice(startIndex, startIndex + limitNum);
+
+        // Chart 1: Admin Revenue Performance
+        const adminMap = {};
+        enhancedHotels.forEach(h => {
+            const adminName = h.adminInfo?.name || "Unassigned";
+            const adminId = h.adminInfo?._id || "unassigned";
+            if (!adminMap[adminId]) {
+                adminMap[adminId] = { id: adminId, admin: adminName, hotels: 0, rooms: 0, revenue: 0 };
+            }
+            adminMap[adminId].hotels += 1;
+            adminMap[adminId].rooms += h.totalRooms;
+            adminMap[adminId].revenue += h.totalRevenue;
+        });
+        const hotelsByAdmin = Object.values(adminMap);
+
+        // Chart 2: Hotel Status
+        const hotelStatus = [
+            { name: "Approved", value: approvedHotelsCount },
+            { name: "Pending", value: pendingHotelsCount },
+            { name: "Rejected", value: rejectedHotelsCount }
         ];
 
-        // Apply Scope Filter
-        if (filter && id && id !== "all" && mongoose.Types.ObjectId.isValid(id)) {
-            const objectId = new mongoose.Types.ObjectId(id);
-            if (filter === "admin") {
-                hotelPipeline.push({ $match: { adminId: objectId } });
-            } else if (filter === "hotel") {
-                hotelPipeline.push({ $match: { _id: objectId } });
-            } else if (filter === "city") {
-                hotelPipeline.push({ $match: { city: objectId } });
-            } else if (filter === "state") {
-                hotelPipeline.push({ $match: { "stateInfo._id": objectId } });
-            }
-        }
-
-        // Apply Status Filter (from Pie chart click)
-        if (status && status !== "all") {
-            hotelPipeline.push({ $match: { status: status } });
-        }
-
-        const filteredHotels = await Hotel.aggregate(hotelPipeline);
-        const scopedHotelIds = filteredHotels.map(h => h._id);
-
-        // Calculate KPIs
-        const totalHotels = filteredHotels.length;
-        const totalRooms = filteredHotels.reduce((sum, h) => sum + Number(h.totalRooms || 0), 0);
-        const uniqueAdminsCount = new Set(filteredHotels.map(h => h.adminId?.toString()).filter(Boolean)).size;
-        const uniqueCitiesCount = new Set(filteredHotels.map(h => h.city?.toString()).filter(Boolean)).size;
-        const uniqueStatesCount = new Set(filteredHotels.map(h => h.stateInfo?._id?.toString()).filter(Boolean)).size;
-        const uniqueDistrictsCount = new Set(filteredHotels.map(h => h.districtInfo?._id?.toString()).filter(Boolean)).size;
-
-        const pendingHotelsCount = await Hotel.countDocuments({ _id: { $in: scopedHotelIds }, status: "Pending" });
-
-        // ==========================================
-        // 3. Rich Charts Analytics (Admin-wise & City-wise with Rooms/Cities count)
-        // ==========================================
-        const adminMap = {};
-        const cityMap = {};
+        // Chart 3: Hotels by State (with ID mapped)
         const stateMap = {};
-        const statusMap = { Approved: 0, Pending: 0, Rejected: 0 };
-
-        filteredHotels.forEach(h => {
-            const adminIdStr = h.adminId?.toString() || "unassigned";
-            const adminName = h.adminInfo?.name || "Unassigned Admin";
-            if (!adminMap[adminIdStr]) {
-                adminMap[adminIdStr] = { id: h.adminId || "unassigned", admin: adminName, hotels: 0, rooms: 0, citiesSet: new Set() };
+        enhancedHotels.forEach(h => {
+            const stateId = h.stateId;
+            const stateName = h.stateName;
+            if (!stateMap[stateId]) {
+                stateMap[stateId] = { id: stateId, state: stateName, count: 0 };
             }
-            adminMap[adminIdStr].hotels += 1;
-            adminMap[adminIdStr].rooms += Number(h.totalRooms || 0);
-            if (h.city) adminMap[adminIdStr].citiesSet.add(h.city.toString());
+            stateMap[stateId].count += 1;
+        });
+        const hotelsByState = Object.values(stateMap);
 
-            const cityIdStr = h.city?.toString() || "other";
-            const cityName = h.cityInfo?.cityName || "Other";
-            if (!cityMap[cityIdStr]) {
-                cityMap[cityIdStr] = { id: h.city || "other", city: cityName, hotels: 0, rooms: 0 };
+        // Chart 4: Hotels by City
+        const cityMap = {};
+        enhancedHotels.forEach(h => {
+            const cityName = h.cityInfo?.cityName || "Unassigned";
+            const cityId = h.cityInfo?._id || "other";
+            if (!cityMap[cityId]) {
+                cityMap[cityId] = { id: cityId, city: cityName, hotels: 0, rooms: 0, revenue: 0 };
             }
-            cityMap[cityIdStr].hotels += 1;
-            cityMap[cityIdStr].rooms += Number(h.totalRooms || 0);
+            cityMap[cityId].hotels += 1;
+            cityMap[cityId].rooms += h.totalRooms;
+            cityMap[cityId].revenue += h.totalRevenue;
+        });
+        const hotelsByCity = Object.values(cityMap);
 
-            const stateName = h.stateInfo?.stateName || "Unmapped";
-            stateMap[stateName] = (stateMap[stateName] || 0) + 1;
+        // Chart 5: New Hotels Added Per Month
+        const monthMap = {};
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        monthNames.forEach(m => monthMap[m] = 0);
+        enhancedHotels.forEach(h => {
+            if (h.createdAt) {
+                const mIndex = new Date(h.createdAt).getMonth();
+                const mName = monthNames[mIndex];
+                if (mName) monthMap[mName] += 1;
+            }
+        });
+        const newHotelsPerMonth = Object.entries(monthMap).map(([month, count]) => ({ month, count }));
 
-            const st = h.status || "Approved";
-            statusMap[st] = (statusMap[st] || 0) + 1;
+        // Chart 6: Top 5 Admins (Hotels Managed)
+        const topAdminsManaged = [...(hotelsByAdmin || [])]
+            .sort((a, b) => b.hotels - a.hotels)
+            .slice(0, 5)
+            .map(a => ({ admin: a.admin, hotelsCount: a.hotels }));
+
+        // Executive Summary calculations
+        let bestAdminName = "N/A";
+        let maxAdminRev = -1;
+        hotelsByAdmin.forEach(a => {
+            if (a.revenue > maxAdminRev) {
+                maxAdminRev = a.revenue;
+                bestAdminName = a.admin;
+            }
         });
 
-        const hotelsByAdmin = Object.values(adminMap)
-            .map(item => ({ id: item.id, admin: item.admin, hotels: item.hotels, rooms: item.rooms, cities: item.citiesSet.size, count: item.hotels }))
-            .sort((a, b) => b.hotels - a.hotels)
-            .slice(0, 10); // Top 10
+        let topCityName = "N/A";
+        let maxCityCount = -1;
+        hotelsByCity.forEach(c => {
+            if (c.hotels > maxCityCount) {
+                maxCityCount = c.hotels;
+                topCityName = c.city;
+            }
+        });
 
-        const hotelsByCity = Object.values(cityMap)
-            .map(item => ({ id: item.id, city: item.city, hotels: item.hotels, rooms: item.rooms, count: item.hotels }))
-            .sort((a, b) => b.hotels - a.hotels)
-            .slice(0, 10); // Top 10
+        const stateRevMap = {};
+        enhancedHotels.forEach(h => {
+            const st = h.stateName;
+            stateRevMap[st] = (stateRevMap[st] || 0) + h.totalRevenue;
+        });
+        let highestRevState = "N/A";
+        let maxStRev = -1;
+        Object.entries(stateRevMap).forEach(([st, rev]) => {
+            if (rev > maxStRev) {
+                maxStRev = rev;
+                highestRevState = st;
+            }
+        });
 
-        const hotelsByState = Object.entries(stateMap)
-            .map(([state, count]) => ({ state, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
+        // Platform Health calculations
+        const totalEvaluated = approvedHotelsCount + pendingHotelsCount + rejectedHotelsCount;
+        const approvalRate = totalEvaluated > 0 ? Math.round((approvedHotelsCount / totalEvaluated) * 100) : 0;
+        const avgHotelsPerAdmin = totalAdminsCount > 0 ? (totalHotelsCount / totalAdminsCount).toFixed(1) : 0;
 
-        const hotelStatus = [
-            { name: "Approved", value: statusMap.Approved || Math.floor(totalHotels * 0.75) },
-            { name: "Pending", value: statusMap.Pending || Math.floor(totalHotels * 0.2) },
-            { name: "Rejected", value: statusMap.Rejected || Math.ceil(totalHotels * 0.05) },
-        ];
-
-        // Executive Platform Summary Stats
-        const bestAdmin = hotelsByAdmin.length > 0 ? hotelsByAdmin[0].admin : "N/A";
-        const topCity = hotelsByCity.length > 0 ? hotelsByCity[0].city : "N/A";
-        const largestHotelObj = filteredHotels.sort((a, b) => (b.totalRooms || 0) - (a.totalRooms || 0))[0];
-        const largestHotel = largestHotelObj ? largestHotelObj.hotelName : "N/A";
-
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             cards: {
-                totalHotels,
-                totalAdmins: uniqueAdminsCount,
-                totalRooms,
-                totalCities: uniqueCitiesCount,
-                totalStates: uniqueStatesCount,
-                totalDistricts: uniqueDistrictsCount,
-                pendingHotels: pendingHotelsCount
+                totalHotels: totalHotelsCount || 0,
+                totalAdmins: totalAdminsCount || 0,
+                totalRooms: totalRoomsCalc || 0,
+                totalRevenue: totalRevenueCalc || 0,
+                totalCities: totalCitiesCount || 0,
+                totalStates: totalStatesCount || 0,
+                totalDistricts: totalDistrictsCount || 0,
+                pendingHotels: pendingHotelsCount || 0
             },
             executiveSummary: {
-                bestAdmin,
-                topCity,
-                largestHotel,
-                maxRooms: largestHotelObj ? largestHotelObj.totalRooms || 0 : 0
+                bestAdmin: bestAdminName || "N/A",
+                topCity: topCityName || "N/A",
+                largestHotel: largestHotelName || "N/A",
+                maxRooms: maxRoomsVal || 0,
+                highestRevenueState: highestRevState || "N/A"
             },
             charts: {
-                hotelsByAdmin,
-                hotelsByCity,
-                hotelsByState,
-                hotelStatus
+                hotelsByAdmin: hotelsByAdmin || [],
+                hotelsByCity: hotelsByCity || [],
+                hotelsByState: hotelsByState || [],
+                hotelStatus: hotelStatus || [],
+                newHotelsPerMonth: newHotelsPerMonth || [],
+                topAdminsManaged: topAdminsManaged || []
             },
-            hotels: filteredHotels
+            platformHealth: {
+                approvedHotels: approvedHotelsCount || 0,
+                pending: pendingHotelsCount || 0,
+                rejected: rejectedHotelsCount || 0,
+                approvalRate: approvalRate || 0,
+                totalAdmins: totalAdminsCount || 0,
+                avgHotelsPerAdmin: avgHotelsPerAdmin || 0
+            },
+            hotels: paginatedHotels || [],
+            total: enhancedHotels.length || 0,
+            page: pageNum,
+            totalPages: Math.ceil(enhancedHotels.length / limitNum) || 1
         });
 
     } catch (error) {
-        console.error("SuperAdmin Analytics Error:", error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Super Admin Dashboard Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// ==========================================
-// 3. Export Analytics API (Excel / PDF formatted JSON)
-// ==========================================
-exports.exportPlatformAnalytics = async (req, res) => {
-    try {
-        const { filter, id } = req.body;
-        // Fetch matching hotels for export
-        let query = {};
-        if (filter === "admin" && id) query.adminId = id;
-        if (filter === "city" && id) query.city = id;
 
-        const hotels = await Hotel.find(query).populate('adminId', 'name email').populate('city', 'cityName');
-        
-        const exportData = hotels.map((h, idx) => ({
-            Index: idx + 1,
-            HotelName: h.hotelName,
-            Email: h.hotelEmail,
-            City: h.city?.cityName || "N/A",
-            Admin: h.adminId?.name || "Unassigned",
-            Rooms: h.totalRooms || 0,
-            Status: h.status || "Approved",
-            CreatedAt: dayjs(h.createdAt).format("DD-MM-YYYY")
-        }));
-
-        res.status(200).json({
-            success: true,
-            message: "Data prepared for export",
-            data: exportData
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
-// ==========================================
-// 3. Existing Hotel / Admin Dashboard Summary
-// ==========================================
+/* ===========================================================
+   GET DASHBOARD SUMMARY (Admin / Hotel Dashboard)
+=========================================================== */
 exports.getDashboardSummary = async (req, res) => {
     try {
         const hotelIds = await getAccessibleHotelIds(req.user);
 
-        if (hotelIds.length === 0) {
-            return res.status(404).json({ success: false, message: "No hotels found for this user." });
+        if (hotelIds.length === 0 && req.user?.role !== "superAdmin") {
+            return res.status(200).json({
+                success: true,
+                summary: { totalRooms: 0, availableRooms: 0, occupiedRooms: 0, todayBookings: 0, todayRevenue: 0, todayCheckIns: 0, todayCheckOuts: 0 },
+                monthlyRevenue: [],
+                bookingTrend: [],
+                roomStatus: [],
+                recentBookings: [],
+                ratingSummary: { averageRating: 0, totalReviews: 0, categories: {} },
+                recentReviews: [],
+                notifications: []
+            });
         }
 
-        const range = req.query.range || "today"; // default to today
+        const range = req.query.range || "today";
 
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
@@ -274,75 +399,83 @@ exports.getDashboardSummary = async (req, res) => {
             const currentYear = new Date().getFullYear();
             startDate = new Date(`${currentYear}-01-01`);
         } else if (range === "all") {
-            startDate = new Date(0); // Beginning of time
+            startDate = new Date(0);
         }
 
-        // 1. Total Rooms & Occupied Rooms (Using Room Model status)
-        const totalRooms = await Room.countDocuments({ hotelId: { $in: hotelIds } });
+        const hotelQuery = req.user?.role === "superAdmin" ? {} : { hotelId: { $in: hotelIds } };
+        const totalRooms = await Room.countDocuments(hotelQuery);
 
         const occupiedRoomsCount = await Room.countDocuments({
-            hotelId: { $in: hotelIds },
-            bookingStatus: "Booked"
+            ...hotelQuery,
+            $or: [{ bookingStatus: "Booked" }, { status: "Booked" }, { isBooked: true }]
         });
 
-        const availableRoomsCount = totalRooms - occupiedRoomsCount;
+        const availableRoomsCount = Math.max(0, totalRooms - occupiedRoomsCount);
 
-        // 2. Bookings count in range
-        const bookingsInRangeException = await Booking.find({
-            hotelId: { $in: hotelIds },
+        const bookingHotelQuery = req.user?.role === "superAdmin" ? {} : { hotelId: { $in: hotelIds } };
+
+        const bookingsInRange = await Booking.find({
+            ...bookingHotelQuery,
             createdAt: { $gte: startDate, $lte: endDate },
             bookingStatus: { $ne: "Cancelled" }
         });
 
-        const todayBookings = bookingsInRangeException.length;
+        const todayBookings = bookingsInRange.length;
 
-        // 🌟 3. Revenue calculation strictly limited to "Checked In" or "Completed" status
         const revenueBookings = await Booking.find({
-            hotelId: { $in: hotelIds },
+            ...bookingHotelQuery,
             createdAt: { $gte: startDate, $lte: endDate },
-            bookingStatus: { $in: ["Checked In", "Completed"] }
+            $or: [
+                { bookingStatus: { $in: SUCCESS_BOOKINGS } },
+                { status: { $in: SUCCESS_BOOKINGS } }
+            ]
         });
-        const todayRevenue = revenueBookings.reduce((sum, b) => sum + (b.finalAmount || 0), 0);
 
-        // 4. Check-ins & Check-outs in Range
+        const todayRevenue = revenueBookings.reduce((sum, b) => sum + getBookingAmount(b), 0);
+
         const todayCheckIns = await Booking.countDocuments({
-            hotelId: { $in: hotelIds },
+            ...bookingHotelQuery,
             checkIn: { $gte: startDate, $lte: endDate },
-            bookingStatus: { $in: ["Confirmed", "Checked In"] }
+            $or: [
+                { bookingStatus: { $in: ["Confirmed", "Checked In", "Completed", "checkedIn", "completed"] } },
+                { status: { $in: ["Confirmed", "Checked In", "Completed", "checkedIn", "completed"] } }
+            ]
         });
 
         const todayCheckOuts = await Booking.countDocuments({
-            hotelId: { $in: hotelIds },
+            ...bookingHotelQuery,
             checkOut: { $gte: startDate, $lte: endDate },
-            bookingStatus: { $in: ["Checked In", "Completed"] }
+            $or: [
+                { bookingStatus: { $in: ["Checked In", "Completed", "checkedIn", "completed"] } },
+                { status: { $in: ["Checked In", "Completed", "checkedIn", "completed"] } }
+            ]
         });
 
-        // 5. Recent Bookings for Table
-        const recentBookings = await Booking.find({ hotelId: { $in: hotelIds } })
+        const recentBookings = await Booking.find(bookingHotelQuery)
             .sort({ createdAt: -1 })
             .limit(6)
             .populate('userId', 'name email')
             .populate('roomId', 'roomType roomNumber');
 
-        // 6. Reviews & Ratings Logic
-        const recentReviews = await Review.find({ hotelId: { $in: hotelIds } })
+        const reviewQuery = req.user?.role === "superAdmin" ? {} : { hotelId: { $in: hotelIds } };
+        const recentReviews = await Review.find(reviewQuery)
             .sort({ createdAt: -1 })
             .limit(4)
             .populate('userId', 'name');
 
-        const reviewStats = await Review.aggregate([
-            { $match: { hotelId: { $in: hotelIds } } },
-            {
-                $group: {
-                    _id: null,
-                    totalReviews: { $sum: 1 },
-                    avgCleanliness: { $avg: "$cleanliness" },
-                    avgStaff: { $avg: "$staff" },
-                    avgLocation: { $avg: "$location" },
-                    avgValueForMoney: { $avg: "$valueForMoney" }
-                }
+        const reviewStatsPipeline = req.user?.role === "superAdmin" ? [] : [{ $match: { hotelId: { $in: hotelIds } } }];
+        reviewStatsPipeline.push({
+            $group: {
+                _id: null,
+                totalReviews: { $sum: 1 },
+                avgCleanliness: { $avg: "$cleanliness" },
+                avgStaff: { $avg: "$staff" },
+                avgLocation: { $avg: "$location" },
+                avgValueForMoney: { $avg: "$valueForMoney" }
             }
-        ]);
+        });
+
+        const reviewStats = await Review.aggregate(reviewStatsPipeline);
 
         let ratingSummary = {
             averageRating: 0,
@@ -352,52 +485,62 @@ exports.getDashboardSummary = async (req, res) => {
 
         if (reviewStats.length > 0) {
             const stats = reviewStats[0];
-            const avgOverall = (stats.avgCleanliness + stats.avgStaff + stats.avgLocation + stats.avgValueForMoney) / 4;
+            const avgClean = stats.avgCleanliness || 0;
+            const avgStaff = stats.avgStaff || 0;
+            const avgLoc = stats.avgLocation || 0;
+            const avgVal = stats.avgValueForMoney || 0;
+            const avgOverall = (avgClean + avgStaff + avgLoc + avgVal) / 4;
 
             ratingSummary = {
                 averageRating: Math.round(avgOverall * 10) / 10,
                 totalReviews: stats.totalReviews,
                 categories: {
-                    cleanliness: Math.round(stats.avgCleanliness * 10) / 10,
-                    staff: Math.round(stats.avgStaff * 10) / 10,
-                    location: Math.round(stats.avgLocation * 10) / 10,
-                    valueForMoney: Math.round(stats.avgValueForMoney * 10) / 10
+                    cleanliness: Math.round(avgClean * 10) / 10,
+                    staff: Math.round(avgStaff * 10) / 10,
+                    location: Math.round(avgLoc * 10) / 10,
+                    valueForMoney: Math.round(avgVal * 10) / 10
                 }
             };
         }
 
-        // 7. Complete Lifetime Monthly Revenue Analytics
-        const revenueAggregation = await Booking.aggregate([
+        const revAggPipeline = req.user?.role === "superAdmin" ? [] : [{ $match: { hotelId: { $in: hotelIds } } }];
+        revAggPipeline.push(
             {
                 $match: {
-                    hotelId: { $in: hotelIds },
-                    bookingStatus: { $in: ["Checked In", "Completed"] }
+                    $or: [
+                        { bookingStatus: { $in: SUCCESS_BOOKINGS } },
+                        { status: { $in: SUCCESS_BOOKINGS } }
+                    ]
                 }
             },
             {
                 $group: {
                     _id: { $month: "$createdAt" },
-                    revenue: { $sum: "$finalAmount" }
+                    revenue: {
+                        $sum: {
+                            $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }]
+                        }
+                    }
                 }
             },
             { $sort: { "_id": 1 } }
-        ]);
+        );
 
+        const revenueAggregation = await Booking.aggregate(revAggPipeline);
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const monthlyRevenue = monthNames.map((name, index) => {
             const found = revenueAggregation.find(item => item._id === index + 1);
             return { name, revenue: found ? found.revenue : 0 };
         });
 
-        // 8. Weekly Booking Trend
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
         sevenDaysAgo.setHours(0, 0, 0, 0);
 
-        const bookingTrendAggregation = await Booking.aggregate([
+        const trendAggPipeline = req.user?.role === "superAdmin" ? [] : [{ $match: { hotelId: { $in: hotelIds } } }];
+        trendAggPipeline.push(
             {
                 $match: {
-                    hotelId: { $in: hotelIds },
                     bookingStatus: { $ne: "Cancelled" },
                     createdAt: { $gte: sevenDaysAgo }
                 }
@@ -409,8 +552,9 @@ exports.getDashboardSummary = async (req, res) => {
                 }
             },
             { $sort: { "_id": 1 } }
-        ]);
+        );
 
+        const bookingTrendAggregation = await Booking.aggregate(trendAggPipeline);
         const bookingTrend = [];
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
@@ -422,25 +566,25 @@ exports.getDashboardSummary = async (req, res) => {
             bookingTrend.push({ day: dayName, bookings: found ? found.bookings : 0 });
         }
 
-        const recentBookingsForNotif = await Booking.find({ hotelId: { $in: hotelIds } })
+        const recentBookingsForNotif = await Booking.find(bookingHotelQuery)
             .sort({ createdAt: -1 })
             .limit(5)
             .populate('userId', 'name');
 
         const dynamicNotifications = recentBookingsForNotif.map((b, index) => ({
             id: b._id,
-            title: b.bookingStatus === "Pending" ? "New Reservation Request" : `Booking ${b.bookingStatus}`,
-            desc: `${b.userId?.name || "Guest"} booked room (ID: ${b.bookingId})`,
+            title: b.bookingStatus === "Pending" ? "New Reservation Request" : `Booking ${b.bookingStatus || 'Confirmed'}`,
+            desc: `${b.userId?.name || "Guest"} booked room`,
             time: dayjs(b.createdAt).fromNow(),
             unread: index < 2,
             type: "booking"
         }));
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             summary: {
                 totalRooms,
-                availableRooms: availableRoomsCount > 0 ? availableRoomsCount : 0,
+                availableRooms: availableRoomsCount,
                 occupiedRooms: occupiedRoomsCount,
                 todayBookings,
                 todayRevenue,
@@ -450,7 +594,7 @@ exports.getDashboardSummary = async (req, res) => {
             monthlyRevenue,
             bookingTrend,
             roomStatus: [
-                { name: "Available", value: availableRoomsCount > 0 ? availableRoomsCount : 0 },
+                { name: "Available", value: availableRoomsCount },
                 { name: "Occupied", value: occupiedRoomsCount }
             ],
             recentBookings,
@@ -461,7 +605,7 @@ exports.getDashboardSummary = async (req, res) => {
 
     } catch (error) {
         console.error("Dashboard API Error:", error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Failed to fetch dashboard summary.",
             error: error.message
@@ -469,9 +613,20 @@ exports.getDashboardSummary = async (req, res) => {
     }
 };
 
+
+//Admin Dashboard
 exports.getPlatformAnalytics = async (req, res) => {
     try {
-        const { range = "all", hotelId } = req.query;
+        const {
+            range = "all",
+            hotelId,
+            search = "",
+            status = "All",
+            city = "",
+            sortBy = "city",
+            page = 1,
+            limit = 10
+        } = req.query;
 
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
@@ -496,44 +651,96 @@ exports.getPlatformAnalytics = async (req, res) => {
         };
 
         let revenueMatch = {
-            bookingStatus: { $in: ["Checked In", "Completed"] },
+            $or: [
+                { bookingStatus: { $in: SUCCESS_BOOKINGS } },
+                { status: { $in: SUCCESS_BOOKINGS } }
+            ],
             createdAt: { $gte: startDate, $lte: endDate }
         };
 
         let hotelMatch = {};
 
-        if (hotelId && hotelId !== "all") {
-            const objectIdHotelId = new mongoose.Types.ObjectId(hotelId);
-            bookingMatch.hotelId = objectIdHotelId;
-            revenueMatch.hotelId = objectIdHotelId;
-            hotelMatch._id = objectIdHotelId;
+        // 🌟 ROLE-BASED SECURITY ENFORCEMENT & OVERWRITE PREVENTION
+        if (req.user && req.user.role === "admin") {
+            const adminHotels = await Hotel.find(
+                { adminId: req.user._id },
+                "_id"
+            );
+            const hotelIds = adminHotels.map(h => h._id);
+
+            if (hotelId && hotelId !== "all" && mongoose.Types.ObjectId.isValid(hotelId)) {
+                const objectIdHotelId = new mongoose.Types.ObjectId(hotelId);
+                const isOwned = hotelIds.some(hId => hId.toString() === objectIdHotelId.toString());
+
+                if (isOwned) {
+                    hotelMatch._id = objectIdHotelId;
+                    bookingMatch.hotelId = objectIdHotelId;
+                    revenueMatch.hotelId = objectIdHotelId;
+                } else {
+                    // Prevent unauthorized cross-admin inspection attempt
+                    hotelMatch._id = { $in: hotelIds };
+                    bookingMatch.hotelId = { $in: hotelIds };
+                    revenueMatch.hotelId = { $in: hotelIds };
+                }
+            } else {
+                hotelMatch._id = { $in: hotelIds };
+                bookingMatch.hotelId = { $in: hotelIds };
+                revenueMatch.hotelId = { $in: hotelIds };
+            }
+        } else {
+            // Super Admin Scope Handling
+            if (hotelId && hotelId !== "all" && mongoose.Types.ObjectId.isValid(hotelId)) {
+                const objectIdHotelId = new mongoose.Types.ObjectId(hotelId);
+                bookingMatch.hotelId = objectIdHotelId;
+                revenueMatch.hotelId = objectIdHotelId;
+                hotelMatch._id = objectIdHotelId;
+            }
         }
 
-        const totalHotels = hotelId && hotelId !== "all" ? 1 : await Hotel.countDocuments(hotelMatch);
+        const totalHotels = (hotelId && hotelId !== "all" && req.user?.role !== "admin") ? 1 : await Hotel.countDocuments(hotelMatch);
+
+        // Approved and Pending Hotel Counts for KPIs and Pie Chart
+        const approvedHotels = await Hotel.countDocuments({ ...hotelMatch, status: "Approved" });
+        const pendingHotels = await Hotel.countDocuments({ ...hotelMatch, status: "Pending" });
+        const rejectedHotels = await Hotel.countDocuments({ ...hotelMatch, status: "Rejected" });
+
+        const hotelStatusBreakdown = [
+            { name: "Approved", value: approvedHotels },
+            { name: "Pending", value: pendingHotels },
+            { name: "Rejected", value: rejectedHotels }
+        ];
 
         let totalRooms = 0;
         let bookedRoomsCount = 0;
 
-        if (hotelId && hotelId !== "all") {
+        if (hotelId && hotelId !== "all" && mongoose.Types.ObjectId.isValid(hotelId) && req.user?.role !== "admin") {
             const hotelObjId = new mongoose.Types.ObjectId(hotelId);
+            const hotelDoc = await Hotel.findById(hotelObjId);
             const roomDocs = await Room.find({ hotelId: hotelObjId });
-            totalRooms = roomDocs.length;
-            bookedRoomsCount = roomDocs.filter(r => r.bookingStatus === "Booked").length;
+
+            totalRooms = roomDocs.length > 0 ? roomDocs.length : Number(hotelDoc?.totalRooms || 0);
+            bookedRoomsCount = roomDocs.filter(r => r.bookingStatus === "Booked" || r.status === "Booked" || r.isBooked).length;
         } else {
             const totalRoomsResult = await Hotel.aggregate([
+                { $match: hotelMatch },
                 { $group: { _id: null, totalRooms: { $sum: "$totalRooms" } } }
             ]);
             totalRooms = totalRoomsResult[0]?.totalRooms || 0;
-            bookedRoomsCount = await Room.countDocuments({ bookingStatus: "Booked" });
+
+            const scopeHotelIds = (await Hotel.find(hotelMatch, "_id")).map(h => h._id);
+            bookedRoomsCount = await Room.countDocuments({
+                hotelId: { $in: scopeHotelIds },
+                $or: [{ bookingStatus: "Booked" }, { status: "Booked" }, { isBooked: true }]
+            });
         }
 
         const occupancyRate = totalRooms > 0 ? Math.round((bookedRoomsCount / totalRooms) * 100) : 0;
         const totalBookings = await Booking.countDocuments(bookingMatch);
-        const totalCustomers = await Booking.distinct("userId", bookingMatch).then(users => users.length);
+        const totalCustomers = await Booking.distinct("userId", bookingMatch).then(users => users.filter(Boolean).length);
 
         const revenueResult = await Booking.aggregate([
             { $match: revenueMatch },
-            { $group: { _id: null, totalRevenue: { $sum: "$finalAmount" } } }
+            { $group: { _id: null, totalRevenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } } } }
         ]);
         const totalRevenue = revenueResult[0]?.totalRevenue || 0;
 
@@ -543,7 +750,7 @@ exports.getPlatformAnalytics = async (req, res) => {
             {
                 $group: {
                     _id: { $month: "$createdAt" },
-                    revenue: { $sum: "$finalAmount" }
+                    revenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } }
                 }
             },
             { $sort: { "_id": 1 } }
@@ -554,7 +761,153 @@ exports.getPlatformAnalytics = async (req, res) => {
             return { name, revenue: found ? found.revenue : 0 };
         });
 
-        res.status(200).json({
+        // Hotels Added Trend (Month-wise onboarding count)
+        const hotelsAddedAggregation = await Hotel.aggregate([
+            { $match: hotelMatch },
+            {
+                $group: {
+                    _id: { $month: "$createdAt" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { "_id": 1 } }
+        ]);
+
+        const hotelsAddedTrend = monthNames.map((name, index) => {
+            const found = hotelsAddedAggregation.find(item => item._id === index + 1);
+            return { name, count: found ? found.count : 0 };
+        });
+
+        const hotelsList = await Hotel.find(hotelMatch).populate('city', 'cityName');
+        const cityCounts = {};
+        hotelsList.forEach(h => {
+            const cName = h.city?.cityName || "Unassigned";
+            cityCounts[cName] = (cityCounts[cName] || 0) + 1;
+        });
+        const hotelsByCity = Object.entries(cityCounts).map(([city, count]) => ({ city, count }));
+
+        const topHotelsAgg = await Booking.aggregate([
+            { $match: revenueMatch },
+            {
+                $group: {
+                    _id: "$hotelId",
+                    revenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } }
+                }
+            },
+            { $sort: { revenue: -1 } },
+            { $limit: 5 },
+            {
+                $lookup: {
+                    from: "hotels",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "hotelInfo"
+                }
+            },
+            { $unwind: { path: "$hotelInfo", preserveNullAndEmptyArrays: true } }
+        ]);
+
+        const topPerformingHotels = topHotelsAgg.map(item => ({
+            name: item.hotelInfo?.hotelName || "Hotel",
+            revenue: item.revenue
+        }));
+
+        const occupancyComparison = await Promise.all(hotelsList.slice(0, 6).map(async (h) => {
+            const hRooms = await Room.find({ hotelId: h._id });
+            const hTotal = hRooms.length > 0 ? hRooms.length : Number(h.totalRooms || 1);
+            const hBooked = hRooms.filter(r => r.bookingStatus === "Booked" || r.status === "Booked" || r.isBooked).length;
+            const rate = hTotal > 0 ? Math.round((hBooked / hTotal) * 100) : 0;
+            return {
+                hotel: h.hotelName || "Hotel",
+                occupancy: rate
+            };
+        }));
+
+        // SERVER-SIDE TABLE FILTERING & DATE-RANGE SYNCED METRICS
+        let tableQuery = { ...hotelMatch };
+
+        if (status && status !== "All") {
+            tableQuery.status = status;
+        }
+
+        if (city && mongoose.Types.ObjectId.isValid(city)) {
+            tableQuery.city = new mongoose.Types.ObjectId(city);
+        }
+
+        if (search.trim()) {
+            const searchRegex = new RegExp(search, "i");
+            tableQuery.$or = [
+                { hotelName: searchRegex },
+                { hotelEmail: searchRegex },
+                { trackingId: searchRegex }
+            ];
+        }
+
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const skip = (pageNum - 1) * limitNum;
+
+        const totalTableHotels = await Hotel.countDocuments(tableQuery);
+
+        const paginatedHotels = await Hotel.find(tableQuery)
+            .populate('city', 'cityName')
+            .populate('adminId', 'name email')
+            .skip(skip)
+            .limit(limitNum);
+
+        const hotelsWithDetails = await Promise.all(
+            paginatedHotels.map(async (h) => {
+                const hRevenueRes = await Booking.aggregate([
+                    {
+                        $match: {
+                            hotelId: h._id,
+                            ...revenueMatch
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: null,
+                            totalRevenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } }
+                        }
+                    }
+                ]);
+
+                const hBookingsCount = await Booking.countDocuments({
+                    hotelId: h._id,
+                    ...bookingMatch
+                });
+
+                const hRooms = await Room.find({ hotelId: h._id });
+                const hTotalRooms = hRooms.length > 0 ? hRooms.length : Number(h.totalRooms || 1);
+                const hBookedRooms = hRooms.filter(r => r.bookingStatus === "Booked" || r.status === "Booked" || r.isBooked).length;
+                const hOccupancy = hTotalRooms > 0 ? Math.round((hBookedRooms / hTotalRooms) * 100) : 0;
+
+                return {
+                    ...h.toObject(),
+                    totalRevenue: hRevenueRes[0]?.totalRevenue || 0,
+                    totalBookings: hBookingsCount,
+                    occupancyRate: hOccupancy
+                };
+            })
+        );
+
+        if (sortBy === "latest") {
+            hotelsWithDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        } else if (sortBy === "oldest") {
+            hotelsWithDetails.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        } else if (sortBy === "rooms") {
+            hotelsWithDetails.sort((a, b) => Number(b.totalRooms || 0) - Number(a.totalRooms || 0));
+        } else if (sortBy === "revenue") {
+            hotelsWithDetails.sort((a, b) => b.totalRevenue - a.totalRevenue);
+        } else if (sortBy === "bookings") {
+            hotelsWithDetails.sort((a, b) => b.totalBookings - a.totalBookings);
+        } else if (sortBy === "occupancy") {
+            hotelsWithDetails.sort((a, b) => b.occupancyRate - a.occupancyRate);
+        } else {
+            hotelsWithDetails.sort((a, b) => (a.city?.cityName || "").localeCompare(b.city?.cityName || ""));
+        }
+
+        return res.status(200).json({
             success: true,
             analytics: {
                 kpis: {
@@ -563,14 +916,29 @@ exports.getPlatformAnalytics = async (req, res) => {
                     totalBookings,
                     totalCustomers,
                     totalRevenue,
-                    occupancyRate
+                    occupancyRate,
+                    averageRating: 4.5,
+                    activeOwners: totalHotels,
+                    approvedHotels,
+                    pendingHotels
                 },
-                monthlyRevenue
+                monthlyRevenue,
+                hotelsAddedTrend,
+                hotelStatusBreakdown,
+                hotelsByCity,
+                topPerformingHotels,
+                occupancyComparison,
+                tableData: {
+                    hotels: hotelsWithDetails,
+                    total: totalTableHotels,
+                    page: pageNum,
+                    totalPages: Math.ceil(totalTableHotels / limitNum)
+                }
             }
         });
 
     } catch (error) {
         console.error("Platform Analytics Error:", error);
-        res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

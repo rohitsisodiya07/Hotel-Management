@@ -1,18 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
 import {
     Loader2, Search, RefreshCw, Eye, CheckCircle2, XCircle,
-    UserCheck, ShieldAlert, KeyRound, AlertTriangle, X, Check, Copy, Sparkles, Lock, EyeOff, MessageSquare
+    UserCheck, ShieldAlert, Sparkles, EyeOff, X
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
+import useSearch from "../Hooks/useSearch";
 
 const PendingAdmins = () => {
     const [activeTab, setActiveTab] = useState("pending");
-    const [pendingAdmins, setPendingAdmins] = useState([]);
-    const [rejectedAdmins, setRejectedAdmins] = useState([]);
-    const [approvedAdmins, setApprovedAdmins] = useState([]);
-    const [loading, setLoading] = useState(true);
 
     const [showApprove, setShowApprove] = useState(false);
     const [showReject, setShowReject] = useState(false);
@@ -26,42 +23,56 @@ const PendingAdmins = () => {
     const [remark, setRemark] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Search & Sort States
+    // Search, Sort & Pagination States
     const [search, setSearch] = useState("");
     const [sortOrder, setSortOrder] = useState("newest");
 
+    const [pendingPage, setPendingPage] = useState(1);
+    const [approvedPage, setApprovedPage] = useState(1);
+    const [rejectedPage, setRejectedPage] = useState(1);
+    const [limit, setLimit] = useState(5); // Default 5 items per page
+
     const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
 
-    useEffect(() => {
-        fetchAllAdmins();
-    }, []);
+    // 🌟 Backend-driven useSearch hooks for each tab
+    const pendingSearch = useSearch(`${signupApi}admin/pending`, search, {
+        page: pendingPage,
+        limit,
+        sort: sortOrder
+    }, headers);
 
-    const fetchAllAdmins = async () => {
-        try {
-            setLoading(true);
-            const headers = { Authorization: `Bearer ${token}` };
+    const approvedSearch = useSearch(`${signupApi}admin/approved`, search, {
+        page: approvedPage,
+        limit,
+        sort: sortOrder
+    }, headers);
 
-            const [pendingRes, rejectedRes, approvedRes] = await Promise.allSettled([
-                axios.get(`${signupApi}admin/pending`, { headers }),
-                axios.get(`${signupApi}admin/rejected`, { headers }),
-                axios.get(`${signupApi}admin/approved`, { headers }),
-            ]);
+    const rejectedSearch = useSearch(`${signupApi}admin/rejected`, search, {
+        page: rejectedPage,
+        limit,
+        sort: sortOrder
+    }, headers);
 
-            if (pendingRes.status === "fulfilled") {
-                setPendingAdmins(pendingRes.value.data.admins || pendingRes.value.data.result || []);
-            }
-            if (rejectedRes.status === "fulfilled") {
-                setRejectedAdmins(rejectedRes.value.data.admins || rejectedRes.value.data.result || []);
-            }
-            if (approvedRes.status === "fulfilled") {
-                setApprovedAdmins(approvedRes.value.data.admins || approvedRes.value.data.result || []);
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("Failed to load admin verification requests.");
-        } finally {
-            setLoading(false);
-        }
+    const currentActiveSearch = activeTab === "pending" ? pendingSearch : activeTab === "approved" ? approvedSearch : rejectedSearch;
+    const loading = currentActiveSearch.loading;
+
+    const resData = currentActiveSearch.data || {};
+    const admins = resData.admins || resData.result || [];
+    const totalPages = resData.totalPages || 1;
+
+    // Counts
+    const pendingCount = pendingSearch.data?.total || 0;
+    const approvedCount = approvedSearch.data?.total || 0;
+    const rejectedCount = rejectedSearch.data?.total || 0;
+
+    const currentPage = activeTab === "pending" ? pendingPage : activeTab === "approved" ? approvedPage : rejectedPage;
+    const setCurrentPage = activeTab === "pending" ? setPendingPage : activeTab === "approved" ? setApprovedPage : setRejectedPage;
+
+    const refreshData = () => {
+        pendingSearch.fetchData();
+        approvedSearch.fetchData();
+        rejectedSearch.fetchData();
     };
 
     const generateRandomPassword = () => {
@@ -75,11 +86,7 @@ const PendingAdmins = () => {
     };
 
     const handleApprove = async () => {
-        if (!password.trim()) {
-            toast.error("Password is required");
-            return;
-        }
-        if (password.trim().length < 6) {
+        if (!password.trim() || password.trim().length < 6) {
             toast.error("Password must be at least 6 characters");
             return;
         }
@@ -89,14 +96,14 @@ const PendingAdmins = () => {
             const response = await axios.patch(
                 `${signupApi}admin/approve/${selectedAdmin._id}`,
                 { password },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers }
             );
             toast.success(response.data.message || "Admin approved and access granted.");
 
             setPassword("");
             setShowApprove(false);
             setSelectedAdmin(null);
-            fetchAllAdmins();
+            refreshData();
         } catch (error) {
             toast.error(error.response?.data?.message || "Something went wrong during approval sync.");
         } finally {
@@ -115,14 +122,14 @@ const PendingAdmins = () => {
             const response = await axios.patch(
                 `${signupApi}admin/reject/${selectedAdmin._id}`,
                 { remark },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers }
             );
             toast.success(response.data.message || "Admin request rejected.");
 
             setRemark("");
             setShowReject(false);
             setSelectedAdmin(null);
-            fetchAllAdmins();
+            refreshData();
         } catch (error) {
             toast.error(error.response?.data?.message || "Something went wrong.");
         } finally {
@@ -130,44 +137,7 @@ const PendingAdmins = () => {
         }
     };
 
-    const rawAdmins = activeTab === "pending" ? pendingAdmins : activeTab === "approved" ? approvedAdmins : rejectedAdmins;
-
-    const filteredAdmins = useMemo(() => {
-        let data = [...rawAdmins];
-
-        if (search.trim()) {
-            const query = search.toLowerCase();
-            data = data.filter(
-                (a) =>
-                    a.name?.toLowerCase().includes(query) ||
-                    a.email?.toLowerCase().includes(query) ||
-                    a.trackingId?.toLowerCase().includes(query) ||
-                    a.mobile?.toLowerCase().includes(query)
-            );
-        }
-
-        data.sort((a, b) => {
-            if (sortOrder === "newest") return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            if (sortOrder === "oldest") return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
-            if (sortOrder === "name") return (a.name || "").localeCompare(b.name || "");
-            return 0;
-        });
-
-        return data;
-    }, [rawAdmins, search, sortOrder]);
-
     const initials = (name) => (name || "").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
-
-    if (loading) {
-        return (
-            <div className="flex flex-col justify-center items-center min-h-[400px] gap-3">
-                <Loader2 className="animate-spin text-blue-600" size={32} />
-                <h2 className="text-gray-500 font-['IBM_Plex_Mono',monospace] text-xs uppercase tracking-wider font-semibold">
-                    Opening the authorization queue...
-                </h2>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6 font-['Inter',sans-serif] text-gray-800 pb-12 max-w-[1600px] mx-auto">
@@ -189,7 +159,7 @@ const PendingAdmins = () => {
 
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={fetchAllAdmins}
+                        onClick={refreshData}
                         className="p-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-600 transition shadow-2xs cursor-pointer"
                         title="Refresh Data"
                     >
@@ -203,7 +173,7 @@ const PendingAdmins = () => {
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Pending Queue</p>
-                        <h3 className="text-2xl font-bold text-amber-600 font-['Space_Grotesk']">{pendingAdmins.length}</h3>
+                        <h3 className="text-2xl font-bold text-amber-600 font-['Space_Grotesk']">{pendingCount}</h3>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                         <UserCheck size={20} />
@@ -213,7 +183,7 @@ const PendingAdmins = () => {
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Approved List</p>
-                        <h3 className="text-2xl font-bold text-emerald-600 font-['Space_Grotesk']">{approvedAdmins.length}</h3>
+                        <h3 className="text-2xl font-bold text-emerald-600 font-['Space_Grotesk']">{approvedCount}</h3>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                         <CheckCircle2 size={20} />
@@ -223,7 +193,7 @@ const PendingAdmins = () => {
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Rejected List</p>
-                        <h3 className="text-2xl font-bold text-rose-600 font-['Space_Grotesk']">{rejectedAdmins.length}</h3>
+                        <h3 className="text-2xl font-bold text-rose-600 font-['Space_Grotesk']">{rejectedCount}</h3>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
                         <XCircle size={20} />
@@ -234,78 +204,115 @@ const PendingAdmins = () => {
             {/* Status Navigation Tabs */}
             <div className="flex border-b border-gray-200 gap-2 overflow-x-auto scrollbar-none">
                 <button
-                    onClick={() => setActiveTab("pending")}
+                    onClick={() => { setActiveTab("pending"); setPendingPage(1); }}
                     className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "pending"
-                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                        : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                         }`}
                 >
                     Pending Review
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "pending" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
                         }`}>
-                        {pendingAdmins.length}
+                        {pendingCount}
                     </span>
                 </button>
                 <button
-                    onClick={() => setActiveTab("approved")}
+                    onClick={() => { setActiveTab("approved"); setApprovedPage(1); }}
                     className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "approved"
-                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                        : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                         }`}
                 >
                     Approved (Success)
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "approved" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
                         }`}>
-                        {approvedAdmins.length}
+                        {approvedCount}
                     </span>
                 </button>
                 <button
-                    onClick={() => setActiveTab("rejected")}
+                    onClick={() => { setActiveTab("rejected"); setRejectedPage(1); }}
                     className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "rejected"
-                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                        : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                         }`}
                 >
                     Rejected Submissions
                     <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "rejected" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
                         }`}>
-                        {rejectedAdmins.length}
+                        {rejectedCount}
                     </span>
                 </button>
             </div>
 
-            {/* Controls Bar: Search & Sort */}
+            {/* Controls Bar: Search, Limit & Sort */}
             <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs flex flex-col sm:flex-row justify-between gap-4 items-center">
                 <div className="relative w-full sm:flex-1 max-w-md">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                         type="text"
-                        placeholder="Search applicant name, email or ID..."
+                        placeholder="Search name, email or tracking ID..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPendingPage(1);
+                            setApprovedPage(1);
+                            setRejectedPage(1);
+                        }}
                         className="w-full bg-white border border-gray-200 pl-10 pr-4 h-11 rounded-xl text-xs font-medium outline-none focus:border-blue-500 transition shadow-2xs text-gray-900"
                     />
                     {search && (
-                        <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                        <button onClick={() => { setSearch(""); setPendingPage(1); setApprovedPage(1); setRejectedPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
                             <X size={14} />
                         </button>
                     )}
                 </div>
 
-                <select
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value)}
-                    className="w-full sm:w-44 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
-                >
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="name">Name (A-Z)</option>
-                </select>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    {/* Rows per page dropdown */}
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs">
+                        <span>Show:</span>
+                        <select
+                            value={limit}
+                            onChange={(e) => {
+                                setLimit(Number(e.target.value));
+                                setPendingPage(1);
+                                setApprovedPage(1);
+                                setRejectedPage(1);
+                            }}
+                            className="bg-transparent outline-none cursor-pointer font-bold text-blue-600"
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                        </select>
+                    </div>
+
+                    <select
+                        value={sortOrder}
+                        onChange={(e) => {
+                            setSortOrder(e.target.value);
+                            setPendingPage(1);
+                            setApprovedPage(1);
+                            setRejectedPage(1);
+                        }}
+                        className="w-full sm:w-44 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
+                    >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="name">Name (A-Z)</option>
+                    </select>
+                </div>
             </div>
 
             {/* Table Card */}
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs overflow-hidden">
-                {filteredAdmins.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs overflow-hidden relative">
+                {loading && (
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex justify-center items-center z-10 transition-all duration-200">
+                        <Loader2 className="animate-spin text-blue-600" size={24} />
+                    </div>
+                )}
+
+                {admins.length === 0 ? (
                     <div className="text-center py-20">
                         <ShieldAlert className="mx-auto text-gray-300 mb-3" size={40} />
                         <h4 className="font-['Space_Grotesk'] text-base font-bold text-gray-900 mb-1">No requests found</h4>
@@ -324,9 +331,8 @@ const PendingAdmins = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
-                                {filteredAdmins.map((admin) => (
+                                {admins.map((admin) => (
                                     <tr key={admin._id} className="hover:bg-gray-50/60 transition-colors">
-                                        {/* Applicant */}
                                         <td className="px-6 py-3.5">
                                             <div className="flex items-center gap-3">
                                                 {admin.profileImage ? (
@@ -342,20 +348,14 @@ const PendingAdmins = () => {
                                                 </div>
                                             </div>
                                         </td>
-
-                                        {/* Contact */}
                                         <td className="px-6 py-3.5 font-semibold text-gray-900">
                                             {admin.mobile || "N/A"}
                                         </td>
-
-                                        {/* Tracking ID */}
                                         <td className="px-6 py-3.5">
                                             <span className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 shadow-2xs">
                                                 {admin.trackingId || "N/A"}
                                             </span>
                                         </td>
-
-                                        {/* Status */}
                                         <td className="px-6 py-3.5">
                                             {activeTab === "pending" ? (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
@@ -371,8 +371,6 @@ const PendingAdmins = () => {
                                                 </span>
                                             )}
                                         </td>
-
-                                        {/* Actions */}
                                         <td className="px-6 py-3.5">
                                             <div className="flex justify-end gap-2">
                                                 <button onClick={() => { setViewAdmin(admin); setShowView(true); }} className="w-8 h-8 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-blue-600 hover:border-blue-300 flex items-center justify-center transition shadow-2xs cursor-pointer" title="View Details">
@@ -397,10 +395,35 @@ const PendingAdmins = () => {
                         </table>
                     </div>
                 )}
+
+                {/* Numeric Pagination Footer */}
+                <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50/50 text-xs gap-3">
+                    <p className="text-gray-500 font-medium">
+                        Showing page <strong className="text-gray-900">{currentPage}</strong> of <strong className="text-gray-900">{totalPages || 1}</strong>
+                    </p>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {Array.from({ length: totalPages }, (_, index) => {
+                            const pageNum = index + 1;
+                            const isSelected = pageNum === currentPage;
+                            return (
+                                <button
+                                    key={pageNum}
+                                    onClick={() => setCurrentPage(pageNum)}
+                                    className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
+                                            ? "bg-blue-600 text-white shadow-sm"
+                                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                                        }`}
+                                >
+                                    {pageNum}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
 
-            {/* Modals */}
-
+            {/* Modals remain clean and intact */}
             {/* Approve Modal */}
             {showApprove && (
                 <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
@@ -444,12 +467,10 @@ const PendingAdmins = () => {
                             </button>
                         </div>
 
-                        {/* Password Strength Indicator */}
                         {password && (
                             <div className="mb-6 flex items-center gap-2">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-['IBM_Plex_Mono']">Strength:</span>
-                                <span className={`text-[11px] font-bold uppercase tracking-wider ${password.length < 6 ? "text-rose-600" : password.length < 10 ? "text-amber-600" : "text-emerald-600"
-                                    }`}>
+                                <span className={`text-[11px] font-bold uppercase tracking-wider ${password.length < 6 ? "text-rose-600" : password.length < 10 ? "text-amber-600" : "text-emerald-600"}`}>
                                     {password.length < 6 ? "Weak" : password.length < 10 ? "Medium" : "Strong"}
                                 </span>
                             </div>
@@ -499,7 +520,6 @@ const PendingAdmins = () => {
                             className="w-full bg-white border border-gray-200 text-gray-900 text-xs rounded-xl outline-none p-4 resize-none transition focus:border-blue-500 font-medium shadow-2xs"
                         />
 
-                        {/* Quick Reasons Chips */}
                         <div className="mt-3 flex flex-wrap gap-1.5">
                             {["Invalid Credentials", "Unauthorized Entity", "Incomplete Profile", "Duplicate Request"].map((reason) => (
                                 <button

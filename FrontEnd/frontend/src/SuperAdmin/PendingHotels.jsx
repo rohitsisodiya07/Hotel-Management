@@ -1,18 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
-import { 
-    Loader2, Search, RefreshCw, Eye, CheckCircle2, XCircle, 
-    Building2, MapPin, KeyRound, AlertTriangle, X, Check, Copy, Sparkles, Filter 
+import {
+    Loader2, Search, RefreshCw, Eye, CheckCircle2, XCircle,
+    Building2, KeyRound, Sparkles, X, MapPin
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
+import useSearch from "../Hooks/useSearch";
 
 const PendingHotels = () => {
     const [activeTab, setActiveTab] = useState("pending");
-    const [pendingHotels, setPendingHotels] = useState([]);
-    const [rejectedHotels, setRejectedHotels] = useState([]);
-    const [approvedHotels, setApprovedHotels] = useState([]);
-    const [loading, setLoading] = useState(true);
 
     const [showApprove, setShowApprove] = useState(false);
     const [showReject, setShowReject] = useState(false);
@@ -27,34 +24,62 @@ const PendingHotels = () => {
     const [remark, setRemark] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Search, Filter & Sort States
+    // Search, Filter, Sort & Pagination States
     const [search, setSearch] = useState("");
     const [hotelTypeFilter, setHotelTypeFilter] = useState("all");
     const [sortOrder, setSortOrder] = useState("newest");
 
+    const [pendingPage, setPendingPage] = useState(1);
+    const [approvedPage, setApprovedPage] = useState(1);
+    const [rejectedPage, setRejectedPage] = useState(1);
+    const [limit, setLimit] = useState(6); // Default 6 cards per page
+
     const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
 
-    useEffect(() => {
-        fetchAllHotels();
-    }, []);
+    // 🌟 Backend-driven useSearch hooks for each tab
+    const pendingSearch = useSearch(`${signupApi}hotel/pending`, search, {
+        page: pendingPage,
+        limit,
+        sort: sortOrder,
+        hotelType: hotelTypeFilter
+    }, headers);
 
-    const fetchAllHotels = async () => {
-        try {
-            setLoading(true);
-            const [pendingRes, rejectedRes, approvedRes] = await Promise.all([
-                axios.get(`${signupApi}hotel/pending`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${signupApi}hotel/rejected`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${signupApi}hotel/approved`, { headers: { Authorization: `Bearer ${token}` } }),
-            ]);
-            setPendingHotels(pendingRes.data.hotels || []);
-            setRejectedHotels(rejectedRes.data.hotels || []);
-            setApprovedHotels(approvedRes.data.hotels || []);
-        } catch (error) {
-            console.error(error);
-            toast.error("Failed to load hotel submissions.");
-        } finally {
-            setLoading(false);
-        }
+    const approvedSearch = useSearch(`${signupApi}hotel/approved`, search, {
+        page: approvedPage,
+        limit,
+        sort: sortOrder,
+        hotelType: hotelTypeFilter
+    }, headers);
+
+    const rejectedSearch = useSearch(`${signupApi}hotel/rejected`, search, {
+        page: rejectedPage,
+        limit,
+        sort: sortOrder,
+        hotelType: hotelTypeFilter
+    }, headers);
+
+    // Active tab data extraction
+    const currentActiveSearch = activeTab === "pending" ? pendingSearch : activeTab === "approved" ? approvedSearch : rejectedSearch;
+    const loading = currentActiveSearch.loading;
+
+    const resData = currentActiveSearch.data || {};
+    const hotels = resData.hotels || [];
+    const totalPages = resData.totalPages || 1;
+
+    // Counts for stats cards
+    const pendingCount = pendingSearch.data?.total || 0;
+    const approvedCount = approvedSearch.data?.total || 0;
+    const rejectedCount = rejectedSearch.data?.total || 0;
+    const totalCount = pendingCount + approvedCount + rejectedCount;
+
+    const currentPage = activeTab === "pending" ? pendingPage : activeTab === "approved" ? approvedPage : rejectedPage;
+    const setCurrentPage = activeTab === "pending" ? setPendingPage : activeTab === "approved" ? setApprovedPage : setRejectedPage;
+
+    const refreshData = () => {
+        pendingSearch.fetchData();
+        approvedSearch.fetchData();
+        rejectedSearch.fetchData();
     };
 
     const generateRandomPassword = () => {
@@ -82,14 +107,14 @@ const PendingHotels = () => {
             const response = await axios.patch(
                 `${signupApi}hotel/approve/${selectedHotel._id}`,
                 { password },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers }
             );
 
             toast.success(response.data.message || "Hotel approved and user credentials synchronised.");
             setPassword("");
             setShowApprove(false);
             setSelectedHotel(null);
-            fetchAllHotels();
+            refreshData();
         } catch (error) {
             toast.error(error.response?.data?.message || "Something went wrong during approval sync.");
         } finally {
@@ -108,51 +133,20 @@ const PendingHotels = () => {
             const response = await axios.patch(
                 `${signupApi}hotel/reject/${selectedHotel._id}`,
                 { remark },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { headers }
             );
 
             toast.success(response.data.message || "Hotel submission rejected.");
             setRemark("");
             setShowReject(false);
             setSelectedHotel(null);
-            fetchAllHotels();
+            refreshData();
         } catch (error) {
             toast.error(error.response?.data?.message || "Something went wrong.");
         } finally {
             setSubmitting(false);
         }
     };
-
-    const rawHotels = activeTab === "pending" ? pendingHotels : activeTab === "approved" ? approvedHotels : rejectedHotels;
-
-    const filteredHotels = useMemo(() => {
-        let data = [...rawHotels];
-
-        if (search.trim()) {
-            const query = search.toLowerCase();
-            data = data.filter(
-                (h) =>
-                    h.hotelName?.toLowerCase().includes(query) ||
-                    h.adminId?.name?.toLowerCase().includes(query) ||
-                    h.hotelEmail?.toLowerCase().includes(query) ||
-                    h.adminId?.email?.toLowerCase().includes(query)
-            );
-        }
-
-        if (hotelTypeFilter !== "all") {
-            data = data.filter((h) => h.hotelType?.toLowerCase() === hotelTypeFilter.toLowerCase());
-        }
-
-        data.sort((a, b) => {
-            if (sortOrder === "newest") return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            if (sortOrder === "oldest") return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
-            if (sortOrder === "name") return (a.hotelName || "").localeCompare(b.hotelName || "");
-            if (sortOrder === "rooms") return (Number(b.totalRooms) || 0) - (Number(a.totalRooms) || 0);
-            return 0;
-        });
-
-        return data;
-    }, [rawHotels, search, hotelTypeFilter, sortOrder]);
 
     const locationOf = (hotel) =>
         [
@@ -170,17 +164,6 @@ const PendingHotels = () => {
             .slice(0, 2)
             .map((w) => w[0]?.toUpperCase())
             .join("");
-
-    if (loading) {
-        return (
-            <div className="flex flex-col justify-center items-center min-h-[400px] gap-3">
-                <Loader2 className="animate-spin text-blue-600" size={32} />
-                <h2 className="text-gray-500 font-['IBM_Plex_Mono',monospace] text-xs uppercase tracking-wider font-semibold">
-                    Opening the partner registry...
-                </h2>
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6 font-['Inter',sans-serif] text-gray-800 pb-12 max-w-[1600px] mx-auto">
@@ -202,7 +185,7 @@ const PendingHotels = () => {
 
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={fetchAllHotels}
+                        onClick={refreshData}
                         className="p-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-gray-600 transition shadow-2xs cursor-pointer"
                         title="Refresh Data"
                     >
@@ -216,7 +199,7 @@ const PendingHotels = () => {
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Pending Audit</p>
-                        <h3 className="text-2xl font-bold text-amber-600 font-['Space_Grotesk']">{pendingHotels.length}</h3>
+                        <h3 className="text-2xl font-bold text-amber-600 font-['Space_Grotesk']">{pendingCount}</h3>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                         <Building2 size={20} />
@@ -226,7 +209,7 @@ const PendingHotels = () => {
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Approved List</p>
-                        <h3 className="text-2xl font-bold text-emerald-600 font-['Space_Grotesk']">{approvedHotels.length}</h3>
+                        <h3 className="text-2xl font-bold text-emerald-600 font-['Space_Grotesk']">{approvedCount}</h3>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                         <CheckCircle2 size={20} />
@@ -236,7 +219,7 @@ const PendingHotels = () => {
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Rejected List</p>
-                        <h3 className="text-2xl font-bold text-rose-600 font-['Space_Grotesk']">{rejectedHotels.length}</h3>
+                        <h3 className="text-2xl font-bold text-rose-600 font-['Space_Grotesk']">{rejectedCount}</h3>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
                         <XCircle size={20} />
@@ -246,7 +229,7 @@ const PendingHotels = () => {
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-['IBM_Plex_Mono'] mb-1">Total Submissions</p>
-                        <h3 className="text-2xl font-bold text-blue-600 font-['Space_Grotesk']">{pendingHotels.length + approvedHotels.length + rejectedHotels.length}</h3>
+                        <h3 className="text-2xl font-bold text-blue-600 font-['Space_Grotesk']">{totalCount}</h3>
                     </div>
                     <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                         <KeyRound size={20} />
@@ -257,74 +240,97 @@ const PendingHotels = () => {
             {/* Status Navigation Tabs */}
             <div className="flex border-b border-gray-200 gap-2 overflow-x-auto scrollbar-none">
                 <button
-                    onClick={() => setActiveTab("pending")}
-                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${
-                        activeTab === "pending"
+                    onClick={() => { setActiveTab("pending"); setPendingPage(1); }}
+                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "pending"
                             ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
                             : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
-                    }`}
+                        }`}
                 >
                     Pending Review
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${
-                        activeTab === "pending" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
-                    }`}>
-                        {pendingHotels.length}
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "pending" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+                        }`}>
+                        {pendingCount}
                     </span>
                 </button>
                 <button
-                    onClick={() => setActiveTab("approved")}
-                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${
-                        activeTab === "approved"
+                    onClick={() => { setActiveTab("approved"); setApprovedPage(1); }}
+                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "approved"
                             ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
                             : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
-                    }`}
+                        }`}
                 >
                     Approved (Success)
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${
-                        activeTab === "approved" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
-                    }`}>
-                        {approvedHotels.length}
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "approved" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+                        }`}>
+                        {approvedCount}
                     </span>
                 </button>
                 <button
-                    onClick={() => setActiveTab("rejected")}
-                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${
-                        activeTab === "rejected"
+                    onClick={() => { setActiveTab("rejected"); setRejectedPage(1); }}
+                    className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "rejected"
                             ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
                             : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
-                    }`}
+                        }`}
                 >
                     Rejected Submissions
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${
-                        activeTab === "rejected" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
-                    }`}>
-                        {rejectedHotels.length}
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${activeTab === "rejected" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
+                        }`}>
+                        {rejectedCount}
                     </span>
                 </button>
             </div>
 
-            {/* Controls Bar: Search, Filter & Sort */}
+            {/* Controls Bar: Search, Filter, Limit & Sort */}
             <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs flex flex-col xl:flex-row justify-between gap-4 items-center">
                 <div className="relative w-full xl:flex-1 max-w-md">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                         type="text"
-                        placeholder="Search hotel name, admin or email..."
+                        placeholder="Search hotel name or email..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPendingPage(1);
+                            setApprovedPage(1);
+                            setRejectedPage(1);
+                        }}
                         className="w-full bg-white border border-gray-200 pl-10 pr-4 h-11 rounded-xl text-xs font-medium outline-none focus:border-blue-500 transition shadow-2xs text-gray-900"
                     />
                     {search && (
-                        <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                        <button onClick={() => { setSearch(""); setPendingPage(1); setApprovedPage(1); setRejectedPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
                             <X size={14} />
                         </button>
                     )}
                 </div>
 
                 <div className="w-full xl:w-auto flex flex-col sm:flex-row gap-3 items-center shrink-0 flex-wrap">
+                    {/* Rows per page limit dropdown */}
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs">
+                        <span>Show:</span>
+                        <select
+                            value={limit}
+                            onChange={(e) => {
+                                setLimit(Number(e.target.value));
+                                setPendingPage(1);
+                                setApprovedPage(1);
+                                setRejectedPage(1);
+                            }}
+                            className="bg-transparent outline-none cursor-pointer font-bold text-blue-600"
+                        >
+                            <option value={6}>6</option>
+                            <option value={12}>12</option>
+                            <option value={24}>24</option>
+                        </select>
+                    </div>
+
                     <select
                         value={hotelTypeFilter}
-                        onChange={(e) => setHotelTypeFilter(e.target.value)}
+                        onChange={(e) => {
+                            setHotelTypeFilter(e.target.value);
+                            setPendingPage(1);
+                            setApprovedPage(1);
+                            setRejectedPage(1);
+                        }}
                         className="w-full sm:w-44 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
                     >
                         <option value="all">All Hotel Types</option>
@@ -337,7 +343,12 @@ const PendingHotels = () => {
 
                     <select
                         value={sortOrder}
-                        onChange={(e) => setSortOrder(e.target.value)}
+                        onChange={(e) => {
+                            setSortOrder(e.target.value);
+                            setPendingPage(1);
+                            setApprovedPage(1);
+                            setRejectedPage(1);
+                        }}
                         className="w-full sm:w-44 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold outline-none focus:border-blue-500 transition text-gray-700 cursor-pointer shadow-2xs"
                     >
                         <option value="newest">Newest First</option>
@@ -348,137 +359,172 @@ const PendingHotels = () => {
                 </div>
             </div>
 
-            {/* Hotels Matrix Grid */}
-            {filteredHotels.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-dashed border-gray-300 shadow-2xs p-16 text-center">
-                    <div className="w-20 h-20 bg-gray-50 border border-gray-200 rounded-full flex items-center justify-center mx-auto text-gray-400 mb-6 shadow-2xs">
-                        <Building2 size={36} strokeWidth={1.5} />
+            {/* Hotels Matrix Grid with Loader */}
+            <div className="relative">
+                {loading && (
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex justify-center items-center z-10 min-h-[300px]">
+                        <Loader2 className="animate-spin text-blue-600" size={32} />
                     </div>
-                    <h2 className="text-lg font-bold font-['Space_Grotesk'] text-gray-900 mb-1">No Hotels Found</h2>
-                    <p className="text-gray-500 text-xs font-medium">No partner onboarding verification records match this criteria.</p>
-                </div>
-            ) : (
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredHotels.map((hotel) => (
-                        <div
-                            key={hotel._id}
-                            className="bg-white rounded-2xl border border-gray-200 shadow-2xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
-                        >
-                            <div>
-                                {/* Card Thumbnail Header */}
-                                <div className="relative h-48 border-b border-gray-100 bg-gray-50 overflow-hidden">
-                                    {hotel.hotelImages?.[0] ? (
-                                        <img
-                                            src={hotel.hotelImages[0]}
-                                            alt={hotel.hotelName}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-blue-600 font-['Space_Grotesk',sans-serif] text-xs font-bold uppercase tracking-wider">
-                                            No Media Blueprint Attached
-                                        </div>
-                                    )}
+                )}
 
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-3.5">
-                                        <span className="text-white text-[11px] font-bold font-['IBM_Plex_Mono'] uppercase tracking-wider bg-black/40 backdrop-blur-xs px-2.5 py-1 rounded-md border border-white/10">
-                                            {hotel.hotelType || "Hotel"} · {hotel.totalRooms || 0} Rooms
-                                        </span>
-                                    </div>
-
-                                    <span
-                                        className={`absolute top-3.5 right-3.5 font-['IBM_Plex_Mono',monospace] text-[10px] tracking-widest font-bold px-2.5 py-1 rounded-md border shadow-2xs ${
-                                            activeTab === "approved"
-                                                ? "text-emerald-700 border-emerald-200 bg-emerald-50"
-                                                : activeTab === "rejected"
-                                                ? "text-rose-700 border-rose-200 bg-rose-50"
-                                                : "text-amber-700 border-amber-200 bg-amber-50"
-                                        }`}
-                                    >
-                                        {activeTab === "pending" ? "🟡 PENDING REVIEW" : activeTab === "approved" ? "🟢 APPROVED" : "🔴 REJECTED"}
-                                    </span>
-                                </div>
-
-                                <div className="p-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-xl border border-gray-200 flex-shrink-0 flex items-center justify-center bg-gray-50 text-gray-900 font-['Space_Grotesk',sans-serif] font-bold text-sm shadow-2xs">
-                                            {initials(hotel.adminId?.name) || "AD"}
-                                        </div>
-
-                                        <div className="min-w-0">
-                                            <h2 className="text-base font-bold text-gray-900 truncate m-0 font-['Space_Grotesk',sans-serif]">
-                                                {hotel.hotelName}
-                                            </h2>
-                                            <p className="text-gray-500 text-xs font-medium truncate mt-0.5 mb-0">
-                                                Admin · {hotel.adminId?.name || "System Manager"}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2 text-xs text-gray-600 border-t pt-3.5 border-gray-100">
-                                        <div className="flex justify-between truncate gap-2"><span className="text-gray-400 font-medium">Hotel Contact:</span> <span className="font-semibold text-gray-900 truncate">{hotel.hotelEmail}</span></div>
-                                        <div className="flex justify-between truncate gap-2"><span className="text-gray-400 font-medium">Admin Login:</span> <span className="font-semibold text-gray-900 truncate">{hotel.adminId?.email}</span></div>
-                                        <div className="flex justify-between items-start gap-4"><span className="text-gray-400 font-medium shrink-0">Region Mapping:</span> <span className="font-semibold text-gray-900 text-right line-clamp-1">{locationOf(hotel) || "Not Mapped"}</span></div>
-                                    </div>
-
-                                    <div className="mt-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                                        <p className="text-xs text-gray-500 italic line-clamp-2 m-0 leading-relaxed font-medium">
-                                            "{hotel.description || "No descriptions detailed."}"
-                                        </p>
-                                    </div>
-
-                                    {activeTab === "rejected" && hotel.remark && (
-                                        <div className="mt-3 text-xs text-rose-700 bg-rose-50 border-l-4 border-rose-600 py-2.5 px-3.5 rounded-r-xl">
-                                            <span className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-0.5">
-                                                Audit Dismissal Reason
-                                            </span>
-                                            <p className="m-0 font-medium leading-normal">{hotel.remark}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="p-6 pt-0 flex gap-2">
-                                <button
-                                    onClick={() => {
-                                        setViewHotel(hotel);
-                                        setActiveImageIndex(0);
-                                        setShowView(true);
-                                    }}
-                                    className="flex-1 font-bold py-2.5 rounded-xl text-xs border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition shadow-2xs cursor-pointer uppercase tracking-wider"
+                {hotels.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-dashed border-gray-300 shadow-2xs p-16 text-center">
+                        <div className="w-20 h-20 bg-gray-50 border border-gray-200 rounded-full flex items-center justify-center mx-auto text-gray-400 mb-6 shadow-2xs">
+                            <Building2 size={36} strokeWidth={1.5} />
+                        </div>
+                        <h2 className="text-lg font-bold font-['Space_Grotesk'] text-gray-900 mb-1">No Hotels Found</h2>
+                        <p className="text-gray-500 text-xs font-medium">No partner onboarding verification records match this criteria.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {hotels.map((hotel) => (
+                                <div
+                                    key={hotel._id}
+                                    className="bg-white rounded-2xl border border-gray-200 shadow-2xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
                                 >
-                                    👁 View
-                                </button>
+                                    <div>
+                                        {/* Card Thumbnail Header */}
+                                        <div className="relative h-48 border-b border-gray-100 bg-gray-50 overflow-hidden">
+                                            {hotel.hotelImages?.[0] ? (
+                                                <img
+                                                    src={hotel.hotelImages[0]}
+                                                    alt={hotel.hotelName}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-blue-600 font-['Space_Grotesk',sans-serif] text-xs font-bold uppercase tracking-wider">
+                                                    No Media Blueprint Attached
+                                                </div>
+                                            )}
 
-                                {activeTab === "pending" && (
-                                    <>
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-3.5">
+                                                <span className="text-white text-[11px] font-bold font-['IBM_Plex_Mono'] uppercase tracking-wider bg-black/40 backdrop-blur-xs px-2.5 py-1 rounded-md border border-white/10">
+                                                    {hotel.hotelType || "Hotel"} · {hotel.totalRooms || 0} Rooms
+                                                </span>
+                                            </div>
+
+                                            <span
+                                                className={`absolute top-3.5 right-3.5 font-['IBM_Plex_Mono',monospace] text-[10px] tracking-widest font-bold px-2.5 py-1 rounded-md border shadow-2xs ${activeTab === "approved"
+                                                        ? "text-emerald-700 border-emerald-200 bg-emerald-50"
+                                                        : activeTab === "rejected"
+                                                            ? "text-rose-700 border-rose-200 bg-rose-50"
+                                                            : "text-amber-700 border-amber-200 bg-amber-50"
+                                                    }`}
+                                            >
+                                                {activeTab === "pending" ? "🟡 PENDING REVIEW" : activeTab === "approved" ? "🟢 APPROVED" : "🔴 REJECTED"}
+                                            </span>
+                                        </div>
+
+                                        <div className="p-6">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="w-10 h-10 rounded-xl border border-gray-200 flex-shrink-0 flex items-center justify-center bg-gray-50 text-gray-900 font-['Space_Grotesk',sans-serif] font-bold text-sm shadow-2xs">
+                                                    {initials(hotel.adminId?.name) || "AD"}
+                                                </div>
+
+                                                <div className="min-w-0">
+                                                    <h2 className="text-base font-bold text-gray-900 truncate m-0 font-['Space_Grotesk',sans-serif]">
+                                                        {hotel.hotelName}
+                                                    </h2>
+                                                    <p className="text-gray-500 text-xs font-medium truncate mt-0.5 mb-0">
+                                                        Admin · {hotel.adminId?.name || "System Manager"}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2 text-xs text-gray-600 border-t pt-3.5 border-gray-100">
+                                                <div className="flex justify-between truncate gap-2"><span className="text-gray-400 font-medium">Hotel Contact:</span> <span className="font-semibold text-gray-900 truncate">{hotel.hotelEmail}</span></div>
+                                                <div className="flex justify-between truncate gap-2"><span className="text-gray-400 font-medium">Admin Login:</span> <span className="font-semibold text-gray-900 truncate">{hotel.adminId?.email}</span></div>
+                                                <div className="flex justify-between items-start gap-4"><span className="text-gray-400 font-medium shrink-0">Region Mapping:</span> <span className="font-semibold text-gray-900 text-right line-clamp-1">{locationOf(hotel) || "Not Mapped"}</span></div>
+                                            </div>
+
+                                            <div className="mt-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                                <p className="text-xs text-gray-500 italic line-clamp-2 m-0 leading-relaxed font-medium">
+                                                    "{hotel.description || "No descriptions detailed."}"
+                                                </p>
+                                            </div>
+
+                                            {activeTab === "rejected" && hotel.remark && (
+                                                <div className="mt-3 text-xs text-rose-700 bg-rose-50 border-l-4 border-rose-600 py-2.5 px-3.5 rounded-r-xl">
+                                                    <span className="block font-['IBM_Plex_Mono',monospace] text-[10px] font-bold uppercase tracking-wider text-rose-800 mb-0.5">
+                                                        Audit Dismissal Reason
+                                                    </span>
+                                                    <p className="m-0 font-medium leading-normal">{hotel.remark}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 pt-0 flex gap-2">
                                         <button
                                             onClick={() => {
-                                                setSelectedHotel(hotel);
-                                                setPassword("");
-                                                setShowApprove(true);
+                                                setViewHotel(hotel);
+                                                setActiveImageIndex(0);
+                                                setShowView(true);
                                             }}
-                                            className="flex-1 font-bold py-2.5 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs cursor-pointer uppercase tracking-wider"
+                                            className="flex-1 font-bold py-2.5 rounded-xl text-xs border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition shadow-2xs cursor-pointer uppercase tracking-wider"
                                         >
-                                            ✓ Approve
+                                            👁 View
                                         </button>
 
+                                        {activeTab === "pending" && (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedHotel(hotel);
+                                                        setPassword("");
+                                                        setShowApprove(true);
+                                                    }}
+                                                    className="flex-1 font-bold py-2.5 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs cursor-pointer uppercase tracking-wider"
+                                                >
+                                                    ✓ Approve
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedHotel(hotel);
+                                                        setRemark("");
+                                                        setShowReject(true);
+                                                    }}
+                                                    className="flex-1 font-bold py-2.5 rounded-xl text-xs bg-rose-600 hover:bg-rose-700 text-white transition shadow-2xs cursor-pointer uppercase tracking-wider"
+                                                >
+                                                    ✕ Reject
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Numeric Pagination Footer */}
+                        <div className="bg-white border border-gray-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between px-6 py-4 shadow-2xs text-xs gap-3">
+                            <p className="text-gray-500 font-medium">
+                                Showing page <strong className="text-gray-900">{currentPage}</strong> of <strong className="text-gray-900">{totalPages || 1}</strong>
+                            </p>
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                {Array.from({ length: totalPages }, (_, index) => {
+                                    const pageNum = index + 1;
+                                    const isSelected = pageNum === currentPage;
+                                    return (
                                         <button
-                                            onClick={() => {
-                                                setSelectedHotel(hotel);
-                                                setRemark("");
-                                                setShowReject(true);
-                                            }}
-                                            className="flex-1 font-bold py-2.5 rounded-xl text-xs bg-rose-600 hover:bg-rose-700 text-white transition shadow-2xs cursor-pointer uppercase tracking-wider"
+                                            key={pageNum}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
+                                                    ? "bg-blue-600 text-white shadow-sm"
+                                                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                                                }`}
                                         >
-                                            ✕ Reject
+                                            {pageNum}
                                         </button>
-                                    </>
-                                )}
+                                    );
+                                })}
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+                    </div>
+                )}
+            </div>
 
             {/* Approve Modal Frame */}
             {showApprove && (
@@ -526,13 +572,11 @@ const PendingHotels = () => {
                             </span>
                         </div>
 
-                        {/* Password Strength Indicator */}
                         {password && (
                             <div className="mb-6 flex items-center gap-2">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-['IBM_Plex_Mono']">Strength:</span>
-                                <span className={`text-[11px] font-bold uppercase tracking-wider ${
-                                    password.length < 6 ? "text-rose-600" : password.length < 10 ? "text-amber-600" : "text-emerald-600"
-                                }`}>
+                                <span className={`text-[11px] font-bold uppercase tracking-wider ${password.length < 6 ? "text-rose-600" : password.length < 10 ? "text-amber-600" : "text-emerald-600"
+                                    }`}>
                                     {password.length < 6 ? "Weak" : password.length < 10 ? "Medium" : "Strong"}
                                 </span>
                             </div>
@@ -587,7 +631,6 @@ const PendingHotels = () => {
                             className="w-full bg-white border border-gray-200 text-gray-900 text-xs rounded-xl outline-none p-4 resize-none transition focus:border-blue-500 font-medium shadow-2xs"
                         />
 
-                        {/* Quick Reasons Chips */}
                         <div className="mt-3 flex flex-wrap gap-1.5">
                             {["Documents Missing", "Fake Details", "Incomplete Information", "Duplicate Hotel"].map((reason) => (
                                 <button
@@ -625,12 +668,11 @@ const PendingHotels = () => {
                 </div>
             )}
 
-            {/* Profile View Modal with Main Image + Thumbnail Switcher */}
+            {/* Profile View Modal */}
             {showView && viewHotel && (
                 <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
                     <div className="bg-white border border-gray-200 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-150 overflow-hidden">
 
-                        {/* Sticky Modal Header */}
                         <div className="flex justify-between items-center border-b border-gray-100 p-6 bg-white z-20 shrink-0">
                             <div>
                                 <h2 className="font-['Space_Grotesk',sans-serif] text-base font-bold text-gray-900">Listing Inspection Profile</h2>
@@ -647,10 +689,7 @@ const PendingHotels = () => {
                             </button>
                         </div>
 
-                        {/* Scrollable Content Body */}
                         <div className="p-8 space-y-6 text-xs overflow-y-auto flex-1 bg-white">
-
-                            {/* Main Image + 4 Thumbnails Gallery */}
                             <div>
                                 <p className="font-['IBM_Plex_Mono',monospace] text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-3">Property Media Gallery ({viewHotel.hotelImages?.length || 0})</p>
                                 {viewHotel.hotelImages?.length > 0 ? (
@@ -668,9 +707,8 @@ const PendingHotels = () => {
                                                 <div
                                                     key={index}
                                                     onClick={() => setActiveImageIndex(index)}
-                                                    className={`w-24 h-20 rounded-xl overflow-hidden border-2 cursor-pointer transition shrink-0 ${
-                                                        activeImageIndex === index ? "border-blue-600 scale-105 shadow-md" : "border-gray-200 opacity-70 hover:opacity-100"
-                                                    }`}
+                                                    className={`w-24 h-20 rounded-xl overflow-hidden border-2 cursor-pointer transition shrink-0 ${activeImageIndex === index ? "border-blue-600 scale-105 shadow-md" : "border-gray-200 opacity-70 hover:opacity-100"
+                                                        }`}
                                                 >
                                                     <img src={imgUrl} alt={`Thumb ${index}`} className="w-full h-full object-cover" />
                                                 </div>
@@ -684,7 +722,6 @@ const PendingHotels = () => {
                                 )}
                             </div>
 
-                            {/* Parameters Grid */}
                             <div className="grid md:grid-cols-2 gap-x-6 gap-y-4 bg-gray-50 rounded-2xl border border-gray-200 p-6">
                                 <div>
                                     <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Hotel Identity</p>
@@ -695,40 +732,19 @@ const PendingHotels = () => {
                                     <h3 className="font-bold text-gray-900 mt-1">{viewHotel.adminId?.name || "System Manager"}</h3>
                                 </div>
                                 <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Owner Name</p>
-                                    <h3 className="font-bold text-gray-900 mt-1">{viewHotel.adminId?.name || "N/A"}</h3>
-                                </div>
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mobile Contact</p>
-                                    <h3 className="font-bold text-gray-900 mt-1">{viewHotel.adminId?.mobile || viewHotel.mobile || "N/A"}</h3>
-                                </div>
-                                <div>
                                     <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Hotel Email Link</p>
                                     <h3 className="font-medium text-gray-700 break-all mt-1">{viewHotel.hotelEmail}</h3>
-                                </div>
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Admin User Account Link</p>
-                                    <h3 className="font-medium text-gray-700 break-all mt-1">{viewHotel.adminId?.email}</h3>
-                                </div>
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">GST & License Numbers</p>
-                                    <h3 className="font-medium text-gray-900 mt-1">{viewHotel.gstNumber || "N/A"} · {viewHotel.licenseNumber || "N/A"}</h3>
-                                </div>
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Created & Approval Dates</p>
-                                    <h3 className="font-medium text-gray-900 mt-1">{new Date(viewHotel.createdAt || Date.now()).toLocaleDateString()} · Active</h3>
                                 </div>
                                 <div>
                                     <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Accommodation Class</p>
                                     <h3 className="font-bold text-gray-900 mt-1">{viewHotel.hotelType}</h3>
                                 </div>
                                 <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Active Vault Rooms</p>
+                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Vault Rooms</p>
                                     <h3 className="font-bold text-blue-600 mt-1">{viewHotel.totalRooms} Rooms</h3>
                                 </div>
                             </div>
 
-                            {/* Regions Block */}
                             <div className="space-y-4">
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                                     <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Geographic Region Mapping</p>
@@ -739,51 +755,8 @@ const PendingHotels = () => {
                                     <h3 className="font-medium text-gray-700 leading-relaxed">{viewHotel.address}</h3>
                                 </div>
                             </div>
-
-                            {/* Infrastructure Amenities with Icons */}
-                            {viewHotel.amenities?.length > 0 && (
-                                <div>
-                                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Infrastructure Amenities Blueprint</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {viewHotel.amenities.map((item, idx) => {
-                                            let icon = "✓";
-                                            const lower = item.toLowerCase();
-                                            if (lower.includes("wifi")) icon = "📶";
-                                            else if (lower.includes("parking")) icon = "🚗";
-                                            else if (lower.includes("pool")) icon = "🏊";
-                                            else if (lower.includes("restaurant") || lower.includes("breakfast")) icon = "🍽";
-                                            else if (lower.includes("gym")) icon = "🏋️";
-                                            else if (lower.includes("spa")) icon = "💆";
-
-                                            return (
-                                                <span key={idx} className="bg-blue-50 text-blue-700 text-xs px-3 py-1.5 rounded-xl border border-blue-200 font-bold shadow-2xs">
-                                                    {icon} {item}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Audit Rejection Layer Case */}
-                            {viewHotel.remark && (
-                                <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl">
-                                    <p className="text-rose-700 font-['IBM_Plex_Mono',monospace] text-[10px] font-bold uppercase tracking-wider mb-1">Audit Dismissal Log Remark</p>
-                                    <p className="text-gray-900 text-xs font-medium leading-relaxed m-0">{viewHotel.remark}</p>
-                                </div>
-                            )}
-
-                            {/* Description block layout */}
-                            <div>
-                                <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Establishment Overview Summary</p>
-                                <p className="leading-relaxed text-gray-600 bg-gray-50 p-4 rounded-xl border border-gray-200 italic m-0 text-xs font-medium">
-                                    "{viewHotel.description || "No descriptions specified."}"
-                                </p>
-                            </div>
-
                         </div>
 
-                        {/* Sticky Modal Footer */}
                         <div className="flex justify-end p-5 border-t border-gray-100 bg-gray-50 z-20 shrink-0">
                             <button
                                 onClick={() => {
@@ -795,7 +768,6 @@ const PendingHotels = () => {
                                 Close Inspection Window
                             </button>
                         </div>
-
                     </div>
                 </div>
             )}

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -27,8 +28,10 @@ const HotelLayout = () => {
     const navigate = useNavigate();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
-    const [notifications, setNotifications] = useState([]); // 🌟 Dynamic State
+    const [notifications, setNotifications] = useState([]);
     const notifRef = useRef(null);
+    const bellRef = useRef(null);
+    const [dropdownCoords, setDropdownCoords] = useState({ top: 80, right: 24 });
 
     // 🌟 Fetch Dynamic Notifications from Backend Summary
     useEffect(() => {
@@ -52,10 +55,27 @@ const HotelLayout = () => {
         fetchNotifications();
     }, []);
 
+    // Calculate exact position on bell click using getBoundingClientRect
+    const handleToggleNotifications = () => {
+        if (!notificationsOpen && bellRef.current) {
+            const rect = bellRef.current.getBoundingClientRect();
+            setDropdownCoords({
+                top: rect.bottom + 10,
+                right: window.innerWidth - rect.right
+            });
+        }
+        setNotificationsOpen(!notificationsOpen);
+    };
+
     // Close notification dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (notifRef.current && !notifRef.current.contains(e.target)) {
+            if (
+                notifRef.current && 
+                !notifRef.current.contains(e.target) &&
+                bellRef.current &&
+                !bellRef.current.contains(e.target)
+            ) {
                 setNotificationsOpen(false);
             }
         };
@@ -136,8 +156,8 @@ const HotelLayout = () => {
                                 key={item.path}
                                 to={item.path}
                                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all font-medium text-sm ${active
-                                        ? "bg-blue-600 text-white shadow-sm font-semibold"
-                                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                    ? "bg-blue-600 text-white shadow-sm font-semibold"
+                                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                                     }`}
                             >
                                 <IconComponent size={18} /> {item.name}
@@ -155,7 +175,7 @@ const HotelLayout = () => {
                     </Link>
                     <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                        className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
                     >
                         <LogOut size={18} /> Logout
                     </button>
@@ -174,7 +194,7 @@ const HotelLayout = () => {
                                 </div>
                                 <span className="font-bold text-base tracking-tight text-gray-900">Menu</span>
                             </div>
-                            <button onClick={() => setMobileMenuOpen(false)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md">
+                            <button onClick={() => setMobileMenuOpen(false)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md cursor-pointer">
                                 <X size={20} />
                             </button>
                         </div>
@@ -196,7 +216,7 @@ const HotelLayout = () => {
                             })}
                         </div>
                         <div className="p-4 border-t border-gray-100">
-                            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition">
+                            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer">
                                 <LogOut size={18} /> Logout
                             </button>
                         </div>
@@ -212,7 +232,7 @@ const HotelLayout = () => {
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => setMobileMenuOpen(true)}
-                            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg lg:hidden"
+                            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg lg:hidden cursor-pointer"
                         >
                             <Menu size={22} />
                         </button>
@@ -230,10 +250,11 @@ const HotelLayout = () => {
                     <div className="flex items-center gap-4 sm:gap-6">
                         <div className="flex items-center gap-4 pl-4 sm:pl-6 sm:border-l border-gray-200">
 
-                            {/* 🔔 Notification Bell & Dynamic Dropdown */}
-                            <div className="relative" ref={notifRef}>
+                            {/* 🔔 Notification Bell & Portal Dropdown */}
+                            <div className="relative">
                                 <button
-                                    onClick={() => setNotificationsOpen(!notificationsOpen)}
+                                    ref={bellRef}
+                                    onClick={handleToggleNotifications}
                                     className="relative p-2 text-gray-500 hover:text-gray-900 transition rounded-full hover:bg-gray-100 cursor-pointer"
                                 >
                                     <Bell size={19} />
@@ -242,9 +263,13 @@ const HotelLayout = () => {
                                     )}
                                 </button>
 
-                                {/* Notification Dropdown Box */}
-                                {notificationsOpen && (
-                                    <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-200 py-3 z-50 animate-in fade-in duration-150">
+                                {/* 🌟 FIXED POSITIONING PORTAL (Renders directly on body root) */}
+                                {notificationsOpen && ReactDOM.createPortal(
+                                    <div
+                                        ref={notifRef}
+                                        style={{ top: `${dropdownCoords.top}px`, right: `${dropdownCoords.right}px` }}
+                                        className="fixed w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 py-3 z-[999999] animate-in fade-in duration-150"
+                                    >
                                         <div className="px-4 pb-3 border-b border-gray-100 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <h3 className="font-bold text-gray-900 text-sm font-['Space_Grotesk']">Notifications</h3>
@@ -294,7 +319,8 @@ const HotelLayout = () => {
                                                 View All Bookings
                                             </button>
                                         </div>
-                                    </div>
+                                    </div>,
+                                    document.body
                                 )}
                             </div>
 
@@ -304,7 +330,7 @@ const HotelLayout = () => {
                                         {user?.name || "Hotel Admin"}
                                     </p>
                                     <p className="text-[10px] text-gray-500 font-bold tracking-wider uppercase flex items-center justify-end gap-1 mt-0.5 font-['IBM_Plex_Mono']">
-                                        <MapPin size={10} className="text-blue-600" /> Hotel 
+                                        <MapPin size={10} className="text-blue-600" /> Hotel
                                     </p>
                                 </div>
                                 <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm text-sm shrink-0">

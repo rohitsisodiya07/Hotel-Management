@@ -1,7 +1,7 @@
 const DistrictModel = require("../Model/districtModel");
 const StateModel = require("../Model/stateModel");
 
-//Create
+// Create
 const createDistrict = async (req, res) => {
     try {
         const { districtName, stateId } = req.body;
@@ -9,14 +9,11 @@ const createDistrict = async (req, res) => {
         if (!districtName?.trim() || !stateId) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "District name and State are required",
+                message: "District name and State are required",
             });
         }
 
-        const state = await StateModel.findById(
-            stateId
-        );
+        const state = await StateModel.findById(stateId);
 
         if (!state) {
             return res.status(404).json({
@@ -25,34 +22,28 @@ const createDistrict = async (req, res) => {
             });
         }
 
-        const formattedDistrict =
-            districtName.trim().toLowerCase();
+        const formattedDistrict = districtName.trim().toLowerCase();
 
-        const existingDistrict =
-            await DistrictModel.findOne({
-                districtName: formattedDistrict,
-                stateId,
-            });
+        const existingDistrict = await DistrictModel.findOne({
+            districtName: formattedDistrict,
+            stateId,
+        });
 
         if (existingDistrict) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "District already exists in this state",
+                message: "District already exists in this state",
             });
         }
 
-        const result =
-            await DistrictModel.create({
-                districtName:
-                    formattedDistrict,
-                stateId,
-            });
+        const result = await DistrictModel.create({
+            districtName: formattedDistrict,
+            stateId,
+        });
 
         return res.status(201).json({
             success: true,
-            message:
-                "District created successfully",
+            message: "District created successfully",
             result,
         });
     } catch (error) {
@@ -63,23 +54,37 @@ const createDistrict = async (req, res) => {
     }
 };
 
-//Get Active
-const getAllDistricts = async (
-    req,
-    res
-) => {
+// Get Active Districts with pagination & sorting
+const getAllDistricts = async (req, res) => {
     try {
-        const result =
-            await DistrictModel.find({
-                status: "Active",
-            }).populate(
-                "stateId",
-                "stateName"
-            );
+        const { search = "", page = 1, limit = 10, sort = "asc" } = req.query;
+
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {
+            status: "Active",
+            districtName: {
+                $regex: search,
+                $options: "i",
+            },
+        };
+
+        const result = await DistrictModel.find(query)
+            .populate("stateId", "stateName")
+            .sort({ districtName: sort === "asc" ? 1 : -1 })
+            .skip(skip)
+            .limit(limitNum);
+
+        const total = await DistrictModel.countDocuments(query);
 
         return res.status(200).json({
             success: true,
             result,
+            total,
+            page: pageNum,
+            totalPages: Math.ceil(total / limitNum),
         });
     } catch (error) {
         return res.status(500).json({
@@ -89,49 +94,58 @@ const getAllDistricts = async (
     }
 };
 
-//Get Inactive
+// Get Inactive Districts with pagination & sorting
 const getInactiveDistricts = async (req, res) => {
     try {
-        const result =
-            await DistrictModel.find({
-                status: "Inactive",
-            }).populate(
-                "stateId",
-                "stateName"
-            );
+        const { search = "", page = 1, limit = 10, sort = "asc" } = req.query;
+
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {
+            status: "Inactive",
+            districtName: {
+                $regex: search,
+                $options: "i",
+            },
+        };
+
+        const result = await DistrictModel.find(query)
+            .populate("stateId", "stateName")
+            .sort({ districtName: sort === "asc" ? 1 : -1 })
+            .skip(skip)
+            .limit(limitNum);
+
+        const total = await DistrictModel.countDocuments(query);
 
         return res.status(200).json({
             success: true,
             result,
+            total,
+            page: pageNum,
+            totalPages: Math.ceil(total / limitNum),
         });
     } catch (error) {
         return res.status(500).json({
             success: false,
-            message:
-                error.message,
+            message: error.message,
         });
     }
 };
 
-//Get One
-const getDistrictById = async (
-    req,
-    res
-) => {
+// Get One
+const getDistrictById = async (req, res) => {
     try {
-        const result =
-            await DistrictModel.findById(
-                req.params.id
-            ).populate(
-                "stateId",
-                "stateName"
-            );
+        const result = await DistrictModel.findById(req.params.id).populate(
+            "stateId",
+            "stateName"
+        );
 
         if (!result) {
             return res.status(404).json({
                 success: false,
-                message:
-                    "District not found",
+                message: "District not found",
             });
         }
 
@@ -147,32 +161,19 @@ const getDistrictById = async (
     }
 };
 
-//Update
-const updateDistrict = async (
-    req,
-    res
-) => {
+// Update
+const updateDistrict = async (req, res) => {
     try {
-        const {
-            districtName,
-            stateId,
-        } = req.body;
+        const { districtName, stateId } = req.body;
 
-        if (
-            !districtName?.trim() ||
-            !stateId
-        ) {
+        if (!districtName?.trim() || !stateId) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "District name and State are required",
+                message: "District name and State are required",
             });
         }
 
-        const state =
-            await StateModel.findById(
-                stateId
-            );
+        const state = await StateModel.findById(stateId);
 
         if (!state) {
             return res.status(404).json({
@@ -181,47 +182,33 @@ const updateDistrict = async (
             });
         }
 
-        const formattedDistrict =
-            districtName.trim().toLowerCase();
+        const formattedDistrict = districtName.trim().toLowerCase();
 
-        const existingDistrict =
-            await DistrictModel.findOne({
-                districtName:
-                    formattedDistrict,
-                stateId,
-                _id: {
-                    $ne: req.params.id,
-                },
-            });
+        const existingDistrict = await DistrictModel.findOne({
+            districtName: formattedDistrict,
+            stateId,
+            _id: { $ne: req.params.id },
+        });
 
         if (existingDistrict) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "District already exists in this state",
+                message: "District already exists in this state",
             });
         }
 
-        const result =
-            await DistrictModel.findByIdAndUpdate(
-                req.params.id,
-                {
-                    districtName:
-                        formattedDistrict,
-                    stateId,
-                },
-                {
-                    new: true,
-                }
-            ).populate(
-                "stateId",
-                "stateName"
-            );
+        const result = await DistrictModel.findByIdAndUpdate(
+            req.params.id,
+            {
+                districtName: formattedDistrict,
+                stateId,
+            },
+            { returnDocument: "after" }
+        ).populate("stateId", "stateName");
 
         return res.status(200).json({
             success: true,
-            message:
-                "District updated successfully",
+            message: "District updated successfully",
             result,
         });
     } catch (error) {
@@ -232,79 +219,58 @@ const updateDistrict = async (
     }
 };
 
-//Active - Inactive
+// Active - Inactive
 const inactiveDistrict = async (req, res) => {
     try {
-        const result =
-            await DistrictModel.findByIdAndUpdate(
-                req.params.id,
-                {
-                    status:
-                        "Inactive",
-                },
-                {
-                    new: true,
-                }
-            );
+        const result = await DistrictModel.findByIdAndUpdate(
+            req.params.id,
+            { status: "Inactive" },
+            { returnDocument: "after" }
+        ).populate("stateId", "stateName");
 
         return res.status(200).json({
             success: true,
-            message:
-                "District moved to inactive successfully",
+            message: "District moved to inactive successfully",
             result,
         });
     } catch (error) {
         return res.status(500).json({
             success: false,
-            message:
-                error.message,
+            message: error.message,
         });
     }
 };
 
-//Restore
+// Restore
 const restoreDistrict = async (req, res) => {
     try {
-        const result =
-            await DistrictModel.findByIdAndUpdate(
-                req.params.id,
-                {
-                    status: "Active",
-                },
-                {
-                    new: true,
-                }
-            );
+        const result = await DistrictModel.findByIdAndUpdate(
+            req.params.id,
+            { status: "Active" },
+            { returnDocument: "after" }
+        ).populate("stateId", "stateName");
 
         return res.status(200).json({
             success: true,
-            message:
-                "District restored successfully",
+            message: "District restored successfully",
             result,
         });
     } catch (error) {
         return res.status(500).json({
             success: false,
-            message:
-                error.message,
+            message: error.message,
         });
     }
 };
 
 // Delete
-const deleteDistrict = async (
-    req,
-    res
-) => {
+const deleteDistrict = async (req, res) => {
     try {
-        await DistrictModel.findByIdAndDelete(
-            req.params.id
-        );
+        await DistrictModel.findByIdAndDelete(req.params.id);
 
         return res.status(200).json({
             success: true,
-            message:
-                "District deleted successfully",
+            message: "District deleted successfully",
         });
     } catch (error) {
         return res.status(500).json({

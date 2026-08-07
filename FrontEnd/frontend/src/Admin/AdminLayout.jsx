@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -27,6 +28,8 @@ const AdminLayout = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const notifRef = useRef(null);
+  const bellRef = useRef(null);
+  const [dropdownCoords, setDropdownCoords] = useState({ top: 80, right: 24 });
 
   // 🌟 Fetch Dynamic Notifications from Backend
   useEffect(() => {
@@ -50,10 +53,27 @@ const AdminLayout = () => {
     fetchNotifications();
   }, []);
 
+  // Calculate exact position on bell click
+  const handleToggleNotifications = () => {
+    if (!notificationsOpen && bellRef.current) {
+      const rect = bellRef.current.getBoundingClientRect();
+      setDropdownCoords({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right
+      });
+    }
+    setNotificationsOpen(!notificationsOpen);
+  };
+
   // Close notification dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
+      if (
+        notifRef.current &&
+        !notifRef.current.contains(e.target) &&
+        bellRef.current &&
+        !bellRef.current.contains(e.target)
+      ) {
         setNotificationsOpen(false);
       }
     };
@@ -104,10 +124,10 @@ const AdminLayout = () => {
   return (
     <div className="flex h-screen bg-gray-50 font-['Inter',sans-serif] text-gray-800 overflow-hidden selection:bg-blue-600 selection:text-white">
       <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
-                .scrollbar-hide::-webkit-scrollbar { display: none; }
-                .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-            `}</style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
 
       {/* ================= SIDEBAR (Desktop) ================= */}
       <aside className="w-64 bg-white border-r border-gray-200 flex-col shrink-0 hidden lg:flex shadow-2xs z-20 relative">
@@ -236,10 +256,11 @@ const AdminLayout = () => {
           <div className="flex items-center gap-4 sm:gap-6">
             <div className="flex items-center gap-4 pl-4 sm:pl-6 sm:border-l border-gray-200">
 
-              {/* 🔔 Notification Bell & Dynamic Dropdown */}
-              <div className="relative" ref={notifRef}>
+              {/* 🔔 Notification Bell & Portal Dropdown */}
+              <div className="relative">
                 <button
-                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  ref={bellRef}
+                  onClick={handleToggleNotifications}
                   className="relative p-2 text-gray-500 hover:text-gray-900 transition rounded-full hover:bg-gray-100 cursor-pointer"
                 >
                   <Bell size={19} />
@@ -248,9 +269,13 @@ const AdminLayout = () => {
                   )}
                 </button>
 
-                {/* Notification Dropdown Box */}
-                {notificationsOpen && (
-                  <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-200 py-3 z-50 animate-in fade-in duration-150">
+                {/* 🌟 PORTAL DROPDOWN RENDERED AT BODY ROOT LEVEL */}
+                {notificationsOpen && ReactDOM.createPortal(
+                  <div
+                    ref={notifRef}
+                    style={{ top: `${dropdownCoords.top}px`, right: `${dropdownCoords.right}px` }}
+                    className="fixed w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 py-3 z-[99999] animate-in fade-in duration-150"
+                  >
                     <div className="px-4 pb-3 border-b border-gray-100 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold text-gray-900 text-sm font-['Space_Grotesk']">Notifications</h3>
@@ -300,7 +325,8 @@ const AdminLayout = () => {
                         View All Bookings
                       </button>
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
 

@@ -1,6 +1,4 @@
-const StateModel = require(
-    "../Model/stateModel"
-);
+const StateModel = require("../Model/stateModel");
 
 // create state
 const createState = async (req, res) => {
@@ -8,35 +6,30 @@ const createState = async (req, res) => {
         const { stateName } = req.body;
         console.log(">>>>>stateName", stateName);
 
-
         if (!stateName?.trim()) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "State name is required",
+                message: "State name is required",
             });
         }
 
         const formattedState = stateName.trim().toLowerCase();
         console.log(">>>>>>formatedState", formattedState);
 
-
-        const existingState = await StateModel.findOne({ stateName: formattedState, });
+        const existingState = await StateModel.findOne({ stateName: formattedState });
 
         if (existingState) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "State already exists",
+                message: "State already exists",
             });
         }
 
-        const result = await StateModel.create({ stateName: formattedState, });
+        const result = await StateModel.create({ stateName: formattedState });
 
         return res.status(201).json({
             success: true,
-            message:
-                "State created successfully",
+            message: "State created successfully",
             result,
         });
     } catch (error) {
@@ -47,43 +40,85 @@ const createState = async (req, res) => {
     }
 };
 
-//get all active states
+// get all active states with pagination & sorting
 const getAllStates = async (req, res) => {
     try {
-        const result = await StateModel.find({ status: 'Active', });
-        console.log(">>>>>>result", result);
+        const { search = "", page = 1, limit = 10, sort = "asc" } = req.query;
+
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {
+            status: "Active",
+            stateName: {
+                $regex: search,
+                $options: "i", // i means case-insensitive.
+            },
+        };
+
+        const result = await StateModel.find(query)
+            .sort({ stateName: sort === "asc" ? 1 : -1 })
+            .skip(skip)
+            .limit(limitNum);
+
+        const total = await StateModel.countDocuments(query);
 
         return res.status(200).json({
             success: true,
             result,
+            total,
+            page: pageNum,
+            totalPages: Math.ceil(total / limitNum),
         });
     } catch (error) {
         return res.status(500).json({
+            success: false,
             message: error.message,
         });
     }
 };
 
-//get all inactive states
+// get all inactive states with pagination & sorting
 const getInactiveStates = async (req, res) => {
     try {
-        const result = await StateModel.find({ status: "Inactive", });
-        console.log(">>>>>result", result);
+        const { search = "", page = 1, limit = 10, sort = "asc" } = req.query;
 
+        const pageNum = Number(page) || 1;
+        const limitNum = Number(limit) || 10;
+        const skip = (pageNum - 1) * limitNum;
+
+        const query = {
+            status: "Inactive",
+            stateName: {
+                $regex: search,
+                $options: "i",
+            },
+        };
+
+        const result = await StateModel.find(query)
+            .sort({ stateName: sort === "asc" ? 1 : -1 })
+            .skip(skip)
+            .limit(limitNum);
+
+        const total = await StateModel.countDocuments(query);
 
         return res.status(200).json({
             success: true,
             result,
+            total,
+            page: pageNum,
+            totalPages: Math.ceil(total / limitNum),
         });
     } catch (error) {
         return res.status(500).json({
-            message:
-                error.message,
+            success: false,
+            message: error.message,
         });
     }
 };
 
-//get one
+// get one State
 const getStateById = async (req, res) => {
     try {
         console.log(">>>>>>req.params", req.params.id);
@@ -93,8 +128,7 @@ const getStateById = async (req, res) => {
         if (!result) {
             return res.status(404).json({
                 success: false,
-                message:
-                    "State not found",
+                message: "State not found",
             });
         }
 
@@ -110,7 +144,7 @@ const getStateById = async (req, res) => {
     }
 };
 
-//permanent Delete
+// permanent Delete
 const deleteState = async (req, res) => {
     try {
         console.log(">>>>>>req.params.id", req.params.id);
@@ -119,14 +153,12 @@ const deleteState = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message:
-                "State deleted successfully",
+            message: "State deleted successfully",
         });
     } catch (error) {
         return res.status(500).json({
             success: false,
-            message:
-                error.message,
+            message: error.message,
         });
     }
 };
@@ -162,7 +194,7 @@ const updateState = async (req, res) => {
             {
                 stateName: formattedState,
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         return res.status(200).json({
@@ -178,6 +210,7 @@ const updateState = async (req, res) => {
     }
 };
 
+// Active-Inactive
 const inactiveState = async (req, res) => {
     try {
         const result = await StateModel.findByIdAndUpdate(
@@ -185,7 +218,7 @@ const inactiveState = async (req, res) => {
             {
                 status: "Inactive",
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         return res.status(200).json({
@@ -201,6 +234,7 @@ const inactiveState = async (req, res) => {
     }
 };
 
+// Restore State
 const restoreState = async (req, res) => {
     try {
         const result = await StateModel.findByIdAndUpdate(
@@ -208,7 +242,7 @@ const restoreState = async (req, res) => {
             {
                 status: "Active",
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         return res.status(200).json({
@@ -224,21 +258,13 @@ const restoreState = async (req, res) => {
     }
 };
 
-
 module.exports = {
     createState,
-
     getAllStates,
-
     getInactiveStates,
-
     getStateById,
-
     deleteState,
-
     updateState,
-
     inactiveState,
-
     restoreState,
 };

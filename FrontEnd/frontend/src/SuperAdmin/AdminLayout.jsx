@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { signupApi } from "../api";
 import {
     LayoutDashboard,
     Map,
@@ -10,12 +12,23 @@ import {
     ShieldCheck,
     LogOut,
     Bell,
-    ChevronRight
+    ChevronRight,
+    Clock,
+    AlertCircle,
+    X
 } from "lucide-react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
 
 const AdminLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const token = localStorage.getItem("token");
+
+    const [notifications, setNotifications] = useState([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const dropdownRef = useRef(null);
 
     const menuGroups = [
         {
@@ -38,6 +51,57 @@ const AdminLayout = () => {
             ]
         }
     ];
+
+    // Fetch live notifications/requests from backend
+    useEffect(() => {
+        fetchNotifications();
+
+        // Close dropdown when clicking outside
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setShowNotifications(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const fetchNotifications = async () => {
+        try {
+            const headers = { Authorization: `Bearer ${token}` };
+            // Fetching pending hotels and pending admins simultaneously
+            const [pendingHotelsRes, pendingAdminsRes] = await Promise.all([
+                axios.get(`${signupApi}hotel/pending`, { headers }).catch(() => ({ data: { hotels: [] } })),
+                axios.get(`${signupApi}admin/pending`, { headers }).catch(() => ({ data: { admins: [] } }))
+            ]);
+
+            const hotelNotifs = (pendingHotelsRes.data.hotels || []).map(h => ({
+                id: h._id,
+                title: "New Hotel Approval Request",
+                desc: `${h.hotelName || "A hotel"} submitted for verification.`,
+                time: dayjs(h.createdAt).fromNow(),
+                createdAt: h.createdAt || new Date(),
+                path: "pendingHotels",
+                type: "hotel"
+            }));
+
+            const adminNotifs = (pendingAdminsRes.data.admins || []).map(a => ({
+                id: a._id,
+                title: "New Admin Verification Request",
+                desc: `${a.name || "An admin"} requested platform access.`,
+                time: dayjs(a.createdAt).fromNow(),
+                createdAt: a.createdAt || new Date(),
+                path: "pendingAdmin",
+                type: "admin"
+            }));
+
+            // Combine and sort by newest first
+            const combined = [...hotelNotifs, ...adminNotifs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setNotifications(combined);
+        } catch (error) {
+            console.error("Error fetching notifications:", error);
+        }
+    };
 
     const handleLogout = () => {
         if (!window.confirm("Are you sure you want to end your session?")) return;
@@ -62,6 +126,11 @@ const AdminLayout = () => {
         if (location.pathname.includes("pendingHotels")) return "Hotel Approvals";
         if (location.pathname.includes("pendingAdmin")) return "Admin Verification";
         return "Control Center";
+    };
+
+    const handleNotificationClick = (path) => {
+        setShowNotifications(false);
+        navigate(path);
     };
 
     return (
@@ -152,7 +221,7 @@ const AdminLayout = () => {
             {/* Main Content */}
             <main className="flex-1 p-8 lg:p-10 overflow-x-hidden flex flex-col bg-gray-50/50">
                 {/* Header */}
-                <header className="flex justify-between items-center mb-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs">
+                <header className="flex justify-between items-center mb-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs relative">
                     <div>
                         <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-[0.2em] text-blue-600 mb-1 uppercase">
                             SYSTEM CONTROL NODE
@@ -165,12 +234,88 @@ const AdminLayout = () => {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <button className="relative p-2.5 text-gray-500 hover:text-gray-900 transition rounded-xl bg-gray-50 border border-gray-200 hover:bg-white cursor-pointer shadow-2xs">
-                            <Bell size={18} />
-                            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
-                        </button>
+                    <div className="flex items-center gap-4 relative" ref={dropdownRef}>
+                        {/* Notification Bell & Dropdown */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                className="relative p-2.5 text-gray-500 hover:text-gray-900 transition rounded-xl bg-gray-50 border border-gray-200 hover:bg-white cursor-pointer shadow-2xs flex items-center justify-center"
+                            >
+                                <Bell size={18} />
+                                {notifications.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs animate-pulse">
+                                        {notifications.length}
+                                    </span>
+                                )}
+                            </button>
 
+                            {/* Dropdown Box */}
+                            {showNotifications && (
+                                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in-50 zoom-in-95">
+                                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-['Space_Grotesk'] text-sm font-bold text-gray-900">System Notifications</h3>
+                                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200">
+                                                {notifications.length} New
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowNotifications(false)}
+                                            className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                                        >
+                                            <X size={15} />
+                                        </button>
+                                    </div>
+
+                                    <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-100">
+                                        {notifications.length === 0 ? (
+                                            <div className="py-12 text-center text-gray-400 text-xs">
+                                                <Clock size={28} className="mx-auto mb-2 opacity-40" />
+                                                No pending approval requests
+                                            </div>
+                                        ) : (
+                                            notifications.map((notif) => (
+                                                <div
+                                                    key={notif.id}
+                                                    onClick={() => handleNotificationClick(notif.path)}
+                                                    className="p-4 hover:bg-blue-50/40 transition cursor-pointer flex gap-3.5 items-start group"
+                                                >
+                                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${notif.type === "hotel" ? "bg-blue-50 text-blue-600 border border-blue-200" : "bg-purple-50 text-purple-600 border border-purple-200"
+                                                        }`}>
+                                                        <AlertCircle size={17} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between mb-0.5">
+                                                            <p className="font-bold text-gray-900 text-xs truncate group-hover:text-blue-600 transition">
+                                                                {notif.title}
+                                                            </p>
+                                                            <span className="text-[10px] text-gray-400 shrink-0 font-['IBM_Plex_Mono']">
+                                                                {notif.time}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-gray-500 text-[11px] truncate font-medium">
+                                                            {notif.desc}
+                                                        </p>
+                                                    </div>
+                                                    <ChevronRight size={14} className="text-gray-300 group-hover:text-blue-600 transition self-center shrink-0" />
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    <div className="p-3 border-t border-gray-100 bg-gray-50/50 text-center">
+                                        <button
+                                            onClick={() => { setShowNotifications(false); navigate("pendingHotels"); }}
+                                            className="text-xs font-bold text-blue-600 hover:text-blue-700 transition cursor-pointer uppercase tracking-wider font-['IBM_Plex_Mono']"
+                                        >
+                                            View All Pending Requests →
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* User Profile Pill */}
                         <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
                             <div className="text-right hidden sm:block">
                                 <p className="text-xs font-bold text-gray-900 m-0">

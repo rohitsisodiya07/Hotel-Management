@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { signupApi } from "../api";
 import { motion } from "framer-motion";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -12,15 +11,19 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer,
   XAxis, YAxis, CartesianGrid, Tooltip
 } from "recharts";
 import {
-  Building2, Users, CalendarCheck, Wallet, Star, ShieldCheck, TrendingUp, Search, Edit, Eye, X, Calendar, Filter
+  Building2, Users, Wallet, Star, ShieldCheck, TrendingUp, Search, Edit, X, Calendar, Filter, CheckCircle2, Clock
 } from "lucide-react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
 
 import CountUpModule from "react-countup";
 const CountUp = CountUpModule.default || CountUpModule;
+import { signupApi } from "../api";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -34,159 +37,126 @@ const itemVariants = {
 
 const statusColorMap = {
   Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Pending: "bg-amber-50 text-amber-700 border-amber-200",
+  Pending: "bg-orange-50 text-orange-700 border-orange-200",
   Rejected: "bg-rose-50 text-rose-700 border-rose-200",
+};
+
+const formatMoney = (amount) => {
+  const num = Number(amount || 0);
+  if (num >= 10000000) return `₹${(num / 10000000).toFixed(2)} Cr`;
+  if (num >= 100000) return `₹${(num / 100000).toFixed(2)} L`;
+  return `₹${num.toLocaleString()}`;
 };
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
 
-  const [loading, setLoading] = useState(true);
-  const [pendingHotels, setPendingHotels] = useState([]);
-  const [approvedHotels, setApprovedHotels] = useState([]);
-  const [rejectedHotels, setRejectedHotels] = useState([]);
-
-  // 🌟 Filters & Analytics States
   const [dateRange, setDateRange] = useState("all");
   const [selectedHotelId, setSelectedHotelId] = useState("all");
+  const [allHotelsList, setAllHotelsList] = useState([]);
 
   const [platformAnalytics, setPlatformAnalytics] = useState({
     monthlyRevenue: [],
-    bookingTrend: [],
-    bookingStatusBreakdown: [],
+    hotelsAddedTrend: [],
+    hotelStatusBreakdown: [],
     hotelsByCity: [],
-    topPerformingHotels: [],
-    occupancyComparison: [],
-    newRegistrations: [],
     kpis: {}
   });
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
+  // Table Search, Filter, Sort & Pagination States
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("city");
   const [cityFilter, setCityFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [showView, setShowView] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
   useEffect(() => {
-    fetchDashboardListings();
+    fetchAllHotelsForDropdown();
   }, []);
 
   useEffect(() => {
     fetchAnalytics(dateRange, selectedHotelId);
   }, [dateRange, selectedHotelId]);
 
-  const fetchDashboardListings = async () => {
+  const fetchAllHotelsForDropdown = async () => {
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-      const [pending, approved, rejected] = await Promise.all([
-        axios.get(`${signupApi}hotel/pending`, { headers }),
-        axios.get(`${signupApi}hotel/approved`, { headers }),
-        axios.get(`${signupApi}hotel/rejected`, { headers }),
-      ]);
-
-      setPendingHotels(pending.data.hotels || []);
-      setApprovedHotels(approved.data.hotels || []);
-      setRejectedHotels(rejected.data.hotels || []);
-    } catch (error) {
-      console.error("Listings fetching error:", error);
-      toast.error("Failed to load hotel listings.");
+      const res = await axios.get(`${signupApi}hotel/approved`, { headers });
+      setAllHotelsList(res.data.hotels || []);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const fetchAnalytics = async (range, hotelId) => {
     try {
-      setLoading(true);
-      const headers = { Authorization: `Bearer ${token}` };
-      const analyticsRes = await axios.get(`${signupApi}dashboard/platform-analytics?range=${range}&hotelId=${hotelId}`, { headers });
-      if (analyticsRes.data?.success) {
-        setPlatformAnalytics(analyticsRes.data.analytics);
+      setAnalyticsLoading(true);
+      const res = await axios.get(`${signupApi}dashboard/platform-analytics?range=${range}&hotelId=${hotelId}`, { headers });
+      if (res.data?.success) {
+        setPlatformAnalytics(res.data.analytics);
+        setLastUpdated(new Date());
       }
-    } catch (analyticErr) {
-      console.error("Analytics fetching error:", analyticErr);
+    } catch (err) {
       toast.error("Failed to load analytics data.");
     } finally {
-      setLoading(false);
+      setAnalyticsLoading(false);
     }
   };
 
-  const allHotels = useMemo(() => {
-    const map = new Map();
-    [...pendingHotels, ...approvedHotels, ...rejectedHotels].forEach((hotel) => {
-      map.set(hotel._id, hotel);
-    });
-    return [...map.values()];
-  }, [pendingHotels, approvedHotels, rejectedHotels]);
+  // Table Data State (fetched via API simulation or standard state updates)
+  const [tableDataLoading, setTableDataLoading] = useState(false);
+  const [tableResData, setTableResData] = useState({ hotels: [], total: 0, page: 1, totalPages: 1 });
 
-  const uniqueCities = useMemo(() => {
-    const citiesMap = new Map();
-    allHotels.forEach(hotel => {
-      if (hotel.city && hotel.city._id) {
-        citiesMap.set(hotel.city._id, hotel.city);
+  useEffect(() => {
+    const fetchTableData = async () => {
+      try {
+        setTableDataLoading(true);
+        const params = new URLSearchParams({
+          range: dateRange,
+          hotelId: selectedHotelId,
+          status: statusFilter,
+          city: cityFilter,
+          search,
+          sortBy,
+          page,
+          limit
+        });
+        const res = await axios.get(`${signupApi}dashboard/platform-analytics?${params.toString()}`, { headers });
+        if (res.data?.success) {
+          setTableResData(res.data.analytics.tableData || { hotels: [], total: 0, page: 1, totalPages: 1 });
+        }
+      } catch (err) {
+        console.error("Table data fetch error:", err);
+      } finally {
+        setTableDataLoading(false);
       }
-    });
-    return Array.from(citiesMap.values()).sort((a, b) => a.cityName.localeCompare(b.cityName));
-  }, [allHotels]);
+    };
+    fetchTableData();
+  }, [dateRange, selectedHotelId, statusFilter, cityFilter, search, sortBy, page, limit]);
 
-  const filteredHotels = useMemo(() => {
-    let data = [...allHotels];
-
-    if (statusFilter !== "All") {
-      data = data.filter((hotel) => hotel.status === statusFilter);
-    }
-
-    if (cityFilter) {
-      data = data.filter((hotel) => hotel.city?._id === cityFilter);
-    }
-
-    if (selectedHotelId !== "all") {
-      data = data.filter((hotel) => hotel._id === selectedHotelId);
-    }
-
-    if (search.trim()) {
-      const searchLower = search.toLowerCase();
-      data = data.filter(
-        (hotel) =>
-          hotel.hotelName?.toLowerCase().includes(searchLower) ||
-          hotel.hotelEmail?.toLowerCase().includes(searchLower) ||
-          hotel.adminId?.name?.toLowerCase().includes(searchLower) ||
-          hotel.city?.cityName?.toLowerCase().includes(searchLower)
-      );
-    }
-
-    data.sort((a, b) => {
-      if (sortBy === "city") {
-        const cityA = a.city?.cityName || "";
-        const cityB = b.city?.cityName || "";
-        return cityA.localeCompare(cityB);
-      }
-      if (sortBy === "latest") {
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      }
-      return new Date(a.createdAt) - new Date(b.createdAt);
-    });
-
-    return data;
-  }, [allHotels, search, statusFilter, sortBy, cityFilter, selectedHotelId]);
+  const filteredHotels = tableResData.hotels || [];
+  const totalPages = tableResData.totalPages || 1;
+  const totalRecords = tableResData.total || 0;
 
   const stats = useMemo(() => {
-    const totalRoomsCalc = allHotels.reduce((acc, h) => acc + (Number(h.totalRooms) || 0), 0);
     return {
-      total: platformAnalytics.kpis?.totalHotels || allHotels.length,
-      pending: pendingHotels.length,
-      approved: approvedHotels.length,
-      rejected: rejectedHotels.length,
-      totalRooms: platformAnalytics.kpis?.totalRooms || totalRoomsCalc || 0,
-      totalBookings: platformAnalytics.kpis?.totalBookings || 0,
+      total: platformAnalytics.kpis?.totalHotels || 0,
+      totalRooms: platformAnalytics.kpis?.totalRooms || 0,
       totalCustomers: platformAnalytics.kpis?.totalCustomers || 0,
-      activeOwners: platformAnalytics.kpis?.activeOwners || allHotels.length,
+      activeOwners: platformAnalytics.kpis?.activeOwners || 0,
       averageRating: platformAnalytics.kpis?.averageRating || 0,
-      occupancyRate: platformAnalytics.kpis?.occupancyRate || 0,
-      totalRevenue: platformAnalytics.kpis?.totalRevenue || 0
+      totalRevenue: platformAnalytics.kpis?.totalRevenue || 0,
+      approvedHotels: platformAnalytics.kpis?.approvedHotels || 0,
+      pendingHotels: platformAnalytics.kpis?.pendingHotels || 0,
     };
-  }, [allHotels, pendingHotels, approvedHotels, rejectedHotels, platformAnalytics]);
+  }, [platformAnalytics]);
 
   const locationOf = (hotel) => {
     return [
@@ -206,50 +176,27 @@ const AdminDashboard = () => {
   };
 
   const monthlyRevenue = platformAnalytics.monthlyRevenue || [];
-  const bookingTrend = platformAnalytics.bookingTrend || [];
-  const bookingStatusData = platformAnalytics.bookingStatusBreakdown || [];
-  const topPerformingHotels = platformAnalytics.topPerformingHotels || [];
-  const occupancyComparisonData = platformAnalytics.occupancyComparison || [];
-
-  const hotelsByCityData = useMemo(() => {
-    if (platformAnalytics.hotelsByCity?.length > 0) return platformAnalytics.hotelsByCity;
-    const cityCounts = {};
-    allHotels.forEach(h => {
-      const cityName = h.city?.cityName || "Unassigned";
-      cityCounts[cityName] = (cityCounts[cityName] || 0) + 1;
-    });
-    return Object.entries(cityCounts).map(([city, count]) => ({ city, count }));
-  }, [allHotels, platformAnalytics]);
-
-  const newRegistrationsData = useMemo(() => {
-    if (platformAnalytics.newRegistrations?.length > 0) return platformAnalytics.newRegistrations;
-    const monthCounts = {};
-    allHotels.forEach(h => {
-      if (h.createdAt) {
-        const monthName = new Date(h.createdAt).toLocaleString('default', { month: 'short' });
-        monthCounts[monthName] = (monthCounts[monthName] || 0) + 1;
-      }
-    });
-    return Object.entries(monthCounts).map(([month, hotels]) => ({ month, hotels }));
-  }, [allHotels, platformAnalytics]);
+  const hotelsAddedTrend = platformAnalytics.hotelsAddedTrend || [];
+  const hotelStatusData = platformAnalytics.hotelStatusBreakdown || [];
+  const hotelsByCityData = platformAnalytics.hotelsByCity || [];
 
   const kpiCards = useMemo(() => [
     { title: "Total Hotels", value: stats.total, trend: "+8.4%", trendUp: true, color: "text-blue-600", bg: "bg-blue-50", icon: Building2 },
     { title: "Total Rooms", value: stats.totalRooms, trend: "+12.1%", trendUp: true, color: "text-indigo-600", bg: "bg-indigo-50", icon: Building2 },
-    { title: "Total Bookings", value: stats.totalBookings, trend: "+15.3%", trendUp: true, color: "text-emerald-600", bg: "bg-emerald-50", icon: CalendarCheck },
+    { title: "Total Revenue", value: formatMoney(stats.totalRevenue), isFormatted: true, trend: "+14.5%", trendUp: true, color: "text-emerald-600", bg: "bg-emerald-50", icon: Wallet },
     { title: "Total Customers", value: stats.totalCustomers, trend: "+9.2%", trendUp: true, color: "text-purple-600", bg: "bg-purple-50", icon: Users },
-    { title: "Total Revenue", value: stats.totalRevenue, prefix: "₹", trend: "+14.5%", trendUp: true, color: "text-emerald-600", bg: "bg-emerald-50", icon: Wallet },
     { title: "Average Rating", value: stats.averageRating, trend: "+0.2", trendUp: true, color: "text-amber-600", bg: "bg-amber-50", icon: Star },
-    { title: "Occupancy Rate", value: stats.occupancyRate, suffix: "%", trend: "+4.1%", trendUp: true, color: "text-blue-600", bg: "bg-blue-50", icon: TrendingUp },
-    { title: "Active Owners", value: stats.activeOwners, trend: "+6", trendUp: true, color: "text-emerald-600", bg: "bg-emerald-50", icon: ShieldCheck },
+    { title: "Active Owners", value: stats.activeOwners, trend: "+6", trendUp: true, color: "text-purple-600", bg: "bg-purple-50", icon: ShieldCheck },
+    { title: "Approved Hotels", value: stats.approvedHotels, trend: "+5.3%", trendUp: true, color: "text-emerald-600", bg: "bg-emerald-50", icon: CheckCircle2 },
+    { title: "Pending Hotels", value: stats.pendingHotels, trend: "-2", trendUp: false, color: "text-orange-600", bg: "bg-orange-50", icon: Clock },
   ], [stats]);
 
   const columns = useMemo(
     () => [
       { header: "Hotel Name", accessorKey: "hotelName", cell: (info) => <span className="font-bold text-gray-900">{info.getValue()}</span> },
       { header: "City", accessorKey: "city.cityName", cell: (info) => <span className="text-gray-600">{info.getValue() || "N/A"}</span> },
-      { header: "Owner / Admin", accessorKey: "adminId.name", cell: (info) => <span className="text-gray-600">{info.getValue() || "Admin"}</span> },
-      { header: "Rooms", accessorKey: "totalRooms", cell: (info) => <span className="px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-bold">{info.getValue() || 0}</span> },
+      { header: "Rooms", accessorKey: "totalRooms", cell: (info) => <span className="px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-bold">{info.getValue() || 0}</span> },
+      { header: "Revenue", accessorKey: "totalRevenue", cell: (info) => <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-bold font-['IBM_Plex_Mono']">{formatMoney(info.getValue() || 0)}</span> },
       {
         header: "Status",
         accessorKey: "status",
@@ -259,6 +206,7 @@ const AdminDashboard = () => {
           return <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${color}`}>{status}</span>;
         },
       },
+      { header: "Created Date", accessorKey: "createdAt", cell: (info) => <span className="text-gray-500">{dayjs(info.getValue()).format("DD MMM YYYY")}</span> },
       {
         header: "Actions",
         accessorKey: "_id",
@@ -292,17 +240,20 @@ const AdminDashboard = () => {
 
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6 w-full pb-16 max-w-[1600px] mx-auto text-gray-800 font-['Inter',sans-serif]">
 
-        {/* 🌟 DASHBOARD HEADER WITH FILTERS */}
+        {/* HEADER */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between bg-white p-6 rounded-2xl border border-gray-200 shadow-2xs gap-4">
           <div>
             <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 tracking-tight">Admin Console</h1>
             <p className="text-xs text-gray-500 font-medium">
-              Platform-wide overview of hotels, bookings, and financial analytics.
+              Platform-wide overview of hotels, management metrics, and financial analytics.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-            {/* 🌟 Hotel Selector Dropdown */}
+            <span className="text-xs text-gray-400 font-medium hidden sm:inline">
+              Last Updated: {dayjs(lastUpdated).fromNow()}
+            </span>
+
             <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
               <Filter size={14} className="text-gray-400" />
               <select
@@ -311,13 +262,12 @@ const AdminDashboard = () => {
                 className="bg-transparent text-xs font-semibold text-gray-700 outline-none cursor-pointer"
               >
                 <option value="all">All Hotels (Platform)</option>
-                {allHotels.map(h => (
+                {allHotelsList.map(h => (
                   <option key={h._id} value={h._id}>{h.hotelName}</option>
                 ))}
               </select>
             </div>
 
-            {/* 🌟 Date Range Dropdown */}
             <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
               <Calendar size={14} className="text-gray-400" />
               <select
@@ -342,7 +292,7 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* 📊 8 KPI CARDS */}
+        {/* 8 KPI CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {kpiCards.map((kpi, index) => {
             const IconComponent = kpi.icon;
@@ -351,12 +301,11 @@ const AdminDashboard = () => {
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 font-['IBM_Plex_Mono']">{kpi.title}</p>
-                    {loading ? (
+                    {analyticsLoading ? (
                       <Skeleton width={80} height={28} />
                     ) : (
                       <h3 className="text-2xl font-bold text-gray-900 tracking-tight font-['Space_Grotesk']">
-                        {kpi.prefix}
-                        <CountUp end={kpi.value} duration={2} separator="," />
+                        {kpi.isFormatted ? kpi.value : <CountUp end={kpi.value} duration={2} separator="," />}
                         {kpi.suffix}
                       </h3>
                     )}
@@ -377,77 +326,71 @@ const AdminDashboard = () => {
           })}
         </div>
 
-        {/* 📈 7 DYNAMIC ENTERPRISE SAAS CHARTS */}
+        {/* 📈 4 CHARTS GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-          {/* 1. Revenue Trend (Area Chart) */}
+          {/* 1. Revenue Trend Area Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk']">Revenue Trend</h3>
-                <p className="text-xs text-gray-500 font-medium">Monthly revenue performance</p>
-              </div>
-            </div>
+            <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-1">Revenue Trend</h3>
+            <p className="text-xs text-gray-500 font-medium mb-4">Monthly revenue performance</p>
             <div className="h-[240px] w-full">
-              {monthlyRevenue.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-gray-400">No revenue data available</div>
+              {analyticsLoading ? (
+                <Skeleton height={220} />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={monthlyRevenue} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2563EB" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} dy={8} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(val) => `₹${val / 1000}k`} />
-                    <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #E5E7EB", fontSize: "12px" }} formatter={(value) => [`₹${value.toLocaleString()}`, "Revenue"]} />
-                    <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2.5} fillOpacity={1} fill="url(#revGrad)" />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(val) => formatMoney(val)} />
+                    <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #E5E7EB", fontSize: "12px" }} formatter={(value) => [formatMoney(value), "Revenue"]} />
+                    <Area type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2.5} fillOpacity={1} fill="url(#revGrad)" />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
             </div>
           </motion.div>
 
-          {/* 2. Booking Trend (Bar Chart) */}
+          {/* 2. Hotels Added Trend Bar Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk']">Booking Trend</h3>
-                <p className="text-xs text-gray-500 font-medium">Daily reservation volume</p>
-              </div>
-            </div>
+            <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-1">Hotels Added Trend</h3>
+            <p className="text-xs text-gray-500 font-medium mb-4">Property onboarding growth</p>
             <div className="h-[240px] w-full">
-              {bookingTrend.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-gray-400">No booking trend data available</div>
+              {analyticsLoading ? (
+                <Skeleton height={220} />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bookingTrend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <BarChart data={hotelsAddedTrend} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} />
                     <Tooltip contentStyle={{ borderRadius: "8px", fontSize: "12px" }} />
-                    <Bar dataKey="bookings" fill="#10B981" radius={[6, 6, 0, 0]} barSize={28} />
+                    <Bar dataKey="count" fill="#2563EB" radius={[6, 6, 0, 0]} barSize={28} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
           </motion.div>
 
-          {/* 3. Booking Status (Donut Chart) */}
+          {/* 3. Hotel Status Distribution Pie Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col justify-between">
-            <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-2">Booking Status Distribution</h3>
+            <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-2">Hotel Status Distribution</h3>
             <div className="flex items-center justify-between">
-              {bookingStatusData.length === 0 ? (
-                <div className="w-full text-center text-xs text-gray-400 py-8">No booking distribution data available</div>
+              {analyticsLoading ? (
+                <div className="w-full"><Skeleton height={150} /></div>
+              ) : hotelStatusData.length === 0 ? (
+                <div className="w-full text-center text-xs text-gray-400 py-8">No status distribution data available</div>
               ) : (
                 <>
                   <div className="space-y-2 text-xs">
-                    {bookingStatusData.map((item, idx) => (
+                    {hotelStatusData.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ["#10B981", "#3B82F6", "#F59E0B", "#F43F5E"][idx % 4] }}></span>
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ["#10B981", "#F59E0B", "#F43F5E"][idx % 3] }}></span>
                         <span className="text-gray-600 font-medium">{item.name} ({item.value})</span>
                       </div>
                     ))}
@@ -455,9 +398,9 @@ const AdminDashboard = () => {
                   <div className="h-[150px] w-[150px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={bookingStatusData} innerRadius={42} outerRadius={65} paddingAngle={4} dataKey="value" stroke="none">
-                          {bookingStatusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={["#10B981", "#3B82F6", "#F59E0B", "#F43F5E"][index % 4]} />
+                        <Pie data={hotelStatusData} innerRadius={42} outerRadius={65} paddingAngle={4} dataKey="value" stroke="none">
+                          {hotelStatusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={["#10B981", "#F59E0B", "#F43F5E"][index % 3]} />
                           ))}
                         </Pie>
                         <Tooltip contentStyle={{ borderRadius: "6px", fontSize: "11px" }} />
@@ -469,11 +412,13 @@ const AdminDashboard = () => {
             </div>
           </motion.div>
 
-          {/* 4. Hotels by City (Bar Chart) */}
+          {/* 4. Hotels by City Bar Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
             <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-3">Hotels by City</h3>
             <div className="h-[190px] w-full">
-              {hotelsByCityData.length === 0 ? (
+              {analyticsLoading ? (
+                <Skeleton height={170} />
+              ) : hotelsByCityData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-gray-400">No city distribution data available</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -489,74 +434,9 @@ const AdminDashboard = () => {
             </div>
           </motion.div>
 
-          {/* 5. Top Performing Hotels (Horizontal Bar Chart) */}
-          <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
-            <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-3">Top Performing Hotels (Revenue)</h3>
-            <div className="h-[210px] w-full">
-              {topPerformingHotels.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-gray-400">No performance data available</div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart layout="vertical" data={topPerformingHotels} margin={{ top: 5, right: 10, left: 20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} tickFormatter={(val) => `₹${val / 1000}k`} />
-                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} />
-                    <Tooltip contentStyle={{ borderRadius: "8px", fontSize: "12px" }} formatter={(value) => [`₹${value.toLocaleString()}`, "Revenue"]} />
-                    <Bar dataKey="revenue" fill="#3B82F6" radius={[0, 6, 6, 0]} barSize={18} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </motion.div>
-
-          {/* 6. Hotel Occupancy Comparison (Bar Chart) */}
-          <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
-            <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-3">Hotel Occupancy Comparison (%)</h3>
-            <div className="h-[210px] w-full">
-              {occupancyComparisonData.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-gray-400">No occupancy data available</div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={occupancyComparisonData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="hotel" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} domain={[0, 100]} tickFormatter={(val) => `${val}%`} />
-                    <Tooltip contentStyle={{ borderRadius: "8px", fontSize: "12px" }} formatter={(value) => [`${value}%`, "Occupancy"]} />
-                    <Bar dataKey="occupancy" fill="#F59E0B" radius={[6, 6, 0, 0]} barSize={26} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </motion.div>
-
-          {/* 7. New Hotel Registrations (Line Chart) */}
-          <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 lg:col-span-2 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk']">New Hotel Registrations</h3>
-                <p className="text-xs text-gray-500 font-medium">Monthly onboarded partner hotels</p>
-              </div>
-            </div>
-            <div className="h-[220px] w-full">
-              {newRegistrationsData.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-xs text-gray-400">No registration history available</div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={newRegistrationsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} dy={8} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6B7280" }} />
-                    <Tooltip contentStyle={{ borderRadius: "8px", fontSize: "12px" }} />
-                    <Line type="monotone" dataKey="hotels" stroke="#8B5CF6" strokeWidth={3} dot={{ r: 5, fill: "#8B5CF6" }} activeDot={{ r: 7 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </motion.div>
-
         </div>
 
-        {/* 🔍 SEARCH & FILTERS BAR */}
+        {/* 🔍 SEARCH, LIMIT & FILTERS BAR */}
         <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex flex-col xl:flex-row gap-4 items-center justify-between">
           <div className="relative w-full xl:flex-1 max-w-md">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -564,31 +444,40 @@ const AdminDashboard = () => {
               type="text"
               placeholder="Search by hotel name, email..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl pl-10 pr-4 h-11 text-xs font-medium focus:outline-none focus:border-blue-500 transition shadow-2xs bg-white"
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="w-full border border-gray-200 rounded-xl pl-10 pr-4 h-11 text-xs font-medium focus:outline-none focus:border-blue-500 transition shadow-2xs bg-white text-gray-900"
             />
+            {search && (
+              <button onClick={() => { setSearch(""); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           <div className="w-full xl:w-auto flex flex-col sm:flex-row gap-3 items-center shrink-0 flex-wrap">
-            <select
-              value={cityFilter}
-              onChange={(e) => setCityFilter(e.target.value)}
-              className="w-full sm:w-40 border border-gray-200 rounded-xl px-3.5 h-11 text-xs font-semibold focus:outline-none focus:border-blue-500 transition shadow-2xs bg-white text-gray-700 cursor-pointer"
-            >
-              <option value="">All Cities</option>
-              {uniqueCities.map(city => (
-                <option key={city._id} value={city._id} className="capitalize">{city.cityName}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs">
+              <span>Show:</span>
+              <select
+                value={limit}
+                onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                className="bg-transparent outline-none cursor-pointer font-bold text-blue-600"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+            </div>
 
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full sm:w-40 border border-gray-200 rounded-xl px-3.5 h-11 text-xs font-semibold focus:outline-none focus:border-blue-500 transition shadow-2xs bg-white text-gray-700 cursor-pointer"
+              onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+              className="w-full sm:w-44 border border-gray-200 rounded-xl px-3.5 h-11 text-xs font-semibold focus:outline-none focus:border-blue-500 transition shadow-2xs bg-white text-gray-700 cursor-pointer"
             >
-              <option value="city">City (A to Z)</option>
-              <option value="latest">Latest First</option>
-              <option value="oldest">Oldest First</option>
+              <option value="city">Sort: City (A-Z)</option>
+              <option value="latest">Sort: Latest</option>
+              <option value="oldest">Sort: Oldest</option>
+              <option value="revenue">Sort: Revenue (High to Low)</option>
+              <option value="rooms">Sort: Rooms</option>
             </select>
           </div>
         </div>
@@ -597,41 +486,35 @@ const AdminDashboard = () => {
         <div className="flex border-b border-gray-200 overflow-x-auto gap-2 scrollbar-none">
           {["All", "Pending", "Approved", "Rejected"].map((status) => {
             const isActive = statusFilter === status;
-            const count =
-              status === "All" ? stats.total
-                : status === "Pending" ? stats.pending
-                  : status === "Approved" ? stats.approved
-                    : stats.rejected;
-
             return (
               <button
                 key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${isActive
-                  ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                  : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                onClick={() => { setStatusFilter(status); setPage(1); }}
+                className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 cursor-pointer ${isActive
+                    ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                    : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                   }`}
               >
-                {status} Listings{" "}
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-['IBM_Plex_Mono',monospace] font-bold ${isActive ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600 border border-gray-200"
-                  }`}>
-                  {count}
-                </span>
+                {status} Listings
               </button>
             );
           })}
         </div>
 
-        {/* 📋 HOTEL PERFORMANCE TABLE */}
-        <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 overflow-hidden flex flex-col">
+        {/* 📋 HOTEL PERFORMANCE TABLE WITH OVERLAY LOADER */}
+        <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 overflow-hidden flex flex-col relative min-h-[300px]">
+          {tableDataLoading && (
+            <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex justify-center items-center z-10 transition-all duration-200">
+              <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk']">Hotel Performance Directory</h3>
-            <span className="text-xs font-bold text-gray-400 font-['IBM_Plex_Mono']">Showing {filteredHotels.length} records</span>
+            <span className="text-xs font-bold text-gray-400 font-['IBM_Plex_Mono']">Total Records: {totalRecords}</span>
           </div>
 
-          {loading ? (
-            <div className="space-y-3"><Skeleton count={4} height={45} className="rounded-lg" /></div>
-          ) : filteredHotels.length === 0 ? (
+          {filteredHotels.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Building2 size={36} className="text-gray-300 mb-2" />
               <p className="text-gray-500 text-xs font-medium">No properties found matching criteria.</p>
@@ -664,6 +547,32 @@ const AdminDashboard = () => {
               </table>
             </div>
           )}
+
+          {/* Numeric Pagination Footer */}
+          <div className="flex flex-col sm:flex-row items-center justify-between px-2 pt-5 border-t border-gray-100 mt-4 text-xs gap-3">
+            <p className="text-gray-500 font-medium">
+              Showing page <strong className="text-gray-900">{page}</strong> of <strong className="text-gray-900">{totalPages || 1}</strong>
+            </p>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {Array.from({ length: totalPages }, (_, index) => {
+                const pageNum = index + 1;
+                const isSelected = pageNum === page;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                      }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </motion.div>
 
       </motion.div>
@@ -716,20 +625,6 @@ const AdminDashboard = () => {
                     <h3 className="font-bold text-gray-900 text-sm">{selectedHotel.adminId?.name || "System Manager"}</h3>
                     <p className="text-xs text-gray-500 mt-0.5 break-all font-medium">{selectedHotel.adminId?.email || "N/A"}</p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-200">
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Accommodation</p>
-                    <h3 className="font-bold text-gray-900 text-xs">{selectedHotel.hotelType || "N/A"}</h3>
-                    <p className="text-xs text-blue-600 font-bold mt-0.5">{selectedHotel.totalRooms || 0} Active Rooms</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-200">
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</p>
-                    <span className={`inline-block mt-1 px-2.5 py-1 rounded-md font-['IBM_Plex_Mono',monospace] text-[10px] font-bold uppercase tracking-wider shadow-2xs ${selectedHotel.status === "Approved" ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : selectedHotel.status === "Pending" ? "bg-amber-50 text-amber-700 border border-amber-200"
-                        : "bg-rose-50 text-rose-700 border border-rose-200"
-                      }`}>
-                      {selectedHotel.status}
-                    </span>
-                  </div>
                 </div>
 
                 <div className="space-y-3.5">
@@ -738,33 +633,6 @@ const AdminDashboard = () => {
                     <h3 className="font-bold text-gray-900 text-xs">{locationOf(selectedHotel) || "No Region Data Linked"}</h3>
                     <p className="font-medium text-gray-600 mt-1 leading-relaxed">{selectedHotel.address}</p>
                   </div>
-                </div>
-
-                {selectedHotel.amenities?.length > 0 && (
-                  <div>
-                    <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Registered Amenities</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedHotel.amenities.map((item, idx) => (
-                        <span key={idx} className="bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-200 font-medium shadow-2xs">
-                          ✓ {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedHotel.remark && (
-                  <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-xl">
-                    <p className="text-rose-700 font-['IBM_Plex_Mono',monospace] text-[10px] font-bold uppercase tracking-wider mb-1">Audit Execution Remark</p>
-                    <p className="text-gray-900 text-xs font-medium leading-relaxed m-0">{selectedHotel.remark}</p>
-                  </div>
-                )}
-
-                <div>
-                  <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Establishment Overview</p>
-                  <p className="leading-relaxed text-gray-600 bg-gray-50 p-4 rounded-xl border border-gray-200 italic m-0 text-xs">
-                    "{selectedHotel.description || "No public summary description specified for this establishment."}"
-                  </p>
                 </div>
               </div>
             </div>

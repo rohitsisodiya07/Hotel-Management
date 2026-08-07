@@ -296,23 +296,21 @@ const HotelDetails = () => {
                 d.setHours(0, 0, 0, 0);
                 return d;
             });
-
             setBookedDates(normalizedBookedDates);
+        } catch (error) {
+            console.log("Could not fetch booked dates, proceeding with empty calendar:", error);
+            setBookedDates([]);
+        } finally {
             setSelectedRoom(room);
             setSelectedCoupon("");
             setDiscountAmount(0);
-
             setBookingForm({
                 checkIn: null,
                 checkOut: null,
                 totalGuests: 1,
                 specialRequest: "",
             });
-
             setBookingModal(true);
-        } catch (error) {
-            console.log(error);
-            alert("Unable to load booked dates.");
         }
     };
 
@@ -578,7 +576,6 @@ const HotelDetails = () => {
                 {/* 🌐 PERMANENT CLEAN WHITE STICKY NAVBAR */}
                 <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-2xs py-4 border-b border-gray-200">
                     <div className="max-w-[1600px] mx-auto px-6 sm:px-8 flex items-center justify-between">
-
                         <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => navigate("/")}>
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-600 text-white shadow-2xs">
                                 <Hotel size={18} />
@@ -1247,7 +1244,6 @@ const HotelDetails = () => {
                                             </button>
                                         </form>
                                     </>
-
                                 )}
 
                             </div>
