@@ -63,11 +63,16 @@ const hotelSchema = new mongoose.Schema(
             min: 1,
         },
 
-        hotelImages: [
-            {
-                type: String,
+        hotelImages: {
+            type: [String],
+            required: true,
+            validate: {
+                validator: function (images) {
+                    return images.length >= 5;
+                },
+                message: "At least 5 hotel images are required",
             },
-        ],
+        },
 
         amenities: [
             {
@@ -97,6 +102,7 @@ const hotelSchema = new mongoose.Schema(
     {
         timestamps: true,
     }
+
 );
 
 module.exports = mongoose.model("Hotel", hotelSchema);

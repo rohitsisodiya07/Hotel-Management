@@ -2,8 +2,16 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import axios from "axios";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
-import { Plus, Edit2, Loader2, BedDouble, Users, Hotel, ChevronDown, CheckSquare, XCircle, Info, UploadCloud, CheckCircle2, X } from "lucide-react";
+import { Plus, Edit2, Loader2, BedDouble, Users, Hotel, ChevronDown, CheckSquare, XCircle, Info, UploadCloud, CheckCircle2, X, Trash2 } from "lucide-react";
 import { Toaster, toast } from "sonner";
+
+const ALLOWED_TYPES = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+];
+const MAX_SIZE = 1024 * 1024; // 1 MB
+const MAX_IMAGES = 10;
 
 const RoomManagement = () => {
     const [searchParams] = useSearchParams();
@@ -24,6 +32,7 @@ const RoomManagement = () => {
 
     const [amenitiesList, setAmenitiesList] = useState([]);
     const [selectedImages, setSelectedImages] = useState([]);
+    const [previewImages, setPreviewImages] = useState([]); // 🌟 Image Previews State
     const [existingImages, setExistingImages] = useState([]);
 
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -130,6 +139,8 @@ const RoomManagement = () => {
             });
             setAmenitiesList(data.roomAmenities || []);
             setExistingImages(data.roomImages || []);
+            setSelectedImages([]);
+            setPreviewImages([]);
             setFormError("");
         } catch (error) {
             setFormError("Failed to load room details for editing.");
@@ -147,6 +158,8 @@ const RoomManagement = () => {
                 totalBeds: "1", bedType: "Double", roomSize: "", description: "", isFeatured: false
             });
             setAmenitiesList([]);
+            setSelectedImages([]);
+            setPreviewImages([]);
             setExistingImages([]);
         }
 
@@ -177,10 +190,35 @@ const RoomManagement = () => {
     };
 
     const handleFileChange = (e) => {
-        if (e.target.files) {
-            setSelectedImages(Array.from(e.target.files));
-            setFormError("");
+        const files = Array.from(e.target.files || []);
+
+        if (!files.length) return;
+
+        if (files.length > MAX_IMAGES) {
+            return setFormError("Maximum 10 images are allowed.");
         }
+
+        for (const file of files) {
+            if (!ALLOWED_TYPES.includes(file.type)) {
+                return setFormError("Only JPG, JPEG and PNG images are allowed.");
+            }
+
+            if (file.size > MAX_SIZE) {
+                return setFormError("Each image size should be less than 1 MB.");
+            }
+        }
+
+        setSelectedImages(files);
+        setPreviewImages(files.map((file) => URL.createObjectURL(file)));
+        setFormError("");
+    };
+
+    // 🌟 Remove newly selected image from preview
+    const removeSelectedImage = (index) => {
+        const updatedImages = selectedImages.filter((_, i) => i !== index);
+        const updatedPreviews = previewImages.filter((_, i) => i !== index);
+        setSelectedImages(updatedImages);
+        setPreviewImages(updatedPreviews);
     };
 
     const handleSubmit = async (e) => {
@@ -239,6 +277,7 @@ const RoomManagement = () => {
                     });
                     setAmenitiesList([]);
                     setSelectedImages([]);
+                    setPreviewImages([]);
                 }
                 fetchRoomsInventory();
             }
@@ -405,16 +444,38 @@ const RoomManagement = () => {
                                 )}
 
                                 <div className="relative border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/60 hover:bg-gray-50 p-6 text-center transition cursor-pointer">
-                                    <input type="file" multiple accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                    <input type="file" multiple accept=".jpg,.jpeg,.png" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                                     <UploadCloud className="mx-auto text-gray-400 mb-2" size={28} />
                                     <p className="text-xs font-bold text-gray-800">Click or drag images here to upload</p>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">Select at least 2 clear pictures of the room</p>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                                        Only JPG, JPEG & PNG<br />
+                                        Maximum size: 1 MB each<br />
+                                        Minimum 2 images, Maximum 10 images
+                                    </p>
                                 </div>
 
-                                {selectedImages.length > 0 && (
-                                    <p className="mt-2 text-[11px] font-['IBM_Plex_Mono',monospace] text-emerald-600 font-bold">
-                                        ✓ {selectedImages.length} new files ready for deployment.
-                                    </p>
+                                {/* 🌟 Image Previews Grid with Cut/Delete Button */}
+                                {previewImages.length > 0 && (
+                                    <div className="mt-4">
+                                        <p className="font-['IBM_Plex_Mono'] text-[10px] text-gray-500 font-bold tracking-widest uppercase mb-2">
+                                            Selected Images Preview ({previewImages.length}/{MAX_IMAGES})
+                                        </p>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                                            {previewImages.map((src, index) => (
+                                                <div key={index} className="aspect-square rounded-xl overflow-hidden border border-gray-200 bg-white relative group shadow-2xs">
+                                                    <img src={src} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeSelectedImage(index)}
+                                                        className="absolute top-2 right-2 bg-rose-600 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition shadow-sm cursor-pointer"
+                                                        title="Remove Image"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
 

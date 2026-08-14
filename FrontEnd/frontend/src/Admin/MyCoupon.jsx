@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
-import { Search, Plus, Eye, Edit, Trash2, Power, PowerOff, X, TicketPercent, Loader2, Copy, Check } from "lucide-react";
+import { Search, Plus, Eye, Edit, Trash2, Power, PowerOff, X, TicketPercent, Loader2, Copy, Check, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 const MyCoupon = () => {
@@ -13,6 +13,11 @@ const MyCoupon = () => {
     const [coupons, setCoupons] = useState([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("All");
+    const [sortBy, setSortBy] = useState("newest");
+
+    // Pagination & Limit States (Default limit: 5)
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(5);
 
     const [selectedCoupon, setSelectedCoupon] = useState(null);
     const [showView, setShowView] = useState(false);
@@ -86,6 +91,7 @@ const MyCoupon = () => {
         navigate(`/admin/addCoupon?id=${id}`);
     };
 
+    // Filter & Sort Logic
     const filteredCoupons = useMemo(() => {
         let data = [...coupons];
 
@@ -98,8 +104,27 @@ const MyCoupon = () => {
             data = data.filter((c) => c.couponCode?.toLowerCase().includes(searchLower));
         }
 
+        data.sort((a, b) => {
+            if (sortBy === "newest") return new Date(b.createdAt) - new Date(a.createdAt);
+            if (sortBy === "oldest") return new Date(a.createdAt) - new Date(b.createdAt);
+            if (sortBy === "discount-high") return Number(b.discountValue) - Number(a.discountValue);
+            if (sortBy === "discount-low") return Number(a.discountValue) - Number(b.discountValue);
+            return 0;
+        });
+
         return data;
-    }, [coupons, search, statusFilter]);
+    }, [coupons, search, statusFilter, sortBy]);
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredCoupons.length / itemsPerPage) || 1;
+    const paginatedCoupons = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return filteredCoupons.slice(start, start + itemsPerPage);
+    }, [filteredCoupons, currentPage, itemsPerPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, statusFilter, sortBy, itemsPerPage]);
 
     const stats = useMemo(() => {
         return {
@@ -121,7 +146,7 @@ const MyCoupon = () => {
     }
 
     return (
-        <div className="text-gray-800 font-['Inter',sans-serif]">
+        <div className="text-gray-800 font-['Inter',sans-serif] pb-12">
             <Toaster position="top-right" richColors />
             <style>{`
                 .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -140,13 +165,44 @@ const MyCoupon = () => {
                         className="w-full border border-gray-200 rounded-xl pl-10 pr-4 h-11 text-xs font-medium focus:outline-none focus:border-blue-500 transition bg-white shadow-2xs"
                     />
                 </div>
-                <button
-                    onClick={() => navigate("/admin/addCoupon")}
-                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 h-11 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
-                >
-                    <Plus size={16} />
-                    Create Coupon
-                </button>
+
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+                    {/* Show Limit Dropdown */}
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs">
+                        <span>Show:</span>
+                        <select
+                            value={itemsPerPage}
+                            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                            className="bg-transparent outline-none cursor-pointer font-bold text-blue-600"
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 px-3.5 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs">
+                        <ArrowUpDown size={14} className="text-blue-600 shrink-0" />
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="bg-transparent outline-none cursor-pointer font-bold text-gray-800"
+                        >
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                            <option value="discount-high">Discount: High to Low</option>
+                            <option value="discount-low">Discount: Low to High</option>
+                        </select>
+                    </div>
+
+                    <button
+                        onClick={() => navigate("/admin/addCoupon")}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 h-11 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                    >
+                        <Plus size={16} />
+                        Create Coupon
+                    </button>
+                </div>
             </div>
 
             {/* Tabs Switcher Panels Control Layout */}
@@ -159,9 +215,9 @@ const MyCoupon = () => {
                         <button
                             key={status}
                             onClick={() => setStatusFilter(status)}
-                            className={`px-5 py-3 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${isActive
-                                    ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                                    : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                            className={`px-5 py-3 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 cursor-pointer ${isActive
+                                ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                                : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                                 }`}
                         >
                             {status} Coupons
@@ -176,7 +232,7 @@ const MyCoupon = () => {
 
             {/* Main Grid Render Structure */}
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredCoupons.length === 0 && (
+                {paginatedCoupons.length === 0 && (
                     <div className="col-span-full bg-white rounded-2xl border border-dashed border-gray-300 p-16 text-center shadow-2xs">
                         <TicketPercent className="mx-auto text-gray-300 mb-3" size={40} />
                         <h3 className="font-['Space_Grotesk',sans-serif] font-bold text-base text-gray-900">No discount coupons available</h3>
@@ -184,7 +240,7 @@ const MyCoupon = () => {
                     </div>
                 )}
 
-                {filteredCoupons.map((coupon) => {
+                {paginatedCoupons.map((coupon) => {
                     const isExpired = new Date(coupon.expiryDate) < new Date();
                     return (
                         <div
@@ -263,8 +319,8 @@ const MyCoupon = () => {
                                 <button
                                     onClick={() => handleToggleStatus(coupon._id)}
                                     className={`flex items-center justify-center py-2 rounded-xl border transition shadow-2xs cursor-pointer ${coupon.status === "Active"
-                                            ? "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700"
-                                            : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
+                                        ? "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700"
+                                        : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
                                         }`}
                                     title={coupon.status === "Active" ? "Deactivate Coupon" : "Activate Coupon"}
                                 >
@@ -276,15 +332,40 @@ const MyCoupon = () => {
                 })}
             </div>
 
+            {/* Pagination Controls */}
+            {!loading && filteredCoupons.length > 0 && (
+                <div className="mt-8 px-6 py-4 bg-white border border-gray-200 rounded-2xl shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <p className="text-xs text-gray-500 font-medium">
+                        Showing <span className="font-bold text-gray-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-bold text-gray-900">{Math.min(currentPage * itemsPerPage, filteredCoupons.length)}</span> of <span className="font-bold text-gray-900">{filteredCoupons.length}</span> results
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        <span className="text-xs font-bold font-['IBM_Plex_Mono'] px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl shadow-2xs">
+                            {currentPage} / {totalPages}
+                        </span>
+                        <button
+                            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                            className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* View Details Modal Layer */}
             {showView && selectedCoupon && (
                 <div className="fixed inset-0 bg-gray-900/50 flex justify-center items-center z-50 p-4 backdrop-blur-xs">
-                    <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
-                        {/* Modal Header */}
+                    <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200">
                         <div className="flex justify-between items-center border-b border-gray-100 p-6 sticky top-0 bg-white z-10">
-                            <div>
-                                <h2 className="font-['Space_Grotesk',sans-serif] text-base font-bold text-gray-900">Coupon Inspection Profile</h2>
-                            </div>
+                            <h2 className="font-['Space_Grotesk',sans-serif] text-base font-bold text-gray-900">Coupon Inspection Profile</h2>
                             <button
                                 onClick={() => {
                                     setShowView(false);
@@ -296,9 +377,7 @@ const MyCoupon = () => {
                             </button>
                         </div>
 
-                        {/* Content */}
                         <div className="p-6 space-y-5 text-xs">
-                            {/* Grid Details */}
                             <div className="grid grid-cols-2 gap-3.5">
                                 <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
                                     <p className="font-['IBM_Plex_Mono',monospace] text-[10px] font-bold text-gray-400 uppercase tracking-widest">Coupon Code</p>
@@ -331,7 +410,6 @@ const MyCoupon = () => {
                                 </div>
                             </div>
 
-                            {/* Additional Info */}
                             <div className="space-y-3">
                                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 flex justify-between items-center shadow-2xs">
                                     <span className="font-bold text-gray-500">Minimum Booking Amount</span>
@@ -355,7 +433,6 @@ const MyCoupon = () => {
                                 </div>
                             </div>
 
-                            {/* Modal Actions */}
                             <div className="mt-8 flex flex-wrap justify-between items-center gap-3 border-t pt-5 border-gray-100">
                                 <button
                                     onClick={() => handleDelete(selectedCoupon._id)}
@@ -363,18 +440,15 @@ const MyCoupon = () => {
                                 >
                                     <Trash2 size={14} /> Delete Coupon
                                 </button>
-
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={() => handleToggleStatus(selectedCoupon._id)}
-                                        className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition shadow-2xs cursor-pointer uppercase tracking-wider ${selectedCoupon.status === "Active"
-                                                ? "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700"
-                                                : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
-                                            }`}
-                                    >
-                                        {selectedCoupon.status === "Active" ? <><PowerOff size={14} /> Deactivate</> : <><Power size={14} /> Activate</>}
-                                    </button>
-                                </div>
+                                <button
+                                    onClick={() => handleToggleStatus(selectedCoupon._id)}
+                                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition shadow-2xs cursor-pointer uppercase tracking-wider ${selectedCoupon.status === "Active"
+                                        ? "bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700"
+                                        : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
+                                        }`}
+                                >
+                                    {selectedCoupon.status === "Active" ? <><PowerOff size={14} /> Deactivate</> : <><Power size={14} /> Activate</>}
+                                </button>
                             </div>
                         </div>
                     </div>

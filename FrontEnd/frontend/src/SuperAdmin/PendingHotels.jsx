@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
 import {
@@ -37,27 +37,32 @@ const PendingHotels = () => {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
 
-    // 🌟 Backend-driven useSearch hooks for each tab
-    const pendingSearch = useSearch(`${signupApi}hotel/pending`, search, {
+    // 🌟 Memoized Params for each tab to prevent unnecessary re-fetches & reference mismatch
+    const pendingParams = useMemo(() => ({
         page: pendingPage,
         limit,
         sort: sortOrder,
         hotelType: hotelTypeFilter
-    }, headers);
+    }), [pendingPage, limit, sortOrder, hotelTypeFilter]);
 
-    const approvedSearch = useSearch(`${signupApi}hotel/approved`, search, {
+    const approvedParams = useMemo(() => ({
         page: approvedPage,
         limit,
         sort: sortOrder,
         hotelType: hotelTypeFilter
-    }, headers);
+    }), [approvedPage, limit, sortOrder, hotelTypeFilter]);
 
-    const rejectedSearch = useSearch(`${signupApi}hotel/rejected`, search, {
+    const rejectedParams = useMemo(() => ({
         page: rejectedPage,
         limit,
         sort: sortOrder,
         hotelType: hotelTypeFilter
-    }, headers);
+    }), [rejectedPage, limit, sortOrder, hotelTypeFilter]);
+
+    // 🌟 Backend-driven useSearch hooks powered with debouncing
+    const pendingSearch = useSearch(`${signupApi}hotel/pending`, search, pendingParams, 400);
+    const approvedSearch = useSearch(`${signupApi}hotel/approved`, search, approvedParams, 400);
+    const rejectedSearch = useSearch(`${signupApi}hotel/rejected`, search, rejectedParams, 400);
 
     // Active tab data extraction
     const currentActiveSearch = activeTab === "pending" ? pendingSearch : activeTab === "approved" ? approvedSearch : rejectedSearch;
@@ -77,9 +82,9 @@ const PendingHotels = () => {
     const setCurrentPage = activeTab === "pending" ? setPendingPage : activeTab === "approved" ? setApprovedPage : setRejectedPage;
 
     const refreshData = () => {
-        pendingSearch.fetchData();
-        approvedSearch.fetchData();
-        rejectedSearch.fetchData();
+        pendingSearch.refetch();
+        approvedSearch.refetch();
+        rejectedSearch.refetch();
     };
 
     const generateRandomPassword = () => {
@@ -242,8 +247,8 @@ const PendingHotels = () => {
                 <button
                     onClick={() => { setActiveTab("pending"); setPendingPage(1); }}
                     className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "pending"
-                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                        : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                         }`}
                 >
                     Pending Review
@@ -255,8 +260,8 @@ const PendingHotels = () => {
                 <button
                     onClick={() => { setActiveTab("approved"); setApprovedPage(1); }}
                     className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "approved"
-                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                        : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                         }`}
                 >
                     Approved (Success)
@@ -268,8 +273,8 @@ const PendingHotels = () => {
                 <button
                     onClick={() => { setActiveTab("rejected"); setRejectedPage(1); }}
                     className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 ${activeTab === "rejected"
-                            ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                            : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                        ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                        : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                         }`}
                 >
                     Rejected Submissions
@@ -406,10 +411,10 @@ const PendingHotels = () => {
 
                                             <span
                                                 className={`absolute top-3.5 right-3.5 font-['IBM_Plex_Mono',monospace] text-[10px] tracking-widest font-bold px-2.5 py-1 rounded-md border shadow-2xs ${activeTab === "approved"
-                                                        ? "text-emerald-700 border-emerald-200 bg-emerald-50"
-                                                        : activeTab === "rejected"
-                                                            ? "text-rose-700 border-rose-200 bg-rose-50"
-                                                            : "text-amber-700 border-amber-200 bg-amber-50"
+                                                    ? "text-emerald-700 border-emerald-200 bg-emerald-50"
+                                                    : activeTab === "rejected"
+                                                        ? "text-rose-700 border-rose-200 bg-rose-50"
+                                                        : "text-amber-700 border-amber-200 bg-amber-50"
                                                     }`}
                                             >
                                                 {activeTab === "pending" ? "🟡 PENDING REVIEW" : activeTab === "approved" ? "🟢 APPROVED" : "🔴 REJECTED"}
@@ -693,12 +698,13 @@ const PendingHotels = () => {
                             <div>
                                 <p className="font-['IBM_Plex_Mono',monospace] text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-3">Property Media Gallery ({viewHotel.hotelImages?.length || 0})</p>
                                 {viewHotel.hotelImages?.length > 0 ? (
-                                    <div className="space-y-3">
-                                        <div className="w-full h-80 rounded-2xl overflow-hidden border border-gray-200 bg-gray-900 shadow-2xs">
+                                    <div className="space-y-4">
+                                        <div className="w-full h-72 sm:h-96 rounded-2xl overflow-x-auto overflow-y-hidden border border-gray-200 bg-gray-900 shadow-inner flex items-center relative p-2">
                                             <img
                                                 src={viewHotel.hotelImages[activeImageIndex] || viewHotel.hotelImages[0]}
                                                 alt={viewHotel.hotelName}
-                                                className="w-full h-full object-cover transition duration-300"
+                                                className="h-full w-auto max-w-none object-contain mx-auto transition duration-300"
+                                                style={{ minWidth: "100%" }}
                                             />
                                         </div>
 
@@ -707,8 +713,7 @@ const PendingHotels = () => {
                                                 <div
                                                     key={index}
                                                     onClick={() => setActiveImageIndex(index)}
-                                                    className={`w-24 h-20 rounded-xl overflow-hidden border-2 cursor-pointer transition shrink-0 ${activeImageIndex === index ? "border-blue-600 scale-105 shadow-md" : "border-gray-200 opacity-70 hover:opacity-100"
-                                                        }`}
+                                                    className={`w-24 h-20 rounded-xl overflow-hidden border-2 cursor-pointer transition shrink-0 ${activeImageIndex === index ? "border-blue-600 scale-105 shadow-md ring-2 ring-blue-100" : "border-gray-200 opacity-70 hover:opacity-100"}`}
                                                 >
                                                     <img src={imgUrl} alt={`Thumb ${index}`} className="w-full h-full object-cover" />
                                                 </div>

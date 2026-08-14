@@ -2,7 +2,9 @@ const roomModel = require("../Model/roomsModel");
 const hotelModel = require("../Model/hotelModel");
 const { uploadImage } = require("../Utilities/Cloudinary");
 
-// CREATE ROOM
+// =========================================================================
+// CREATE ROOM (With Complete Enterprise-Grade Validations)
+// =========================================================================
 const createRoom = async (req, res) => {
     try {
         let { roomNumber, roomType, pricePerNight, maxOccupancy, totalBeds, bedType, roomSize, description, roomAmenities, isFeatured } = req.body;
@@ -16,32 +18,165 @@ const createRoom = async (req, res) => {
             return res.status(400).json({ success: false, message: "All required fields are mandatory." });
         }
 
-        const existingRoom = await roomModel.findOne({ hotelId: hotel._id, roomNumber: roomNumber.trim() });
+        // 1. Room Number Validation
+        roomNumber = roomNumber.toString().trim();
+        if (roomNumber.length > 10) {
+            return res.status(400).json({
+                success: false,
+                message: "Room number is too long."
+            });
+        }
+
+        const existingRoom = await roomModel.findOne({ hotelId: hotel._id, roomNumber });
         if (existingRoom) return res.status(409).json({ success: false, message: "Room number already exists." });
 
-        if (!req.files || !req.files.roomImages) return res.status(400).json({ success: false, message: "Images required." });
+        // 2. Price Validation
+        pricePerNight = Number(pricePerNight);
+        if (!Number.isFinite(pricePerNight) || pricePerNight <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Price per night must be greater than zero."
+            });
+        }
 
-        const uploadedImages = await uploadImage(req.files.roomImages, "hotel-management/rooms");
+        // 3. Occupancy Validation
+        maxOccupancy = Number(maxOccupancy);
+        if (!Number.isInteger(maxOccupancy) || maxOccupancy <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid maximum occupancy."
+            });
+        }
+
+        // 4. Total Beds Validation
+        totalBeds = Number(totalBeds);
+        if (!Number.isInteger(totalBeds) || totalBeds <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid total beds."
+            });
+        }
+
+        // 5. Room Type Validation
+        const allowedRoomTypes = [
+            "Standard",
+            "Deluxe",
+            "Super Deluxe",
+            "Suite",
+            "Family Room",
+        ];
+        if (!allowedRoomTypes.includes(roomType)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid room type."
+            });
+        }
+
+        // 6. Bed Type Validation
+        const allowedBedTypes = [
+            "Single",
+            "Double",
+            "Queen",
+            "King",
+        ];
+        if (!allowedBedTypes.includes(bedType)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid bed type."
+            });
+        }
+
+        // 7. Description Validation
+        if (description && description.trim().length < 20) {
+            return res.status(400).json({
+                success: false,
+                message: "Description should contain at least 20 characters."
+            });
+        }
+
+        // 10. Room Size Validation
+        roomSize = Number(roomSize || 0);
+        if (roomSize < 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid room size."
+            });
+        }
+
+        // 8. Images Validations ⭐⭐⭐
+        if (!req.files || !req.files.roomImages) {
+            return res.status(400).json({ success: false, message: "Images required." });
+        }
+
+        const images = Array.isArray(req.files.roomImages)
+            ? req.files.roomImages
+            : [req.files.roomImages];
+
+        if (images.length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: "Upload at least 2 room images."
+            });
+        }
+        if (images.length > 10) {
+            return res.status(400).json({
+                success: false,
+                message: "Maximum 10 room images are allowed."
+            });
+        }
+
+        const uploadedImages = await uploadImage(images, "hotel-management/rooms");
+
+        // 11. Upload Success Check
+        if (!uploadedImages || !uploadedImages.length) {
+            return res.status(500).json({
+                success: false,
+                message: "Room image upload failed."
+            });
+        }
+
         const roomImages = uploadedImages.map((image) => image.secure_url);
 
+        // 9. Amenities Parsing & Validation
+        let amenitiesArray = [];
         if (typeof roomAmenities === "string") {
-            roomAmenities = roomAmenities.split(",").map((item) => item.trim()).filter(Boolean);
+            amenitiesArray = roomAmenities.split(",").map((item) => item.trim()).filter(Boolean);
+        } else if (Array.isArray(roomAmenities)) {
+            amenitiesArray = roomAmenities.map(item => item.trim()).filter(Boolean);
+        }
+
+        if (!Array.isArray(amenitiesArray) || amenitiesArray.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Select at least one room amenity."
+            });
         }
 
         const room = await roomModel.create({
             hotelId: hotel._id,
-            roomNumber: roomNumber.trim(),
-            roomType, pricePerNight, maxOccupancy, totalBeds, bedType, roomSize, description, roomAmenities, roomImages,
+            roomNumber,
+            roomType,
+            pricePerNight,
+            maxOccupancy,
+            totalBeds,
+            bedType,
+            roomSize,
+            description: description ? description.trim() : "",
+            roomAmenities: amenitiesArray,
+            roomImages,
             isFeatured: isFeatured === true || isFeatured === "true",
         });
 
         return res.status(201).json({ success: true, message: "Room created successfully.", room });
     } catch (error) {
+        console.error("Create Room Error:", error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
 
+// =========================================================================
 // GET MY ROOMS
+// =========================================================================
 const getMyRooms = async (req, res) => {
     try {
         let hotelId;
@@ -76,7 +211,6 @@ const getMyRooms = async (req, res) => {
                 { roomType: searchRegex },
                 { description: searchRegex }
             ];
-            // Agar roomNumber numeric bhi ho sakta hai toh safely match karne ke liye:
             const parsedNum = Number(search.trim());
             if (!isNaN(parsedNum)) {
                 query.$or.push({ roomNumber: parsedNum });
@@ -116,7 +250,9 @@ const getMyRooms = async (req, res) => {
     }
 };
 
+// =========================================================================
 // VIEW SINGLE ROOM (GET BY ID)
+// =========================================================================
 const viewRoom = async (req, res) => {
     try {
         const { roomId } = req.params;
@@ -130,7 +266,9 @@ const viewRoom = async (req, res) => {
     }
 };
 
+// =========================================================================
 // UPDATE ROOM
+// =========================================================================
 const updateRoom = async (req, res) => {
     try {
         const { roomId } = req.params;
@@ -144,12 +282,23 @@ const updateRoom = async (req, res) => {
         }
 
         if (req.files && req.files.roomImages) {
-            const uploadedImages = await uploadImage(req.files.roomImages, "hotel-management/rooms");
+            const images = Array.isArray(req.files.roomImages)
+                ? req.files.roomImages
+                : [req.files.roomImages];
+
+            if (images.length > 10) {
+                return res.status(400).json({ success: false, message: "Maximum 10 room images are allowed." });
+            }
+
+            const uploadedImages = await uploadImage(images, "hotel-management/rooms");
+            if (!uploadedImages || !uploadedImages.length) {
+                return res.status(500).json({ success: false, message: "Room image upload failed." });
+            }
             updateData.roomImages = uploadedImages.map(img => img.secure_url);
         }
 
         if (typeof updateData.roomAmenities === "string") {
-            updateData.roomAmenities = updateData.roomAmenities.split(",").map(i => i.trim());
+            updateData.roomAmenities = updateData.roomAmenities.split(",").map(i => i.trim()).filter(Boolean);
         }
 
         const updatedRoom = await roomModel.findByIdAndUpdate(roomId, updateData, { new: true });
@@ -159,7 +308,9 @@ const updateRoom = async (req, res) => {
     }
 };
 
+// =========================================================================
 // DELETE ROOM
+// =========================================================================
 const deleteRoom = async (req, res) => {
     try {
         const { roomId } = req.params;
@@ -177,7 +328,9 @@ const deleteRoom = async (req, res) => {
     }
 };
 
+// =========================================================================
 // TOGGLE STATUS
+// =========================================================================
 const toggleRoomStatus = async (req, res) => {
     try {
         const { roomId } = req.params;
@@ -196,6 +349,9 @@ const toggleRoomStatus = async (req, res) => {
     }
 };
 
+// =========================================================================
+// GET PUBLIC ROOMS BY HOTEL
+// =========================================================================
 const getPublicRoomsByHotel = async (req, res) => {
     try {
         const { hotelId } = req.params;
@@ -203,7 +359,6 @@ const getPublicRoomsByHotel = async (req, res) => {
 
         let query = { hotelId, isActive: true };
 
-        // 🔍 Search filter by room type or description
         if (search.trim()) {
             const searchRegex = new RegExp(search.trim(), "i");
             query.$or = [
@@ -212,8 +367,7 @@ const getPublicRoomsByHotel = async (req, res) => {
             ];
         }
 
-        // 📊 Sorting logic
-        let sortOption = { pricePerNight: 1 }; // default low to high
+        let sortOption = { pricePerNight: 1 };
         if (sort === "highToLow") sortOption = { pricePerNight: -1 };
         else if (sort === "newest") sortOption = { createdAt: -1 };
 

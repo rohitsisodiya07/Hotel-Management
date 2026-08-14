@@ -1,4 +1,5 @@
 const cloudinary = require("cloudinary").v2;
+const compressImage = require("./imageCompression");
 
 cloudinary.config({
     cloud_name: process.env.CLOUD_NAME,
@@ -12,19 +13,32 @@ const uploadImage = async (files, folder = "hotel-management") => {
     const results = [];
 
     for (const file of fileArray) {
+
+        // Compress image before upload
+        const compressedBuffer = await compressImage(file);
+
         const result = await new Promise((resolve, reject) => {
-            cloudinary.uploader
-                .upload_stream(
-                    {
-                        folder,
-                        resource_type: "image",
-                    },
-                    (error, result) => {
-                        if (error) return reject(error);
-                        resolve(result);
+
+            cloudinary.uploader.upload_stream(
+                {
+                    folder,
+                    resource_type: "image",
+
+                    // Cloudinary Optimization
+                    quality: "auto",
+                    fetch_format: "auto",
+                },
+                (error, result) => {
+
+                    if (error) {
+                        return reject(error);
                     }
-                )
-                .end(file.data);
+
+                    resolve(result);
+
+                }
+            ).end(compressedBuffer);
+
         });
 
         results.push(result);

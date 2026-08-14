@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
 import {
@@ -35,24 +35,29 @@ const PendingAdmins = () => {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
 
-    // 🌟 Backend-driven useSearch hooks for each tab
-    const pendingSearch = useSearch(`${signupApi}admin/pending`, search, {
+    // 🌟 1. MEMOIZED PARAMS (Yeh infinite loop aur baar-baar refresh hone ki problem ko rokeyga)
+    const pendingParams = useMemo(() => ({
         page: pendingPage,
         limit,
         sort: sortOrder
-    }, headers);
+    }), [pendingPage, limit, sortOrder]);
 
-    const approvedSearch = useSearch(`${signupApi}admin/approved`, search, {
+    const approvedParams = useMemo(() => ({
         page: approvedPage,
         limit,
         sort: sortOrder
-    }, headers);
+    }), [approvedPage, limit, sortOrder]);
 
-    const rejectedSearch = useSearch(`${signupApi}admin/rejected`, search, {
+    const rejectedParams = useMemo(() => ({
         page: rejectedPage,
         limit,
         sort: sortOrder
-    }, headers);
+    }), [rejectedPage, limit, sortOrder]);
+
+    // 🌟 2. Backend-driven useSearch hooks with memoized params and debounce delay
+    const pendingSearch = useSearch(`${signupApi}admin/pending`, search, pendingParams, 400);
+    const approvedSearch = useSearch(`${signupApi}admin/approved`, search, approvedParams, 400);
+    const rejectedSearch = useSearch(`${signupApi}admin/rejected`, search, rejectedParams, 400);
 
     const currentActiveSearch = activeTab === "pending" ? pendingSearch : activeTab === "approved" ? approvedSearch : rejectedSearch;
     const loading = currentActiveSearch.loading;
@@ -70,9 +75,9 @@ const PendingAdmins = () => {
     const setCurrentPage = activeTab === "pending" ? setPendingPage : activeTab === "approved" ? setApprovedPage : setRejectedPage;
 
     const refreshData = () => {
-        pendingSearch.fetchData();
-        approvedSearch.fetchData();
-        rejectedSearch.fetchData();
+        pendingSearch.refetch();
+        approvedSearch.refetch();
+        rejectedSearch.refetch();
     };
 
     const generateRandomPassword = () => {
@@ -411,8 +416,8 @@ const PendingAdmins = () => {
                                     key={pageNum}
                                     onClick={() => setCurrentPage(pageNum)}
                                     className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
-                                            ? "bg-blue-600 text-white shadow-sm"
-                                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                                        ? "bg-blue-600 text-white shadow-sm"
+                                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
                                         }`}
                                 >
                                     {pageNum}
@@ -423,7 +428,6 @@ const PendingAdmins = () => {
                 </div>
             </div>
 
-            {/* Modals remain clean and intact */}
             {/* Approve Modal */}
             {showApprove && (
                 <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">

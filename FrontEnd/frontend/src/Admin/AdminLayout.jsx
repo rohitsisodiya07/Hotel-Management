@@ -336,7 +336,7 @@ const AdminLayout = () => {
                     {user?.name || "Administrator"}
                   </p>
                   <p className="text-[10px] text-gray-500 font-bold tracking-wider uppercase flex items-center justify-end gap-1 mt-0.5 font-['IBM_Plex_Mono']">
-                    <MapPin size={10} className="text-blue-600" /> System Admin
+                    <MapPin size={10} className="text-blue-600" />  Admin
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm text-sm shrink-0 font-['Space_Grotesk']">

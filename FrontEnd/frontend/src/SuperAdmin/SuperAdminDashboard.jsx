@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
 import {
-    Building2, UserCheck, Trash2, Edit, Search, Bed, MapPin, ShieldCheck, RefreshCw, Map, Layers, Clock, Globe, SlidersHorizontal, IndianRupee, Eye, X
+    Building2, UserCheck, Trash2, Edit, Search, Bed, MapPin, ShieldCheck, RefreshCw, Map, Layers, Clock, Globe, SlidersHorizontal, IndianRupee, Eye, X, Download
 } from "lucide-react";
 import {
     BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, ResponsiveContainer,
@@ -131,6 +131,52 @@ const SuperAdminDashboard = () => {
             toast.error("Failed to fetch analytics data.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    // --- Excel Export Function ---
+    const handleExport = async () => {
+        try {
+            toast.info("Preparing Excel Export...");
+
+            const params = {
+                filter: filterType || "all",
+                id: filterId || "all",
+                status: statusFilter || "all",
+                search: searchTerm || "",
+                sortBy: sortBy || "newest",
+            };
+
+            const response = await axios.get(
+                `${signupApi}dashboard/superAdmin/dashboard/export`,
+                {
+                    params,
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                    responseType: "blob",
+                }
+            );
+
+            const blob = new Blob([response.data], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "hotel_dashboard.xlsx";
+
+            document.body.appendChild(link);
+            link.click();
+
+            link.remove();
+            window.URL.revokeObjectURL(url);
+
+            toast.success("Dashboard successfully exported!");
+        } catch (error) {
+            console.error("Export Error:", error.response?.data || error);
+            toast.error("Failed to export dashboard data.");
         }
     };
 
@@ -694,6 +740,14 @@ const SuperAdminDashboard = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                        <button
+                            onClick={handleExport}
+                            className="flex items-center gap-2 px-4 h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer shrink-0"
+                        >
+                            <Download size={16} />
+                            Export
+                        </button>
+
                         <div className="relative flex-1 sm:w-72">
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                             <input
@@ -810,8 +864,8 @@ const SuperAdminDashboard = () => {
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase border ${hotel.status === "Approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                                    hotel.status === "Pending" ? "bg-orange-50 text-orange-700 border-orange-200" :
-                                                        "bg-rose-50 text-rose-700 border-rose-200"
+                                                hotel.status === "Pending" ? "bg-orange-50 text-orange-700 border-orange-200" :
+                                                    "bg-rose-50 text-rose-700 border-rose-200"
                                                 }`}>
                                                 {hotel.status || "Approved"}
                                             </span>
@@ -866,8 +920,8 @@ const SuperAdminDashboard = () => {
                                     key={pageNum}
                                     onClick={() => setPage(pageNum)}
                                     className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
-                                            ? "bg-blue-600 text-white shadow-sm"
-                                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                                        ? "bg-blue-600 text-white shadow-sm"
+                                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
                                         }`}
                                 >
                                     {pageNum}

@@ -9,6 +9,7 @@ import ForgotPassword from "./ForgotPassword";
 import ResetPassword from "./ResetPassword";
 import PublicRoute from "./PublicRoute";
 import ProtectedRoute from "./ProtectedRoute";
+import PopularCity from "./User/PopularCity";
 
 //SuperAdmin
 import AdminLayout from "./SuperAdmin/AdminLayout";
@@ -82,11 +83,7 @@ function App() {
 
         <Route
           path="/login"
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          }
+          element={<Login />}
         />
 
         <Route
@@ -97,24 +94,24 @@ function App() {
             </PublicRoute>
           }
         />
-
-        {/* Change 3: Wrapped Admin and Status pages in PublicRoute */}
         <Route
-          path="/adminSignup"
+          path="/popularcity"
           element={
             <PublicRoute>
-              <SignupAdmin />
+              <PopularCity />
             </PublicRoute>
           }
         />
 
+        {/* Change 3: Wrapped Admin and Status pages in PublicRoute */}
+        <Route
+          path="/adminSignup"
+          element={<SignupAdmin />}
+        />
+
         <Route
           path="/adminSignup/:id"
-          element={
-            <PublicRoute>
-              <SignupAdmin />
-            </PublicRoute>
-          }
+          element={<SignupAdmin />}
         />
 
         <Route

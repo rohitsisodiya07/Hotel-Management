@@ -1,31 +1,101 @@
-const express = require('express');
+const express = require("express");
 
 const router = express.Router();
 
-const districtController = require('../Controller/districtController');
+const districtController = require("../Controller/districtController");
 
-//Create
-router.post("/create", districtController.createDistrict);
+const authMiddleware = require("../Middleware/authMiddleware");
+const superAdminMiddleware = require("../Middleware/superAdmin");
 
-//active
-router.get("/active", districtController.getAllDistricts);
 
-//Inactive
-router.get("/inactive", districtController.getInactiveDistricts);
+// Create
+router.post(
+    "/create",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.createDistrict
+);
 
-//GetOne
-router.get("/:id", districtController.getDistrictById);
 
-//Update
-router.patch("/update/:id", districtController.updateDistrict);
+// Bulk Preview
+router.post(
+    "/bulk-preview",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.bulkPreviewDistricts
+);
 
-//Active-Inactive
-router.patch("/inactive/:id", districtController.inactiveDistrict);
 
-//Restore
-router.patch("/restore/:id", districtController.restoreDistrict);
+// Bulk Import
+router.post(
+    "/bulk-import",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.bulkImportDistricts
+);
 
-router.delete("/:id", districtController.deleteDistrict);
+
+// Active
+router.get(
+    "/active",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.getAllDistricts
+);
+
+
+// Inactive
+router.get(
+    "/inactive",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.getInactiveDistricts
+);
+
+
+// Get One
+router.get(
+    "/:id",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.getDistrictById
+);
+
+
+// Update
+router.patch(
+    "/update/:id",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.updateDistrict
+);
+
+
+// Active -> Inactive
+router.patch(
+    "/inactive/:id",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.inactiveDistrict
+);
+
+
+// Restore
+router.patch(
+    "/restore/:id",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.restoreDistrict
+);
+
+
+// Permanent Delete
+router.delete(
+    "/:id",
+    authMiddleware,
+    superAdminMiddleware,
+    districtController.deleteDistrict
+);
 
 
 module.exports = router;

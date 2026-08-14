@@ -8,19 +8,31 @@ const admin = require("../Middleware/admin");
 const superAdmin = require("../Middleware/superAdmin");
 const adminOrSuperAdmin = require("../Middleware/adminOrSuperAdmin");
 
-// ==========================
-// 🟢 PUBLIC ROUTES (No Auth Required - MUST BE AT THE TOP)
-// ==========================
-router.get("/public/all", hotelController.getAllPublicHotels);
-router.get("/public/:id", hotelController.getPublicHotelById);
-
-// Check Status (Public)
-router.post("/checkStatus", hotelController.checkHotelStatus);
-
 
 // ==========================
-// Admin
+// 🟢 PUBLIC ROUTES
 // ==========================
+
+router.get(
+    "/public/all",
+    hotelController.getAllPublicHotels
+);
+
+router.get(
+    "/public/:id",
+    hotelController.getPublicHotelById
+);
+
+router.post(
+    "/checkStatus",
+    hotelController.checkHotelStatus
+);
+
+
+// ==========================
+// ADMIN
+// ==========================
+
 router.post(
     "/create",
     auth,
@@ -65,8 +77,9 @@ router.get(
 
 
 // ==========================
-// Admin + Super Admin
+// ADMIN + SUPER ADMIN
 // ==========================
+
 router.get(
     "/pending",
     auth,
@@ -90,8 +103,30 @@ router.get(
 
 
 // ==========================
-// Super Admin
+// 📥 BULK IMPORT
 // ==========================
+
+// Preview Excel
+router.post(
+    "/bulk-preview",
+    auth,
+    adminOrSuperAdmin,
+    hotelController.bulkPreviewHotels
+);
+
+// Confirm Import
+router.post(
+    "/bulk-import",
+    auth,
+    adminOrSuperAdmin,
+    hotelController.bulkImportHotels
+);
+
+
+// ==========================
+// SUPER ADMIN
+// ==========================
+
 router.patch(
     "/approve/:id",
     auth,
@@ -108,24 +143,37 @@ router.patch(
 
 
 // ==========================
-// 💥 Approved Hotel Dashboard Portal
+// APPROVED HOTEL DASHBOARD
 // ==========================
+
 router.get(
     "/particular-dashboard",
     auth,
     hotelController.getParticularHotelDashboard
 );
 
-router.get("/all", auth, hotelController.getAllHotels);
+router.get(
+    "/all",
+    auth,
+    hotelController.getAllHotels
+);
 
 
 // ==========================
-// Common (Protected Parameter Route)
+// COMMON
 // ==========================
+
 router.get(
     "/:id",
     auth,
     hotelController.getHotelById
+);
+
+router.delete(
+    "/delete/:id",
+    auth,
+    adminOrSuperAdmin,
+    hotelController.deleteHotel
 );
 
 module.exports = router;

@@ -15,7 +15,8 @@ import {
     ChevronRight,
     Clock,
     AlertCircle,
-    X
+    X,
+    CheckCheck
 } from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -27,6 +28,13 @@ const AdminLayout = () => {
     const token = localStorage.getItem("token");
 
     const [notifications, setNotifications] = useState([]);
+    const [readIds, setReadIds] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem("read_notifications") || "[]");
+        } catch {
+            return [];
+        }
+    });
     const [showNotifications, setShowNotifications] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -103,6 +111,23 @@ const AdminLayout = () => {
         }
     };
 
+    // Mark single notification as read
+    const handleMarkAsRead = (e, id) => {
+        e.stopPropagation(); // prevent clicking wrapper navigation
+        const updated = [...readIds, id];
+        setReadIds(updated);
+        localStorage.setItem("read_notifications", JSON.stringify(updated));
+    };
+
+    // Mark all as read
+    const handleMarkAllAsRead = () => {
+        const allIds = notifications.map(n => n.id);
+        setReadIds(allIds);
+        localStorage.setItem("read_notifications", JSON.stringify(allIds));
+    };
+
+    const unreadNotifications = notifications.filter(n => !readIds.includes(n.id));
+
     const handleLogout = () => {
         if (!window.confirm("Are you sure you want to end your session?")) return;
         localStorage.clear();
@@ -128,9 +153,10 @@ const AdminLayout = () => {
         return "Control Center";
     };
 
-    const handleNotificationClick = (path) => {
+    const handleNotificationClick = (notif) => {
+        handleMarkAsRead({ stopPropagation: () => { } }, notif.id);
         setShowNotifications(false);
-        navigate(path);
+        navigate(notif.path);
     };
 
     return (
@@ -242,9 +268,9 @@ const AdminLayout = () => {
                                 className="relative p-2.5 text-gray-500 hover:text-gray-900 transition rounded-xl bg-gray-50 border border-gray-200 hover:bg-white cursor-pointer shadow-2xs flex items-center justify-center"
                             >
                                 <Bell size={18} />
-                                {notifications.length > 0 && (
+                                {unreadNotifications.length > 0 && (
                                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs animate-pulse">
-                                        {notifications.length}
+                                        {unreadNotifications.length}
                                     </span>
                                 )}
                             </button>
@@ -256,15 +282,26 @@ const AdminLayout = () => {
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-['Space_Grotesk'] text-sm font-bold text-gray-900">System Notifications</h3>
                                             <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200">
-                                                {notifications.length} New
+                                                {unreadNotifications.length} Unread
                                             </span>
                                         </div>
-                                        <button
-                                            onClick={() => setShowNotifications(false)}
-                                            className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition cursor-pointer"
-                                        >
-                                            <X size={15} />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            {unreadNotifications.length > 0 && (
+                                                <button
+                                                    onClick={handleMarkAllAsRead}
+                                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-wider cursor-pointer"
+                                                    title="Mark all as read"
+                                                >
+                                                    Mark all read
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setShowNotifications(false)}
+                                                className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition cursor-pointer"
+                                            >
+                                                <X size={15} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-100">
@@ -274,32 +311,47 @@ const AdminLayout = () => {
                                                 No pending approval requests
                                             </div>
                                         ) : (
-                                            notifications.map((notif) => (
-                                                <div
-                                                    key={notif.id}
-                                                    onClick={() => handleNotificationClick(notif.path)}
-                                                    className="p-4 hover:bg-blue-50/40 transition cursor-pointer flex gap-3.5 items-start group"
-                                                >
-                                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${notif.type === "hotel" ? "bg-blue-50 text-blue-600 border border-blue-200" : "bg-purple-50 text-purple-600 border border-purple-200"
-                                                        }`}>
-                                                        <AlertCircle size={17} />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between mb-0.5">
-                                                            <p className="font-bold text-gray-900 text-xs truncate group-hover:text-blue-600 transition">
-                                                                {notif.title}
-                                                            </p>
-                                                            <span className="text-[10px] text-gray-400 shrink-0 font-['IBM_Plex_Mono']">
-                                                                {notif.time}
-                                                            </span>
+                                            notifications.map((notif) => {
+                                                const isRead = readIds.includes(notif.id);
+                                                return (
+                                                    <div
+                                                        key={notif.id}
+                                                        onClick={() => handleNotificationClick(notif)}
+                                                        className={`p-4 transition cursor-pointer flex gap-3.5 items-start group ${isRead ? "bg-white opacity-70" : "bg-blue-50/30 hover:bg-blue-50/60"
+                                                            }`}
+                                                    >
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${notif.type === "hotel"
+                                                                ? "bg-blue-50 text-blue-600 border border-blue-200"
+                                                                : "bg-purple-50 text-purple-600 border border-purple-200"
+                                                            }`}>
+                                                            <AlertCircle size={17} />
                                                         </div>
-                                                        <p className="text-gray-500 text-[11px] truncate font-medium">
-                                                            {notif.desc}
-                                                        </p>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between mb-0.5">
+                                                                <p className={`font-bold text-xs truncate transition ${isRead ? "text-gray-700 font-normal" : "text-gray-900 group-hover:text-blue-600"}`}>
+                                                                    {notif.title}
+                                                                </p>
+                                                                <span className="text-[10px] text-gray-400 shrink-0 font-['IBM_Plex_Mono']">
+                                                                    {notif.time}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-gray-500 text-[11px] truncate font-medium">
+                                                                {notif.desc}
+                                                            </p>
+                                                        </div>
+
+                                                        {!isRead && (
+                                                            <button
+                                                                onClick={(e) => handleMarkAsRead(e, notif.id)}
+                                                                title="Mark as read"
+                                                                className="self-center p-1.5 rounded-lg hover:bg-blue-100 text-blue-600 transition cursor-pointer shrink-0"
+                                                            >
+                                                                <CheckCheck size={16} />
+                                                            </button>
+                                                        )}
                                                     </div>
-                                                    <ChevronRight size={14} className="text-gray-300 group-hover:text-blue-600 transition self-center shrink-0" />
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
 

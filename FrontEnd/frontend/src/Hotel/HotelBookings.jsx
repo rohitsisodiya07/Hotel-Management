@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
 import { useNavigate } from "react-router-dom";
@@ -39,13 +39,16 @@ const HotelBookings = () => {
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
-  // 🌟 Backend-driven useSearch hook integration
-  const bookingSearch = useSearch(`${signupApi}booking/hotelBookings`, search, {
+  // 🌟 Memoized Params taaki infinite loop ya unnecessary re-fetches na ho
+  const bookingParams = useMemo(() => ({
     page,
     limit,
     sort: sortOrder,
     status: activeTab
-  }, headers);
+  }), [page, limit, sortOrder, activeTab]);
+
+  // 🌟 Backend-driven useSearch hook integration (Headers hata diye kyunki hook khud token leta hai)
+  const bookingSearch = useSearch(`${signupApi}booking/hotelBookings`, search, bookingParams);
 
   const loading = bookingSearch.loading;
   const resData = bookingSearch.data || {};
@@ -161,8 +164,8 @@ const HotelBookings = () => {
               key={tab.key}
               onClick={() => { setActiveTab(tab.key); setPage(1); }}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${activeTab === tab.key
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
                 }`}
             >
               {tab.label}
@@ -302,8 +305,8 @@ const HotelBookings = () => {
                     key={pageNum}
                     onClick={() => setPage(pageNum)}
                     className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
                       }`}
                   >
                     {pageNum}

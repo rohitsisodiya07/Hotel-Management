@@ -1,23 +1,62 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const auth = require('../Middleware/authMiddleware'); // Aapka auth middleware
-const {
-    getDashboardSummary,
-    getPlatformAnalytics,
-    getDropdownOptions,
-    getSuperAdminDashboardAnalytics
-} = require('../Controller/dashboardController');
 
-// Route: GET /api/dashboard/summary (For Hotel Owners / Managers)
-router.get('/summary', auth, getDashboardSummary);
+const dashboardController = require("../Controller/dashboardController");
 
-// Route: GET /api/dashboard/platform-analytics (For Super Admin)
-router.get('/platform-analytics', auth, getPlatformAnalytics);
+const auth = require("../Middleware/authMiddleware");
+const superAdmin = require("../Middleware/superAdmin");
+const admin = require('../Middleware/admin')
 
-// ==========================================
-// 🌟 Super Admin Global Scope Analytics & Dropdowns
-// ==========================================
-router.get('/superAdmin/options', auth, getDropdownOptions);
-router.get('/superAdmin/dashboard', auth, getSuperAdminDashboardAnalytics);
+
+
+
+// Dashboard Summary
+router.get(
+    "/summary",
+    auth,
+    dashboardController.getDashboardSummary
+);
+
+
+// Platform Analytics
+router.get(
+    "/platform-analytics",
+    auth,
+    dashboardController.getPlatformAnalytics
+);
+
+
+// Super Admin Options
+router.get(
+    "/superAdmin/options",
+    auth,
+    dashboardController.getDropdownOptions
+);
+
+
+// Super Admin Dashboard
+router.get(
+    "/superAdmin/dashboard",
+    auth,
+    dashboardController.getSuperAdminDashboardAnalytics
+);
+
+
+// Super Admin Dashboard Excel Export
+router.get(
+    "/superAdmin/dashboard/export",
+    auth,
+    superAdmin,
+    dashboardController.exportSuperAdminDashboard
+);
+
+// Admin Dashboard Excel Export
+router.get(
+    "/platform-analytics/export",
+    auth,
+    admin,
+    dashboardController.exportPlatformAnalytics
+);
+
 
 module.exports = router;

@@ -1,4 +1,5 @@
 const Coupon = require('../Model/couponModel');
+const XLSX = require('xlsx')
 
 
 exports.createCoupon = async (req, res) => {
@@ -329,5 +330,210 @@ exports.deleteCoupon = async (req, res) => {
             success: false,
             message: "Internal framework exception executing target node destruction payload."
         });
+    }
+};
+
+exports.bulkImportCoupons = async (req, res) => {
+    try {
+        console.log("========== FINAL BULK IMPORT ==========");
+        let coupons = [];
+
+        // Parse JSON coupons from preview
+        if (req.body?.coupons) {
+            try {
+                coupons = typeof req.body.coupons === "string" ? JSON.parse(req.body.coupons) : req.body.coupons;
+            } catch (error) {
+                return res.status(400).json({ success: false, message: "Invalid coupon data" });
+            }
+            if (!Array.isArray(coupons)) {
+                return res.status(400).json({ success: false, message: "Coupons must be an array" });
+            }
+        } 
+        // Direct Excel file upload fallback
+        else if (req.files?.file) {
+            const file = req.files.file;
+            const workbook = XLSX.read(file.data, { type: "buffer", cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            if (!sheetName) return res.status(400).json({ success: false, message: "Excel file does not contain any sheet" });
+
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "", raw: true });
+            if (!rows.length) return res.status(400).json({ success: false, message: "Excel file is empty" });
+
+            coupons = rows.map((row) => ({
+                couponCode: String(row.couponCode || "").trim().toUpperCase(),
+                discountType: String(row.discountType || "").trim(),
+                discountValue: Number(row.discountValue),
+                maxDiscount: row.maxDiscount === "" || row.maxDiscount === undefined ? null : Number(row.maxDiscount),
+                minBookingAmount: row.minBookingAmount === "" || row.minBookingAmount === undefined ? 0 : Number(row.minBookingAmount),
+                startDate: row.startDate ? new Date(row.startDate) : new Date(),
+                expiryDate: row.expiryDate ? new Date(row.expiryDate) : null,
+                maxUses: row.maxUses === "" || row.maxUses === undefined ? 100 : Number(row.maxUses),
+                usedCount: 0,
+                status: String(row.status || "Active").trim(),
+            }));
+        } else {
+            return res.status(400).json({ success: false, message: "No coupon data or Excel file provided" });
+        }
+
+        // Filter valid preview rows
+        coupons = coupons.filter((coupon) => coupon && coupon.couponCode && coupon.discountType && Number.isFinite(Number(coupon.discountValue)));
+        if (coupons.length === 0) return res.status(400).json({ success: false, message: "No valid coupons available for import" });
+
+        // Normalize Data Fields
+        coupons = coupons.map((coupon) => ({
+            couponCode: String(coupon.couponCode).trim().toUpperCase(),
+            discountType: coupon.discountType,
+            discountValue: Number(coupon.discountValue),
+            maxDiscount: coupon.discountType === "Percentage" ? (coupon.maxDiscount === null || coupon.maxDiscount === undefined || coupon.maxDiscount === "" ? null : Number(coupon.maxDiscount)) : null,
+            minBookingAmount: Number(coupon.minBookingAmount || 0),
+            startDate: new Date(coupon.startDate),
+            expiryDate: new Date(coupon.expiryDate),
+            maxUses: Number(coupon.maxUses || 100),
+            usedCount: 0,
+            status: coupon.status || "Active",
+        }));
+
+        // Final Backend Validation
+        const errors = [];
+        const validCoupons = [];
+
+        for (let i = 0; i < coupons.length; i++) {
+            const coupon = coupons[i];
+            if (!coupon.couponCode) { errors.push({ couponCode: "", message: "Coupon code is required" }); continue; }
+            if (!["Percentage", "Fixed Amount"].includes(coupon.discountType)) { errors.push({ couponCode: coupon.couponCode, message: "Invalid discount type" }); continue; }
+            if (!Number.isFinite(coupon.discountValue) || coupon.discountValue <= 0) { errors.push({ couponCode: coupon.couponCode, message: "Discount value must be greater than 0" }); continue; }
+            if (coupon.discountType === "Percentage" && coupon.discountValue > 100) { errors.push({ couponCode: coupon.couponCode, message: "Percentage discount cannot exceed 100" }); continue; }
+            if (!Number.isFinite(coupon.minBookingAmount) || coupon.minBookingAmount < 0) { errors.push({ couponCode: coupon.couponCode, message: "Invalid minimum booking amount" }); continue; }
+            if (Number.isNaN(coupon.startDate.getTime())) { errors.push({ couponCode: coupon.couponCode, message: "Invalid start date" }); continue; }
+            if (Number.isNaN(coupon.expiryDate.getTime())) { errors.push({ couponCode: coupon.couponCode, message: "Invalid expiry date" }); continue; }
+            if (coupon.expiryDate <= coupon.startDate) { errors.push({ couponCode: coupon.couponCode, message: "Expiry date must be after start date" }); continue; }
+            if (!Number.isFinite(coupon.maxUses) || coupon.maxUses < 1) { errors.push({ couponCode: coupon.couponCode, message: "Maximum uses must be at least 1" }); continue; }
+            if (!["Active", "Inactive"].includes(coupon.status)) { errors.push({ couponCode: coupon.couponCode, message: "Invalid coupon status" }); continue; }
+            validCoupons.push(coupon);
+        }
+
+        // Check Existing in Database
+        const couponCodes = validCoupons.map((coupon) => coupon.couponCode);
+        const existingCoupons = await Coupon.find({ couponCode: { $in: couponCodes } }).select("couponCode");
+        const existingCodes = new Set(existingCoupons.map((coupon) => coupon.couponCode));
+
+        const finalCoupons = [];
+        validCoupons.forEach((coupon) => {
+            if (existingCodes.has(coupon.couponCode)) {
+                errors.push({ couponCode: coupon.couponCode, message: "Coupon already exists" });
+            } else {
+                finalCoupons.push(coupon);
+            }
+        });
+
+        // Check Internal Duplicates
+        const seenCodes = new Set();
+        const uniqueCoupons = [];
+        finalCoupons.forEach((coupon) => {
+            if (seenCodes.has(coupon.couponCode)) {
+                errors.push({ couponCode: coupon.couponCode, message: "Duplicate coupon code" });
+            } else {
+                seenCodes.add(coupon.couponCode);
+                uniqueCoupons.push(coupon);
+            }
+        });
+
+        let insertedCoupons = [];
+        if (uniqueCoupons.length > 0) {
+            insertedCoupons = await Coupon.insertMany(uniqueCoupons, { ordered: false });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Bulk coupon import completed",
+            summary: { totalRows: coupons.length, imported: insertedCoupons.length, failed: errors.length },
+            errors,
+        });
+    } catch (error) {
+        console.error("Bulk Coupon Import Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.bulkPreviewCoupons = async (req, res) => {
+    try {
+        console.log("========== BULK PREVIEW ==========");
+        const file = req.files?.file;
+        if (!file) return res.status(400).json({ success: false, message: "Please upload an Excel file" });
+
+        const workbook = XLSX.read(file.data, { type: "buffer", cellDates: true });
+        const sheetName = workbook.SheetNames[0];
+        if (!sheetName) return res.status(400).json({ success: false, message: "Excel file does not contain any sheet" });
+
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "", raw: true });
+        if (!rows.length) return res.status(400).json({ success: false, message: "Excel file is empty" });
+
+        const couponCodes = rows.map((row) => String(row.couponCode || "").trim().toUpperCase()).filter(Boolean);
+        const existingCoupons = await Coupon.find({ couponCode: { $in: couponCodes } }).select("couponCode");
+        const existingCodes = new Set(existingCoupons.map((coupon) => coupon.couponCode));
+
+        const seenCodes = new Set();
+        const previewRows = [];
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const rowNumber = i + 2;
+            const couponCode = String(row.couponCode || "").trim().toUpperCase();
+            const discountType = String(row.discountType || "").trim();
+            const discountValue = Number(row.discountValue);
+            const maxDiscount = row.maxDiscount === "" || row.maxDiscount === undefined ? null : Number(row.maxDiscount);
+            const minBookingAmount = row.minBookingAmount === "" || row.minBookingAmount === undefined ? 0 : Number(row.minBookingAmount);
+            const startDate = row.startDate ? new Date(row.startDate) : new Date();
+            const expiryDate = row.expiryDate ? new Date(row.expiryDate) : null;
+            const maxUses = row.maxUses === "" || row.maxUses === undefined ? 100 : Number(row.maxUses);
+            const status = String(row.status || "Active").trim();
+
+            const errors = [];
+            if (!couponCode) errors.push("Coupon code is required");
+            if (couponCode) {
+                if (seenCodes.has(couponCode)) errors.push("Duplicate coupon code in Excel");
+                else seenCodes.add(couponCode);
+            }
+            if (couponCode && existingCodes.has(couponCode)) errors.push("Coupon already exists");
+            if (!["Percentage", "Fixed Amount"].includes(discountType)) errors.push("Invalid discount type");
+            if (!Number.isFinite(discountValue) || discountValue <= 0) errors.push("Discount value must be greater than 0");
+            if (discountType === "Percentage" && discountValue > 100) errors.push("Percentage discount cannot exceed 100");
+            if (discountType === "Fixed Amount" && maxDiscount !== null) errors.push("Maximum discount is only applicable for percentage coupons");
+            if (!Number.isFinite(minBookingAmount) || minBookingAmount < 0) errors.push("Invalid minimum booking amount");
+            if (maxDiscount !== null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) errors.push("Invalid maximum discount");
+            if (!startDate || Number.isNaN(startDate.getTime())) errors.push("Invalid start date");
+            if (!expiryDate || Number.isNaN(expiryDate.getTime())) errors.push("Invalid expiry date");
+            if (startDate && expiryDate && expiryDate <= startDate) errors.push("Expiry date must be after start date");
+            if (!Number.isFinite(maxUses) || maxUses < 1) errors.push("Maximum uses must be at least 1");
+            if (!["Active", "Inactive"].includes(status)) errors.push("Invalid status");
+
+            previewRows.push({
+                rowNumber,
+                couponCode,
+                discountType,
+                discountValue,
+                maxDiscount,
+                minBookingAmount,
+                startDate,
+                expiryDate,
+                maxUses,
+                status,
+                valid: errors.length === 0,
+                errors,
+            });
+        }
+
+        const validCount = previewRows.filter((row) => row.valid).length;
+        const invalidCount = previewRows.filter((row) => !row.valid).length;
+
+        return res.status(200).json({
+            success: true,
+            message: "Coupon preview generated",
+            summary: { totalRows: previewRows.length, valid: validCount, invalid: invalidCount },
+            rows: previewRows,
+        });
+    } catch (error) {
+        console.error("Bulk Coupon Preview Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

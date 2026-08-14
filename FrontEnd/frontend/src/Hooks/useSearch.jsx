@@ -1,45 +1,53 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 
-const useSearch = (url, search, params = {}) => {
+const useSearch = (url, search, params = {}, delay = 500) => {
     const [data, setData] = useState({});
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const getData = useCallback(async () => {
+    // Fix 3: useMemo ke sath params stringify taaki infinite loop na bane
+    const paramsString = useMemo(() => {
+        return JSON.stringify(params);
+    }, [params]);
+
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
+            setError(null);
 
             const response = await axios.get(url, {
                 params: {
                     search,
-                    ...params
+                    ...JSON.parse(paramsString),
                 },
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`
-                }
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
+                },
             });
 
-            // Store the entire response data object (result, total, totalPages, etc.)
             setData(response.data);
-        } catch (error) {
-            console.log(error);
+        } catch (err) {
+            setError(err.response?.data?.message || err.message);
         } finally {
             setLoading(false);
         }
-    }, [url, search, JSON.stringify(params)]);
+    }, [url, search, paramsString]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            getData();
-        }, 500);
+            fetchData();
+        }, delay);
 
         return () => clearTimeout(timer);
-    }, [getData]);
+    }, [fetchData, delay]);
 
     return {
         data,
         loading,
-        fetchData: getData
+        error,
+        fetchData, // Fix 2: fetchData return kiya taaki component me direct call ho sake
+        refetch: fetchData,
     };
 };
 

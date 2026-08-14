@@ -2,7 +2,14 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { signupApi } from "../api";
-import { UploadCloud, Loader2, ArrowLeft, Hotel, CheckSquare, CheckCircle2, X, Trash2 } from "lucide-react";
+import {
+  UploadCloud, Loader2, ArrowLeft, Hotel, CheckSquare,
+  CheckCircle2, X, Trash2, FileSpreadsheet, Upload, AlertTriangle
+} from "lucide-react";
+import { Toaster, toast } from "sonner";
+
+const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png"];
+const MAX_SIZE = 1024 * 1024; // 1 MB
 
 const AddHotels = () => {
   const navigate = useNavigate();
@@ -19,6 +26,14 @@ const AddHotels = () => {
   const [cities, setCities] = useState([]);
   const [previewImages, setPreviewImages] = useState([]);
   const [errors, setErrors] = useState({});
+
+  // 📂 Bulk Import & Preview States
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [previewRows, setPreviewRows] = useState([]);
+  const [previewSummary, setPreviewSummary] = useState(null);
+  const [importing, setImporting] = useState(false);
 
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -38,70 +53,22 @@ const AddHotels = () => {
   });
 
   const amenitiesList = [
-    "Free Wi-Fi",
-    "Free Parking",
-    "Valet Parking",
-    "24/7 Front Desk",
-    "Express Check-in",
-    "Express Check-out",
-    "Elevator/Lift",
-    "Airport Shuttle",
-    "Railway Station Pickup",
-    "Taxi Service",
-    "Car Rental",
-    "Swimming Pool",
-    "Indoor Pool",
-    "Outdoor Pool",
-    "Kids Pool",
-    "Gym / Fitness Center",
-    "Spa & Wellness Center",
-    "Steam Room",
-    "Sauna",
-    "Yoga Center",
-    "Restaurant",
-    "Multi-Cuisine Restaurant",
-    "Cafe",
-    "Bar / Lounge",
-    "Rooftop Restaurant",
-    "Buffet Breakfast",
-    "Complimentary Breakfast",
-    "24/7 Room Service",
-    "Laundry Service",
-    "Dry Cleaning",
-    "Ironing Service",
-    "Business Center",
-    "Conference Room",
-    "Meeting Room",
-    "Banquet Hall",
-    "Wedding Venue",
-    "Garden",
-    "Terrace",
-    "Kids Play Area",
-    "Game Room",
-    "Library",
-    "BBQ Area",
-    "Pet Friendly",
-    "Wheelchair Accessible",
-    "Family Friendly",
-    "Non-Smoking Property",
-    "Smoking Area",
-    "Luggage Storage",
-    "Concierge Service",
-    "Travel Desk",
-    "Tour Assistance",
-    "Currency Exchange",
-    "ATM",
-    "Gift Shop",
-    "Beauty Salon",
-    "Medical Assistance",
-    "Doctor On Call",
-    "First Aid",
-    "Power Backup",
-    "CCTV Security",
-    "Fire Safety",
-    "Smoke Detectors",
-    "24/7 Security",
-    "EV Charging Station"
+    "Free Wi-Fi", "Free Parking", "Valet Parking", "24/7 Front Desk",
+    "Express Check-in", "Express Check-out", "Elevator/Lift", "Airport Shuttle",
+    "Railway Station Pickup", "Taxi Service", "Car Rental", "Swimming Pool",
+    "Indoor Pool", "Outdoor Pool", "Kids Pool", "Gym / Fitness Center",
+    "Spa & Wellness Center", "Steam Room", "Sauna", "Yoga Center",
+    "Restaurant", "Multi-Cuisine Restaurant", "Cafe", "Bar / Lounge",
+    "Rooftop Restaurant", "Buffet Breakfast", "Complimentary Breakfast",
+    "24/7 Room Service", "Laundry Service", "Dry Cleaning", "Ironing Service",
+    "Business Center", "Conference Room", "Meeting Room", "Banquet Hall",
+    "Wedding Venue", "Garden", "Terrace", "Kids Play Area", "Game Room",
+    "Library", "BBQ Area", "Pet Friendly", "Wheelchair Accessible",
+    "Family Friendly", "Non-Smoking Property", "Smoking Area", "Luggage Storage",
+    "Concierge Service", "Travel Desk", "Tour Assistance", "Currency Exchange",
+    "ATM", "Gift Shop", "Beauty Salon", "Medical Assistance", "Doctor On Call",
+    "First Aid", "Power Backup", "CCTV Security", "Fire Safety", "Smoke Detectors",
+    "24/7 Security", "EV Charging Station"
   ];
 
   const getApprovedAdmins = async () => {
@@ -123,10 +90,22 @@ const AddHotels = () => {
 
   const getCities = async () => {
     try {
-      const response = await axios.get(`${signupApi}city/active`);
+      const response = await axios.get(
+        `${signupApi}city/active`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
       setCities(response.data.result || []);
+
     } catch (error) {
-      console.error("Cities fetching error:", error);
+      console.error(
+        "Cities fetching error:",
+        error.response?.data || error
+      );
     }
   };
 
@@ -149,7 +128,7 @@ const AddHotels = () => {
         totalRooms: hotel.totalRooms || "",
         description: hotel.description || "",
         amenities: hotel.amenities || [],
-        hotelImages: [],
+        hotelImages: hotel.hotelImages || [],
       });
 
       if (hotel.hotelImages) {
@@ -185,7 +164,7 @@ const AddHotels = () => {
 
     if (form.amenities.length === 0) newErrors.amenities = "Select at least one amenity";
 
-    if (!id && form.hotelImages.length < 3) newErrors.hotelImages = "Upload at least 3 property images";
+    if (form.hotelImages.length < 3) newErrors.hotelImages = "Upload at least 3 property images";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -209,17 +188,46 @@ const AddHotels = () => {
 
   const handleImages = (e) => {
     const files = Array.from(e.target.files);
+    if (!files.length) return;
 
-    if (!id && files.length < 3) {
-      setErrors((prev) => ({ ...prev, hotelImages: "Upload at least 3 property images" }));
+    const totalImagesCount = form.hotelImages.length + files.length;
+    if (totalImagesCount > 10) {
+      setErrors((prev) => ({
+        ...prev,
+        hotelImages: "Maximum 10 images are allowed in total.",
+      }));
+      return;
+    }
+
+    let imageErrors = [];
+
+    for (const file of files) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        imageErrors.push(`${file.name} : Only JPG, JPEG and PNG images are allowed.`);
+      }
+
+      if (file.size > MAX_SIZE) {
+        imageErrors.push(`${file.name} : Image size should be less than 1 MB.`);
+      }
+    }
+
+    if (imageErrors.length > 0) {
+      setErrors((prev) => ({
+        ...prev,
+        hotelImages: imageErrors.join(" "),
+      }));
       return;
     }
 
     setErrors((prev) => ({ ...prev, hotelImages: "" }));
-    setForm((prev) => ({ ...prev, hotelImages: files }));
 
-    const previews = files.map((file) => URL.createObjectURL(file));
-    setPreviewImages(previews);
+    setForm((prev) => ({
+      ...prev,
+      hotelImages: [...prev.hotelImages, ...files],
+    }));
+
+    const newPreviews = files.map((file) => URL.createObjectURL(file));
+    setPreviewImages((prev) => [...prev, ...newPreviews]);
   };
 
   const removeImage = (index) => {
@@ -263,9 +271,106 @@ const AddHotels = () => {
       setShowSuccessModal(true);
     } catch (error) {
       console.error(error);
-      alert(error?.response?.data?.message || "Something went wrong.");
+      toast.error(error?.response?.data?.message || "Something went wrong.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- Bulk Functions ---
+  const handleBulkPreview = async (e) => {
+    e.preventDefault();
+
+    if (!importFile) {
+      toast.error("Please select an Excel file first.");
+      return;
+    }
+
+    try {
+      setImporting(true);
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      const response = await axios.post(
+        `${signupApi}hotel/bulk-preview`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setPreviewRows(response.data.preview || []);
+      setPreviewSummary({
+        totalRows: response.data.totalRows,
+        valid: response.data.validRows,
+        invalid: response.data.invalidRows
+      });
+
+      toast.success(response.data.message || "Preview generated successfully");
+
+      setShowImportModal(false);
+      setShowPreview(true);
+
+    } catch (error) {
+      console.log("BULK PREVIEW ERROR:", error.response?.data);
+      toast.error(error.response?.data?.message || "Failed to generate preview");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const removePreviewRow = (rowNumber) => {
+    const updatedRows = previewRows.filter((row) => row.rowNumber !== rowNumber);
+    setPreviewRows(updatedRows);
+
+    const valid = updatedRows.filter((row) => row.status === "Valid").length;
+    const invalid = updatedRows.filter((row) => row.status === "Invalid").length;
+
+    setPreviewSummary({
+      totalRows: updatedRows.length,
+      valid,
+      invalid,
+    });
+  };
+
+  const handleFinalImport = async () => {
+    const validRows = previewRows.filter((row) => row.status === "Valid");
+
+    if (validRows.length === 0) {
+      toast.error("No valid hotels available for import");
+      return;
+    }
+
+    try {
+      setImporting(true);
+
+      // Sending original verified row data
+      const hotelsData = validRows.map((row) => row.originalData);
+
+      const response = await axios.post(
+        `${signupApi}hotel/bulk-import`,
+        { hotels: hotelsData },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success(response.data.message || "Bulk import completed");
+
+      setShowPreview(false);
+      setPreviewRows([]);
+      setPreviewSummary(null);
+      setImportFile(null);
+
+      // Navigate to dashboard automatically
+      setTimeout(() => {
+        handleCloseModal();
+      }, 1500);
+
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Bulk import failed");
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -288,18 +393,27 @@ const AddHotels = () => {
   return (
     <div className="max-w-[1200px] mx-auto text-gray-800 font-['Inter',sans-serif] pb-12">
       <style>{`
-        .custom-checkbox:checked {
-          background-color: #2563EB;
-          border-color: #2563EB;
-        }
+        .custom-checkbox:checked { background-color: #2563EB; border-color: #2563EB; }
       `}</style>
+      <Toaster position="top-right" richColors />
 
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-6 font-semibold text-xs transition cursor-pointer"
-      >
-        <ArrowLeft size={16} /> Back to Dashboard
-      </button>
+      <div className="flex justify-between items-center mb-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-500 hover:text-gray-900 font-semibold text-xs transition cursor-pointer"
+        >
+          <ArrowLeft size={16} /> Back to Dashboard
+        </button>
+
+        {!id && (
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+          >
+            <FileSpreadsheet size={15} /> Bulk Import (Excel)
+          </button>
+        )}
+      </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
         {/* Header */}
@@ -444,10 +558,7 @@ const AddHotels = () => {
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-gray-50/50 border border-gray-200 p-6 rounded-xl shadow-2xs">
               {amenitiesList.map((item) => (
-                <label
-                  key={item}
-                  className="flex items-center gap-3 text-xs font-medium text-gray-700 cursor-pointer group"
-                >
+                <label key={item} className="flex items-center gap-3 text-xs font-medium text-gray-700 cursor-pointer group">
                   <input
                     type="checkbox"
                     value={item}
@@ -483,23 +594,19 @@ const AddHotels = () => {
           {/* Media Attachments */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <label className="font-['Space_Grotesk'] font-bold text-base text-gray-900">
-                Media Gallery Attachments
-              </label>
-              {id && <span className="font-['IBM_Plex_Mono'] text-[10px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md font-bold tracking-wider">LEAVE EMPTY TO RETAIN EXISTING</span>}
+              <label className="font-['Space_Grotesk'] font-bold text-base text-gray-900">Media Gallery Attachments</label>
+              <span className="font-['IBM_Plex_Mono'] text-[10px] text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md font-bold tracking-wider">MAX 10 IMAGES ALLOWED</span>
             </div>
 
             <div className="relative border-2 border-dashed border-gray-300 rounded-xl bg-gray-50/50 p-8 text-center hover:bg-gray-50 transition cursor-pointer">
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImages}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
+              <input type="file" multiple accept=".jpg,.jpeg,.png" onChange={handleImages} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               <UploadCloud className="mx-auto text-gray-400 mb-3" size={32} />
               <p className="text-xs font-bold text-gray-900">Click to browse or drag and drop images</p>
-              <p className="text-[11px] text-gray-500 mt-1">Minimum 3 high-resolution property photos required</p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Only JPG, JPEG & PNG images.<br />
+                Maximum size: 1 MB per image.<br />
+                Minimum 3 images required (Max 10).
+              </p>
             </div>
             {errors.hotelImages && <p className="text-rose-500 text-[11px] font-medium mt-2">✕ {errors.hotelImages}</p>}
 
@@ -507,21 +614,15 @@ const AddHotels = () => {
             {previewImages.length > 0 && (
               <div className="mt-6">
                 <p className="font-['IBM_Plex_Mono'] text-[10px] text-gray-500 font-bold tracking-widest uppercase mb-3">
-                  Upload Blueprint Preview
+                  Upload Blueprint Preview ({previewImages.length}/10)
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                   {previewImages.map((image, index) => (
                     <div key={index} className="aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-2xs bg-white relative group">
                       <img src={image} alt={`Preview ${index}`} className="w-full h-full object-cover" />
-                      {!id && (
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute top-2 right-2 bg-rose-600 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition shadow-sm cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
+                      <button type="button" onClick={() => removeImage(index)} className="absolute top-2 right-2 bg-rose-600 text-white p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition shadow-sm cursor-pointer">
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -531,18 +632,10 @@ const AddHotels = () => {
 
           {/* Footer Actions */}
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-10 pt-6 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="w-full sm:w-auto h-11 px-8 text-xs font-bold uppercase tracking-wider rounded-xl bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition cursor-pointer"
-            >
+            <button type="button" onClick={() => navigate(-1)} className="w-full sm:w-auto h-11 px-8 text-xs font-bold uppercase tracking-wider rounded-xl bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 transition cursor-pointer">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white h-11 px-8 text-xs font-bold uppercase tracking-wider rounded-xl disabled:opacity-50 transition shadow-2xs cursor-pointer"
-            >
+            <button type="submit" disabled={loading} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white h-11 px-8 text-xs font-bold uppercase tracking-wider rounded-xl disabled:opacity-50 transition shadow-2xs cursor-pointer">
               {loading && <Loader2 size={16} className="animate-spin" />}
               {id ? "Save Modifications" : "Submit Registration"}
             </button>
@@ -550,37 +643,160 @@ const AddHotels = () => {
         </form>
       </div>
 
+      {/* 📁 BULK IMPORT UPLOAD MODAL */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-6 relative border border-gray-200">
+            <button onClick={() => { setShowImportModal(false); setImportFile(null); }} className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition cursor-pointer">
+              <X size={16} />
+            </button>
+
+            <div className="flex items-center gap-2 mb-2 text-emerald-600">
+              <FileSpreadsheet size={20} />
+              <h3 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900">Bulk Import Properties</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+              Upload an Excel (.xlsx) file containing property schema specifications.
+            </p>
+
+            <form onSubmit={handleBulkPreview} className="space-y-4">
+              <div className="border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-6 text-center bg-gray-50 transition cursor-pointer relative">
+                <input type="file" accept=".xlsx, .xls, .csv" onChange={(e) => { const selectedFile = e.target.files?.[0]; if (selectedFile) setImportFile(selectedFile); }} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                <Upload size={28} className="mx-auto text-gray-400 mb-2" />
+                <p className="text-xs font-bold text-gray-800">{importFile ? importFile.name : "Click to browse or drag & drop file"}</p>
+                <p className="text-[10px] text-gray-400 mt-1">Supports XLSX, XLS format</p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowImportModal(false); setImportFile(null); }} className="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={importing || !importFile} className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition shadow-2xs cursor-pointer">
+                  {importing && <Loader2 size={14} className="animate-spin" />}
+                  {importing ? "Generating..." : "Upload & Preview"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 👁️ BULK IMPORT PREVIEW MODAL */}
+      {showPreview && (
+        <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-gray-200 flex flex-col">
+            <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet size={20} className="text-emerald-600" />
+                  <h3 className="text-lg font-bold text-gray-900 font-['Space_Grotesk']">Review Property Import</h3>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Review your properties before importing. Remove invalid rows to proceed.</p>
+              </div>
+              <button onClick={() => setShowPreview(false)} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+
+            {previewSummary && (
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                <div className="flex flex-wrap gap-3">
+                  <div className="px-4 py-2 bg-white border border-gray-200 rounded-xl">
+                    <p className="text-[10px] text-gray-400 uppercase font-bold">Total</p>
+                    <p className="text-lg font-bold text-gray-900">{previewSummary.totalRows}</p>
+                  </div>
+                  <div className="px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="text-[10px] text-emerald-600 uppercase font-bold">Valid</p>
+                    <p className="text-lg font-bold text-emerald-700">{previewSummary.valid}</p>
+                  </div>
+                  <div className="px-4 py-2 bg-rose-50 border border-rose-200 rounded-xl">
+                    <p className="text-[10px] text-rose-600 uppercase font-bold">Issues</p>
+                    <p className="text-lg font-bold text-rose-700">{previewSummary.invalid}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="overflow-auto flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-gray-100 z-10">
+                  <tr className="text-[10px] uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3">Row</th>
+                    <th className="px-4 py-3">Property Name</th>
+                    <th className="px-4 py-3">Email</th>
+                    <th className="px-4 py-3">City</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Validation Message</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row, index) => (
+                    <tr key={index} className={`border-b border-gray-100 ${row.status === "Valid" ? "hover:bg-gray-50" : "bg-rose-50/60"}`}>
+                      <td className="px-4 py-4 text-xs font-mono text-gray-500">{row.rowNumber}</td>
+                      <td className="px-4 py-4">
+                        <span className="font-['IBM_Plex_Mono'] text-xs font-bold text-gray-900">{row.hotelName || "—"}</span>
+                      </td>
+                      <td className="px-4 py-4"><span className="text-xs text-gray-600">{row.hotelEmail || "—"}</span></td>
+                      <td className="px-4 py-4"><span className="text-xs text-gray-600 capitalize">{row.cityName || "—"}</span></td>
+                      <td className="px-4 py-4">
+                        {row.status === "Valid" ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-bold"><CheckCircle2 size={14} /> Valid</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-rose-600 text-xs font-bold"><AlertTriangle size={14} /> Invalid</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        {row.status === "Valid" ? <span className="text-xs text-gray-500">—</span> : (
+                          <div className="flex flex-col gap-1">
+                            {row.errors.map((error, errIdx) => (
+                              <span key={errIdx} className="text-[10px] text-rose-600 font-semibold whitespace-nowrap">✕ {error}</span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <button type="button" onClick={() => removePreviewRow(row.rowNumber)} className="w-8 h-8 inline-flex items-center justify-center shrink-0 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 transition cursor-pointer">
+                          <X size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-white flex flex-col sm:flex-row justify-between gap-3">
+              <button onClick={() => { setShowPreview(false); setShowImportModal(true); }} className="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition cursor-pointer">
+                ← Change File
+              </button>
+              <div className="flex gap-3">
+                <button onClick={() => { setShowPreview(false); setPreviewRows([]); setPreviewSummary(null); setImportFile(null); }} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition cursor-pointer">
+                  Cancel
+                </button>
+                <button type="button" onClick={handleFinalImport} disabled={importing || !previewSummary || previewSummary.invalid > 0 || previewRows.length === 0} className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer">
+                  {importing ? "Importing..." : `Import ${previewSummary?.valid || 0} Properties`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Popup Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white border border-gray-200 rounded-2xl p-8 w-full max-w-[400px] shadow-2xl text-center relative animate-in zoom-in-95 duration-200">
-            <button
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer"
-            >
+            <button onClick={handleCloseModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer">
               <X size={16} />
             </button>
-
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-4 shadow-2xs">
               <CheckCircle2 size={28} />
             </div>
-
-            <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.2em] text-blue-600 uppercase font-bold mb-1">
-              SYSTEM NOTIFICATION
-            </p>
-
-            <h3 className="font-['Space_Grotesk',sans-serif] text-lg font-bold text-gray-900 mb-2">
-              Successfully Synchronized!
-            </h3>
-
-            <p className="text-xs text-gray-600 mb-6 leading-relaxed font-medium">
-              {modalMessage}
-            </p>
-
-            <button
-              onClick={handleCloseModal}
-              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition shadow-2xs cursor-pointer"
-            >
+            <p className="font-['IBM_Plex_Mono',monospace] text-[10px] tracking-[0.2em] text-blue-600 uppercase font-bold mb-1">SYSTEM NOTIFICATION</p>
+            <h3 className="font-['Space_Grotesk',sans-serif] text-lg font-bold text-gray-900 mb-2">Successfully Synchronized!</h3>
+            <p className="text-xs text-gray-600 mb-6 leading-relaxed font-medium">{modalMessage}</p>
+            <button onClick={handleCloseModal} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition shadow-2xs cursor-pointer">
               Okay, Got It
             </button>
           </div>

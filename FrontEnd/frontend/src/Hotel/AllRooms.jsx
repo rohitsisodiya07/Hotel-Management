@@ -30,17 +30,17 @@ const AllRooms = () => {
     // 🌟 Modals & Actions States
     const [selectedRoom, setSelectedRoom] = useState(null);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
-    const [deleteModalRoom, setDeleteModalRoom] = useState(null); // Custom Delete Modal State
+    const [deleteModalRoom, setDeleteModalRoom] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
 
-    // 🌟 Backend-driven useSearch hook integration (Debounced Search)
+    // 🌟 Fix 1: Headers hata diye kyunki hook khud localStorage se token utha raha hai
     const roomSearch = useSearch(`${signupApi}room/myRooms`, searchQuery, {
         page,
         limit,
         status: statusFilter,
         roomType: roomTypeFilter,
         sort: sortBy
-    }, headers);
+    });
 
     const loading = roomSearch.loading;
     const resData = roomSearch.data || {};
@@ -60,7 +60,7 @@ const AllRooms = () => {
             setActionLoading(true);
             await axios.patch(`${signupApi}room/status/${id}`, {}, { headers });
             toast.success("Room status updated successfully.");
-            roomSearch.fetchData();
+            roomSearch.fetchData(); // Fix 2: Hook ab fetchData return kar raha hai
             if (selectedRoom && selectedRoom._id === id) {
                 setSelectedRoom(prev => ({ ...prev, isActive: !prev.isActive }));
             }
@@ -80,7 +80,7 @@ const AllRooms = () => {
             toast.success("Room deleted successfully.");
             setDeleteModalRoom(null);
             if (selectedRoom?._id === deleteModalRoom._id) setSelectedRoom(null);
-            roomSearch.fetchData();
+            roomSearch.fetchData(); // Fix 2: Hook ab fetchData return kar raha hai
         } catch {
             toast.error("Delete failed. Please try again.");
         } finally {
@@ -118,7 +118,7 @@ const AllRooms = () => {
                 </button>
             </div>
 
-            {/* 2. STATISTICS CARDS ⭐ */}
+            {/* 2. STATISTICS CARDS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs flex items-center justify-between">
                     <div>
@@ -150,7 +150,7 @@ const AllRooms = () => {
                 </div>
             </div>
 
-            {/* 3 & 14. BETTER FILTER LAYOUT (Search + Type + Status + Sort) */}
+            {/* 3. FILTER LAYOUT */}
             <div className="bg-white p-5 rounded-3xl border border-gray-200/80 shadow-2xs flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-[240px]">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -208,7 +208,7 @@ const AllRooms = () => {
                 </div>
             </div>
 
-            {/* ROOM GRID WITH SKELETON LOADER (13) & HOVER EFFECTS (4) */}
+            {/* ROOM GRID */}
             <div className="relative min-h-[400px]">
                 {loading && (
                     <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex justify-center items-center z-20 rounded-3xl">
@@ -246,7 +246,6 @@ const AllRooms = () => {
                                     key={room._id}
                                     className="bg-white rounded-3xl border border-gray-200/80 shadow-2xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
                                 >
-                                    {/* Image Header with Broken Image Fallback (9) */}
                                     <div className="relative h-52 w-full bg-gray-100 overflow-hidden shrink-0 border-b border-gray-100">
                                         <img
                                             src={room.roomImages?.[0] || "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=600&auto=format&fit=crop"}
@@ -262,7 +261,6 @@ const AllRooms = () => {
                                             ₹{room.pricePerNight} <span className="text-[10px] font-normal text-gray-300 uppercase">/ Night</span>
                                         </div>
 
-                                        {/* 7. STATUS TOGGLE SWITCH */}
                                         <div className="absolute top-3 right-3 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-sm border border-gray-200">
                                             <span className={`text-[10px] font-['IBM_Plex_Mono'] font-bold uppercase ${room.isActive ? "text-emerald-700" : "text-rose-700"}`}>
                                                 {room.isActive ? "ON" : "OFF"}
@@ -289,7 +287,6 @@ const AllRooms = () => {
                                         )}
                                     </div>
 
-                                    {/* Room Info */}
                                     <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
                                         <div>
                                             <h2 className="font-['Space_Grotesk',sans-serif] text-lg font-bold text-gray-900 leading-tight">
@@ -311,7 +308,6 @@ const AllRooms = () => {
                                             </div>
                                         </div>
 
-                                        {/* 10 & 15. CARD ACTIONS (Prominent View + Icon Utilities) + FOOTER TIMESTAMP */}
                                         <div className="space-y-3 pt-1">
                                             <div className="flex items-center justify-between gap-2">
                                                 <button
@@ -336,7 +332,6 @@ const AllRooms = () => {
                                                 </button>
                                             </div>
 
-                                            {/* Card Footer Timestamp (15) */}
                                             <p className="text-[10px] text-gray-400 font-['IBM_Plex_Mono'] text-center">
                                                 Updated {dayjs(room.updatedAt || room.createdAt).fromNow()}
                                             </p>
@@ -348,7 +343,7 @@ const AllRooms = () => {
                     </div>
                 )}
 
-                {/* 11. PAGINATION */}
+                {/* PAGINATION */}
                 <div className="flex flex-col sm:flex-row items-center justify-between px-2 pt-6 border-t border-gray-200 mt-8 text-xs gap-3">
                     <p className="text-gray-500 font-medium">
                         Showing page <strong className="text-gray-900">{page}</strong> of <strong className="text-gray-900">{totalPages || 1}</strong> (Total: {totalCount})
@@ -363,8 +358,8 @@ const AllRooms = () => {
                                     key={pageNum}
                                     onClick={() => setPage(pageNum)}
                                     className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
-                                            ? "bg-blue-600 text-white shadow-sm"
-                                            : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                                        ? "bg-blue-600 text-white shadow-sm"
+                                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
                                         }`}
                                 >
                                     {pageNum}
@@ -375,7 +370,7 @@ const AllRooms = () => {
                 </div>
             </div>
 
-            {/* 5. VIEW MODAL (With Arrow Controls + Counter) */}
+            {/* VIEW MODAL */}
             {selectedRoom && (
                 <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl max-w-[650px] w-full max-h-[90vh] overflow-hidden shadow-2xl border border-gray-200 flex flex-col relative">
@@ -393,7 +388,6 @@ const AllRooms = () => {
                         </div>
 
                         <div className="overflow-y-auto flex-1 bg-white">
-                            {/* Image Gallery with Navigation Arrows & Counter */}
                             <div className="relative border-b border-gray-100 bg-gray-950 h-64 sm:h-72 flex items-center justify-center">
                                 <img
                                     src={selectedRoom.roomImages?.[activeImageIndex] || "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=600"}
@@ -478,7 +472,7 @@ const AllRooms = () => {
                 </div>
             )}
 
-            {/* 6. CUSTOM DELETE CONFIRMATION MODAL */}
+            {/* CUSTOM DELETE CONFIRMATION MODAL */}
             {deleteModalRoom && (
                 <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-200 space-y-4 text-center">

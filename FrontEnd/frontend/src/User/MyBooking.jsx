@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
 import { useNavigate } from "react-router-dom";
+import { toast, Toaster } from "sonner";
 
 import {
     Calendar,
@@ -95,7 +96,6 @@ const MyBookings = () => {
 
     // Modal State
     const [selectedBooking, setSelectedBooking] = useState(null);
-    const [modalLoading, setModalLoading] = useState(false);
 
     // ⭐ REVIEW SYSTEM STATES
     const [reviewModal, setReviewModal] = useState(false);
@@ -150,11 +150,11 @@ const MyBookings = () => {
             await axios.put(`${signupApi}booking/cancel/${bookingId}`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            alert("Booking cancelled successfully.");
+            toast.success("Booking cancelled successfully.");
             fetchBookings();
         } catch (error) {
             console.error("Cancel Error:", error);
-            alert(error.response?.data?.message || "Failed to cancel booking.");
+            toast.error(error.response?.data?.message || "Failed to cancel booking.");
         } finally {
             setCancelLoading(null);
         }
@@ -169,7 +169,6 @@ const MyBookings = () => {
 
     const handleViewDetails = async (id) => {
         try {
-            setModalLoading(true);
             const token = localStorage.getItem("token");
             const res = await axios.get(`${signupApi}booking/details/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -177,8 +176,7 @@ const MyBookings = () => {
             setSelectedBooking(res.data.booking);
         } catch (error) {
             console.error("Error fetching booking details:", error);
-        } finally {
-            setModalLoading(false);
+            toast.error("Failed to load booking details.");
         }
     };
 
@@ -187,7 +185,7 @@ const MyBookings = () => {
         e.preventDefault();
 
         if (!ratings.cleanliness || !ratings.staff || !ratings.location || !ratings.valueForMoney) {
-            alert("Please provide a star rating for all categories.");
+            toast.error("Please provide a star rating for all categories.");
             return;
         }
 
@@ -207,7 +205,7 @@ const MyBookings = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            alert("Thank you! Your feedback helps us improve.");
+            toast.success("Thank you! Your feedback helps us improve.");
 
             const averageRating = (ratings.cleanliness + ratings.staff + ratings.location + ratings.valueForMoney) / 4;
             const roundedRating = Math.round(averageRating * 10) / 10;
@@ -220,7 +218,7 @@ const MyBookings = () => {
             closeReviewModal();
         } catch (error) {
             console.error("Review Submit Error:", error);
-            alert(error.response?.data?.message || "Failed to submit review.");
+            toast.error(error.response?.data?.message || "Failed to submit review.");
         } finally {
             setReviewSubmitLoading(false);
         }
@@ -233,6 +231,11 @@ const MyBookings = () => {
         setRatings({ cleanliness: 0, staff: 0, location: 0, valueForMoney: 0 });
         setReviewText("");
     };
+
+    // 🎯 COUNTS FOR TABS
+    const currentCount = bookings.filter((b) => ["Pending", "Confirmed", "Checked In"].includes(b.bookingStatus)).length;
+    const completedCount = bookings.filter((b) => b.bookingStatus === "Completed").length;
+    const cancelledCount = bookings.filter((b) => b.bookingStatus === "Cancelled").length;
 
     // 🎯 FILTER LOGIC: 3 TABS
     const filteredBookings = bookings.filter((b) => {
@@ -283,6 +286,7 @@ const MyBookings = () => {
 
     return (
         <div className="min-h-screen bg-gray-50/50 text-gray-800 font-['Inter',sans-serif] flex flex-col justify-between">
+            <Toaster position="top-right" richColors />
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
                 .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -399,26 +403,33 @@ const MyBookings = () => {
                         <button onClick={() => navigate("/")} className="flex items-center gap-1.5 text-blue-600 text-xs font-bold uppercase tracking-wider mb-3 hover:underline font-['IBM_Plex_Mono'] cursor-pointer">
                             <ArrowLeft size={14} /> Back to Home
                         </button>
-                        <h1 className="text-2xl sm:text-3xl font-bold font-['Space_Grotesk'] tracking-tight text-gray-900">Account Portfolio</h1>
-                        <p className="text-gray-500 mt-1 text-xs max-w-sm leading-relaxed font-medium">Manage your upcoming stays and review your past history.</p>
+                        <h1 className="text-2xl sm:text-3xl font-bold font-['Space_Grotesk'] tracking-tight text-gray-900">My Reservations</h1>
+                        <p className="text-gray-500 mt-1 text-xs max-w-md leading-relaxed font-medium">Manage your upcoming stays, completed trips and booking history.</p>
                     </div>
                 </div>
 
                 {/* COMPACT BOOKINGS LIST */}
                 <div className="max-w-4xl mx-auto px-6 sm:px-8 py-8">
 
-                    {/* 3 TABS LAYOUT: Current | Completed | Cancelled */}
+                    {/* 3 TABS LAYOUT WITH DYNAMIC COUNTS */}
                     <div className="bg-white rounded-2xl p-1.5 shadow-2xs border border-gray-200 flex overflow-x-auto scrollbar-hide mb-6 sticky top-24 z-40">
-                        {["current", "completed", "cancelled"].map((tab) => (
+                        {[
+                            { key: "current", label: "Upcoming", count: currentCount },
+                            { key: "completed", label: "Completed", count: completedCount },
+                            { key: "cancelled", label: "Cancelled", count: cancelledCount }
+                        ].map((tab) => (
                             <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`flex-1 min-w-[100px] text-xs font-bold uppercase tracking-wider py-2.5 px-3 rounded-xl transition cursor-pointer ${activeTab === tab
-                                        ? "bg-blue-600 text-white shadow-2xs font-semibold"
-                                        : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={`flex-1 min-w-[110px] text-xs font-bold uppercase tracking-wider py-2.5 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-2 ${activeTab === tab.key
+                                    ? "bg-blue-600 text-white shadow-2xs font-semibold"
+                                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
                                     }`}
                             >
-                                {tab}
+                                <span>{tab.label}</span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] ${activeTab === tab.key ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"}`}>
+                                    {tab.count}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -428,13 +439,21 @@ const MyBookings = () => {
                             <div className="w-14 h-14 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-center mx-auto text-gray-400 mb-4 shadow-2xs">
                                 <Calendar size={24} strokeWidth={1.5} />
                             </div>
-                            <h2 className="text-base font-bold font-['Space_Grotesk'] text-gray-900 mb-1">No {activeTab} itineraries</h2>
-                            <p className="text-gray-500 text-xs mb-6 leading-relaxed">We couldn't find any reservations matching this status.</p>
+                            <h2 className="text-base font-bold font-['Space_Grotesk'] text-gray-900 mb-1">
+                                {activeTab === "current" && "No upcoming stays"}
+                                {activeTab === "completed" && "No completed trips"}
+                                {activeTab === "cancelled" && "No cancelled bookings"}
+                            </h2>
+                            <p className="text-gray-500 text-xs mb-6 leading-relaxed">
+                                {activeTab === "current" && "You haven't booked your next getaway yet."}
+                                {activeTab === "completed" && "Your past completed trips will appear here."}
+                                {activeTab === "cancelled" && "Your cancelled reservations will appear here."}
+                            </p>
                             <button
                                 onClick={() => navigate("/")}
                                 className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
                             >
-                                Discover Hotels
+                                Explore Hotels
                             </button>
                         </div>
                     ) : (

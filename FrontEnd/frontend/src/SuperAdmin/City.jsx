@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { signupApi } from "../api";
-import { Plus, Search, Eye, Edit, Ban, RotateCcw, Trash2, Loader2, MapPin, CheckCircle2, AlertTriangle, X, RefreshCw } from "lucide-react";
+import { Plus, Search, Eye, Edit, Ban, RotateCcw, Trash2, Loader2, MapPin, CheckCircle2, AlertTriangle, X, RefreshCw, Upload, FileSpreadsheet } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import useSearch from "../Hooks/useSearch";
 
@@ -10,6 +10,14 @@ const City = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
+
+  // 📂 Bulk Import & Preview States
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [previewRows, setPreviewRows] = useState([]);
+  const [previewSummary, setPreviewSummary] = useState(null);
+  const [importing, setImporting] = useState(false);
 
   const [cityName, setCityName] = useState("");
   const [districtId, setDistrictId] = useState("");
@@ -33,12 +41,26 @@ const City = () => {
   useEffect(() => {
     const fetchDistricts = async () => {
       try {
-        const res = await axios.get(`${signupApi}district/active`);
+        const token = localStorage.getItem("token");
+
+        const res = await axios.get(
+          `${signupApi}district/active`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
         setDistricts(res.data.result || res.data || []);
       } catch (err) {
-        console.error(err);
+        console.error(
+          "FETCH DISTRICTS ERROR:",
+          err.response?.data || err
+        );
       }
     };
+
     fetchDistricts();
   }, []);
 
@@ -58,7 +80,6 @@ const City = () => {
 
   const loading = activeState.loading || inactiveState.loading;
 
-  // Extracting data safely from hook response
   const activeRes = activeState.data || {};
   const cities = activeRes.result || [];
   const activeTotalPages = activeRes.totalPages || 1;
@@ -76,6 +97,108 @@ const City = () => {
     inactiveState.fetchData();
   };
 
+  // --- Bulk Import Functions ---
+  const handleBulkPreview = async (e) => {
+    e.preventDefault();
+
+    if (!importFile) {
+      toast.error("Please select an Excel or CSV file first.");
+      return;
+    }
+
+    try {
+      setImporting(true);
+
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      const token = localStorage.getItem("token");
+
+      const response = await axios.post(
+        `${signupApi}city/bulk-preview`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setPreviewRows(response.data.rows || []);
+      setPreviewSummary(response.data.summary || null);
+
+      toast.success(response.data.message || "Preview generated successfully");
+
+      setShowImportModal(false);
+      setShowPreview(true);
+
+    } catch (error) {
+      console.log("BULK PREVIEW ERROR:", error.response?.data);
+      toast.error(error.response?.data?.message || "Failed to generate preview");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const removePreviewRow = (rowNumber) => {
+    const updatedRows = previewRows.filter((row) => row.rowNumber !== rowNumber);
+    setPreviewRows(updatedRows);
+
+    const valid = updatedRows.filter((row) => row.valid).length;
+    const invalid = updatedRows.filter((row) => !row.valid).length;
+
+    setPreviewSummary({
+      totalRows: updatedRows.length,
+      valid,
+      invalid,
+    });
+  };
+
+  const handleFinalImport = async () => {
+    const validRows = previewRows.filter((row) => row.valid);
+
+    if (validRows.length === 0) {
+      toast.error("No valid cities available for import");
+      return;
+    }
+
+    try {
+      setImporting(true);
+      const citiesData = validRows.map((row) => ({
+        cityName: row.cityName,
+        districtName: row.districtName,
+      }));
+
+      const token = localStorage.getItem("token");
+
+      const response = await axios.post(
+        `${signupApi}city/bulk-import`,
+        {
+          cities: citiesData,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success(response.data.message || "Bulk import completed");
+
+      setShowPreview(false);
+      setPreviewRows([]);
+      setPreviewSummary(null);
+      setImportFile(null);
+      refreshData();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Bulk import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // --- Standard Operations ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!cityName.trim() || !districtId) {
@@ -86,11 +209,13 @@ const City = () => {
     try {
       const endpoint = isEdit ? `city/update/${editId}` : `city/create`;
       const method = isEdit ? axios.patch : axios.post;
+      const token = localStorage.getItem("token");
 
-      const response = await method(`${signupApi}${endpoint}`, {
-        cityName,
-        districtId,
-      });
+      const response = await method(
+        `${signupApi}${endpoint}`,
+        { cityName, districtId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       toast.success(response.data.message || (isEdit ? "City successfully modified." : "City successfully created."));
       setCityName("");
@@ -106,7 +231,10 @@ const City = () => {
 
   const handleView = async (id) => {
     try {
-      const response = await axios.get(`${signupApi}city/${id}`);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${signupApi}city/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setViewData(response.data.result);
       setShowViewModal(true);
     } catch (error) {
@@ -124,7 +252,10 @@ const City = () => {
 
   const handleInactive = async (id) => {
     try {
-      const response = await axios.patch(`${signupApi}city/inactive/${id}`);
+      const token = localStorage.getItem("token");
+      const response = await axios.patch(`${signupApi}city/inactive/${id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       toast.success(response.data.message || "City marked as inactive.");
       refreshData();
     } catch (error) {
@@ -134,7 +265,10 @@ const City = () => {
 
   const handleRestore = async (id) => {
     try {
-      const response = await axios.patch(`${signupApi}city/restore/${id}`);
+      const token = localStorage.getItem("token");
+      const response = await axios.patch(`${signupApi}city/restore/${id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       toast.success(response.data.message || "City restored successfully.");
       refreshData();
     } catch (error) {
@@ -150,7 +284,10 @@ const City = () => {
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
-      const response = await axios.delete(`${signupApi}city/${deleteId}`);
+      const token = localStorage.getItem("token");
+      const response = await axios.delete(`${signupApi}city/${deleteId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       toast.success(response.data.message || "City permanently deleted.");
       setShowDeleteModal(false);
       setDeleteId(null);
@@ -198,6 +335,13 @@ const City = () => {
             title="Refresh Data"
           >
             <RefreshCw size={16} />
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 h-11 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-2xs cursor-pointer flex-1 sm:flex-none"
+          >
+            <FileSpreadsheet size={16} />
+            Bulk Import
           </button>
           <button
             onClick={() => { setShowModal(true); setIsEdit(false); setCityName(""); setDistrictId(""); }}
@@ -440,8 +584,8 @@ const City = () => {
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
                   className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
                     }`}
                 >
                   {pageNum}
@@ -451,6 +595,231 @@ const City = () => {
           </div>
         </div>
       </div>
+
+      {/* 📁 BULK IMPORT UPLOAD MODAL */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-6 relative border border-gray-200">
+            <button
+              onClick={() => {
+                setShowImportModal(false);
+                setImportFile(null);
+              }}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex items-center gap-2 mb-2 text-emerald-600">
+              <FileSpreadsheet size={20} />
+              <h3 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900">Bulk Import Cities</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+              Upload an Excel (.xlsx) or CSV file containing city and district names matching your schema columns.
+            </p>
+
+            <form onSubmit={handleBulkPreview} className="space-y-4">
+              <div className="border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-6 text-center bg-gray-50 transition cursor-pointer relative">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={(e) => {
+                    const selectedFile = e.target.files?.[0];
+                    if (selectedFile) {
+                      setImportFile(selectedFile);
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+                <Upload size={28} className="mx-auto text-gray-400 mb-2" />
+                <p className="text-xs font-bold text-gray-800">
+                  {importFile ? importFile.name : "Click to browse or drag & drop file"}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-1">Supports XLSX, XLS, CSV format</p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportFile(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={importing || !importFile}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition shadow-2xs cursor-pointer"
+                >
+                  {importing && <Loader2 size={14} className="animate-spin" />}
+                  {importing ? "Generating Preview..." : "Upload & Preview"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 👁️ BULK IMPORT PREVIEW MODAL */}
+      {showPreview && (
+        <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-gray-200 flex flex-col">
+
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet size={20} className="text-emerald-600" />
+                  <h3 className="text-lg font-bold text-gray-900 font-['Space_Grotesk']">
+                    Review City Import
+                  </h3>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Review your city data before importing. Remove invalid rows to proceed.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Summary */}
+            {previewSummary && (
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                <div className="flex flex-wrap gap-3">
+                  <div className="px-4 py-2 bg-white border border-gray-200 rounded-xl">
+                    <p className="text-[10px] text-gray-400 uppercase font-bold">Total</p>
+                    <p className="text-lg font-bold text-gray-900">{previewSummary.totalRows}</p>
+                  </div>
+                  <div className="px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="text-[10px] text-emerald-600 uppercase font-bold">Valid</p>
+                    <p className="text-lg font-bold text-emerald-700">{previewSummary.valid}</p>
+                  </div>
+                  <div className="px-4 py-2 bg-rose-50 border border-rose-200 rounded-xl">
+                    <p className="text-[10px] text-rose-600 uppercase font-bold">Issues</p>
+                    <p className="text-lg font-bold text-rose-700">{previewSummary.invalid}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Table */}
+            <div className="overflow-auto flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-gray-100 z-10">
+                  <tr className="text-[10px] uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3">Row</th>
+                    <th className="px-4 py-3">City Name</th>
+                    <th className="px-4 py-3">District Name</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Validation Message</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row, index) => (
+                    <tr
+                      key={index}
+                      className={`border-b border-gray-100 ${row.valid ? "hover:bg-gray-50" : "bg-rose-50/60"}`}
+                    >
+                      <td className="px-4 py-4 text-xs font-mono text-gray-500">{row.rowNumber}</td>
+                      <td className="px-4 py-4">
+                        <span className="font-['IBM_Plex_Mono'] text-xs font-bold text-gray-900 capitalize">
+                          {row.cityName || "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-xs text-gray-600 capitalize">
+                          {row.districtName || "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        {row.valid ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-bold">
+                            <CheckCircle2 size={14} />
+                            Valid
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-rose-600 text-xs font-bold">
+                            <AlertTriangle size={14} />
+                            Invalid
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        {row.valid ? (
+                          <span className="text-xs text-gray-500">—</span>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {row.errors.map((error, errorIndex) => (
+                              <span key={errorIndex} className="text-[10px] text-rose-600 font-semibold whitespace-nowrap">
+                                ✕ {error}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removePreviewRow(row.rowNumber)}
+                          title="Remove this row"
+                          className="w-8 h-8 inline-flex items-center justify-center shrink-0 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 transition cursor-pointer"
+                        >
+                          <X size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-white flex flex-col sm:flex-row justify-between gap-3">
+              <button
+                onClick={() => {
+                  setShowPreview(false);
+                  setShowImportModal(true);
+                }}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition cursor-pointer"
+              >
+                ← Change File
+              </button>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowPreview(false);
+                    setPreviewRows([]);
+                    setPreviewSummary(null);
+                    setImportFile(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFinalImport}
+                  disabled={importing || !previewSummary || previewSummary.invalid > 0 || previewRows.length === 0}
+                  className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                >
+                  {importing ? "Importing..." : `Import ${previewSummary?.valid || 0} Cities`}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Modal */}
       {showModal && (

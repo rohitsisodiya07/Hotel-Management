@@ -25,8 +25,13 @@ const initialForm = {
   profileImage: null,
 };
 
-const MAX_IMAGE_MB = 5;
-const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_IMAGE_MB = 1;
+
+const ACCEPTED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png"
+];
 
 const SignupAdmin = () => {
   const navigate = useNavigate();
@@ -88,10 +93,11 @@ const SignupAdmin = () => {
   const validateFile = (file) => {
     if (!file) return "";
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return "Only JPG, PNG and WEBP files are allowed";
+      return "Only JPG, JPEG and PNG files are allowed";
     }
+
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-      return `File size should be less than ${MAX_IMAGE_MB} MB`;
+      return "Image size should be less than 1 MB";
     }
     return "";
   };
@@ -442,7 +448,8 @@ const SignupAdmin = () => {
               </div>
 
               <p className="text-[11px] text-gray-400 mt-1 pl-1 font-medium">
-                JPG, PNG or WEBP format. Maximum file size {MAX_IMAGE_MB}MB.
+                Only JPG, JPEG and PNG images are allowed.
+                Maximum file size: 1 MB.
               </p>
               <FieldError name="profileImage" />
             </div>

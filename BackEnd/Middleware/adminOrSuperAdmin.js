@@ -1,8 +1,8 @@
 module.exports = (req, res, next) => {
-
     if (
-        req.user.role !== "admin" &&
-        req.user.role !== "superAdmin"
+        !req.user ||
+        (req.user.role !== "admin" &&
+            req.user.role !== "superAdmin")
     ) {
         return res.status(403).json({
             success: false,
@@ -11,5 +11,4 @@ module.exports = (req, res, next) => {
     }
 
     next();
-
 };

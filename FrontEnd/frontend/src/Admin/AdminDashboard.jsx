@@ -15,7 +15,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip
 } from "recharts";
 import {
-  Building2, Users, Wallet, Star, ShieldCheck, TrendingUp, Search, Edit, X, Calendar, Filter, CheckCircle2, Clock
+  Building2, Users, Wallet, Star, ShieldCheck, TrendingUp, Search, Edit, X, Calendar, Filter, CheckCircle2, Clock, Download, ArrowDownAZ
 } from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -66,7 +66,6 @@ const AdminDashboard = () => {
   });
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
-  // Table Search, Filter, Sort & Pagination States
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("city");
@@ -74,17 +73,19 @@ const AdminDashboard = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [showView, setShowView] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   useEffect(() => {
     fetchAllHotelsForDropdown();
-  }, []);
+  }, [refreshTrigger]);
 
   useEffect(() => {
     fetchAnalytics(dateRange, selectedHotelId);
-  }, [dateRange, selectedHotelId]);
+  }, [dateRange, selectedHotelId, refreshTrigger]);
 
   const fetchAllHotelsForDropdown = async () => {
     try {
@@ -110,7 +111,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // Table Data State (fetched via API simulation or standard state updates)
   const [tableDataLoading, setTableDataLoading] = useState(false);
   const [tableResData, setTableResData] = useState({ hotels: [], total: 0, page: 1, totalPages: 1 });
 
@@ -139,7 +139,44 @@ const AdminDashboard = () => {
       }
     };
     fetchTableData();
-  }, [dateRange, selectedHotelId, statusFilter, cityFilter, search, sortBy, page, limit]);
+  }, [dateRange, selectedHotelId, statusFilter, cityFilter, search, sortBy, page, limit, refreshTrigger]);
+
+  const handleExport = async () => {
+    try {
+      toast.loading("Preparing Excel file...", { id: "export-hotels" });
+      const params = new URLSearchParams({
+        range: dateRange,
+        hotelId: selectedHotelId,
+        status: statusFilter,
+        city: cityFilter,
+        search,
+        sortBy,
+      });
+
+      const response = await axios.get(
+        `${signupApi}dashboard/platform-analytics/export?${params.toString()}`,
+        { headers, responseType: "blob" }
+      );
+
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `hotel-report-${dayjs().format("DD-MM-YYYY")}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Excel exported successfully", { id: "export-hotels" });
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export hotel data", { id: "export-hotels" });
+    }
+  };
 
   const filteredHotels = tableResData.hotels || [];
   const totalPages = tableResData.totalPages || 1;
@@ -159,11 +196,7 @@ const AdminDashboard = () => {
   }, [platformAnalytics]);
 
   const locationOf = (hotel) => {
-    return [
-      hotel.city?.cityName,
-      hotel.city?.districtId?.districtName,
-      hotel.city?.districtId?.stateId?.stateName,
-    ].filter(Boolean).join(", ");
+    return [hotel.city?.cityName, hotel.city?.districtId?.districtName, hotel.city?.districtId?.stateId?.stateName].filter(Boolean).join(", ");
   };
 
   const handleView = (hotel) => {
@@ -173,6 +206,21 @@ const AdminDashboard = () => {
 
   const handleEdit = (id) => {
     navigate(`/admin/addHotel?id=${id}`);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this property? This action cannot be undone.")) return;
+    try {
+      setTableDataLoading(true);
+      await axios.delete(`${signupApi}hotel/delete/${id}`, { headers });
+      toast.success("Property deleted successfully.");
+      setRefreshTrigger(prev => prev + 1);
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || "Failed to delete the property.");
+    } finally {
+      setTableDataLoading(false);
+    }
   };
 
   const monthlyRevenue = platformAnalytics.monthlyRevenue || [];
@@ -220,6 +268,9 @@ const AdminDashboard = () => {
               <button onClick={() => handleEdit(hotel._id)} className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-800 rounded-xl text-[11px] font-bold uppercase tracking-wider hover:bg-gray-200 transition shadow-2xs cursor-pointer">
                 Edit
               </button>
+              <button onClick={() => handleDelete(hotel._id)} className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-[11px] font-bold uppercase tracking-wider hover:bg-rose-600 hover:text-white transition shadow-2xs cursor-pointer">
+                Delete
+              </button>
             </div>
           );
         }
@@ -240,55 +291,69 @@ const AdminDashboard = () => {
 
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6 w-full pb-16 max-w-[1600px] mx-auto text-gray-800 font-['Inter',sans-serif]">
 
-        {/* HEADER */}
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between bg-white p-6 rounded-2xl border border-gray-200 shadow-2xs gap-4">
-          <div>
-            <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 tracking-tight">Admin Console</h1>
-            <p className="text-xs text-gray-500 font-medium">
+        {/* 🌟 1. REDESIGNED TOP HEADER */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between bg-white p-6 sm:p-8 rounded-3xl border border-gray-200 shadow-sm gap-6">
+
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold font-['Space_Grotesk'] text-gray-900 tracking-tight m-0">Admin Console</h1>
+              <span className="text-[11px] bg-gray-100 text-gray-500 px-2.5 py-1 rounded-md font-bold font-['IBM_Plex_Mono'] border border-gray-200 uppercase tracking-wider">
+                Updated {dayjs(lastUpdated).format("HH:mm")}
+              </span>
+            </div>
+            <p className="text-sm text-gray-500 font-medium m-0">
               Platform-wide overview of hotels, management metrics, and financial analytics.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-            <span className="text-xs text-gray-400 font-medium hidden sm:inline">
-              Last Updated: {dayjs(lastUpdated).fromNow()}
-            </span>
+          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 w-full lg:w-auto">
+            {/* Filter Group Box */}
+            <div className="flex flex-wrap items-center gap-2 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100">
+              <div className="flex items-center gap-2 bg-white px-3 h-10 rounded-xl border border-gray-200 shadow-2xs">
+                <Filter size={14} className="text-gray-400" />
+                <select
+                  value={selectedHotelId}
+                  onChange={(e) => setSelectedHotelId(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-gray-700 outline-none cursor-pointer w-32 sm:w-auto truncate"
+                >
+                  <option value="all">All Hotels (Platform)</option>
+                  {allHotelsList.map(h => (
+                    <option key={h._id} value={h._id}>{h.hotelName}</option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
-              <Filter size={14} className="text-gray-400" />
-              <select
-                value={selectedHotelId}
-                onChange={(e) => setSelectedHotelId(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-gray-700 outline-none cursor-pointer"
-              >
-                <option value="all">All Hotels (Platform)</option>
-                {allHotelsList.map(h => (
-                  <option key={h._id} value={h._id}>{h.hotelName}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2 bg-white px-3 h-10 rounded-xl border border-gray-200 shadow-2xs">
+                <Calendar size={14} className="text-gray-400" />
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-gray-700 outline-none cursor-pointer"
+                >
+                  <option value="today">Today</option>
+                  <option value="7days">Last 7 Days</option>
+                  <option value="30days">Last 30 Days</option>
+                  <option value="year">This Year</option>
+                  <option value="all">All-Time</option>
+                </select>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
-              <Calendar size={14} className="text-gray-400" />
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-gray-700 outline-none cursor-pointer"
+            {/* Actions Group */}
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={handleExport}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 h-11 px-5 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
               >
-                <option value="today">Today</option>
-                <option value="7days">Last 7 Days</option>
-                <option value="30days">Last 30 Days</option>
-                <option value="year">This Year</option>
-                <option value="all">All-Time (Complete)</option>
-              </select>
+                <Download size={15} /> Export
+              </button>
+              <button
+                onClick={() => navigate("/admin/addHotel")}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white h-11 px-5 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+              >
+                <Building2 size={15} /> Add Hotel
+              </button>
             </div>
-
-            <button
-              onClick={() => navigate("/admin/addHotel")}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
-            >
-              + Add Hotel
-            </button>
           </div>
         </div>
 
@@ -328,8 +393,7 @@ const AdminDashboard = () => {
 
         {/* 📈 4 CHARTS GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-          {/* 1. Revenue Trend Area Chart */}
+          {/* Revenue Trend Area Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
             <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-1">Revenue Trend</h3>
             <p className="text-xs text-gray-500 font-medium mb-4">Monthly revenue performance</p>
@@ -356,7 +420,7 @@ const AdminDashboard = () => {
             </div>
           </motion.div>
 
-          {/* 2. Hotels Added Trend Bar Chart */}
+          {/* Hotels Added Trend Bar Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
             <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-1">Hotels Added Trend</h3>
             <p className="text-xs text-gray-500 font-medium mb-4">Property onboarding growth</p>
@@ -377,7 +441,7 @@ const AdminDashboard = () => {
             </div>
           </motion.div>
 
-          {/* 3. Hotel Status Distribution Pie Chart */}
+          {/* Hotel Status Distribution Pie Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col justify-between">
             <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-2">Hotel Status Distribution</h3>
             <div className="flex items-center justify-between">
@@ -412,7 +476,7 @@ const AdminDashboard = () => {
             </div>
           </motion.div>
 
-          {/* 4. Hotels by City Bar Chart */}
+          {/* Hotels by City Bar Chart */}
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-2xl shadow-2xs border border-gray-200 flex flex-col">
             <h3 className="font-bold text-gray-900 text-base font-['Space_Grotesk'] mb-3">Hotels by City</h3>
             <div className="h-[190px] w-full">
@@ -433,53 +497,57 @@ const AdminDashboard = () => {
               )}
             </div>
           </motion.div>
-
         </div>
 
-        {/* 🔍 SEARCH, LIMIT & FILTERS BAR */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex flex-col xl:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full xl:flex-1 max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+        {/* 🌟 2. REDESIGNED SEARCH, LIMIT & FILTERS BAR */}
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs flex flex-col xl:flex-row gap-5 items-center justify-between mt-8">
+
+          <div className="relative w-full xl:w-[400px] shrink-0">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
               placeholder="Search by hotel name, email..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="w-full border border-gray-200 rounded-xl pl-10 pr-4 h-11 text-xs font-medium focus:outline-none focus:border-blue-500 transition shadow-2xs bg-white text-gray-900"
+              className="w-full border border-gray-200 rounded-xl pl-11 pr-4 h-11 text-xs font-medium focus:outline-none focus:border-blue-500 transition shadow-2xs bg-gray-50/50 focus:bg-white text-gray-900"
             />
             {search && (
-              <button onClick={() => { setSearch(""); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
-                <X size={14} />
+              <button onClick={() => { setSearch(""); setPage(1); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 bg-white rounded-full p-0.5 shadow-sm border border-gray-100">
+                <X size={12} />
               </button>
             )}
           </div>
 
-          <div className="w-full xl:w-auto flex flex-col sm:flex-row gap-3 items-center shrink-0 flex-wrap">
-            <div className="flex items-center gap-2 bg-white border border-gray-200 px-3 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs">
-              <span>Show:</span>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
+            <div className="flex items-center gap-2 bg-white border border-gray-200 px-4 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs w-full sm:w-auto justify-between sm:justify-start">
+              <span className="text-gray-500">Rows:</span>
               <select
                 value={limit}
                 onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
                 className="bg-transparent outline-none cursor-pointer font-bold text-blue-600"
               >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
+                <option value={5}>5 / page</option>
+                <option value={10}>10 / page</option>
+                <option value={20}>20 / page</option>
               </select>
             </div>
 
-            <select
-              value={sortBy}
-              onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
-              className="w-full sm:w-44 border border-gray-200 rounded-xl px-3.5 h-11 text-xs font-semibold focus:outline-none focus:border-blue-500 transition shadow-2xs bg-white text-gray-700 cursor-pointer"
-            >
-              <option value="city">Sort: City (A-Z)</option>
-              <option value="latest">Sort: Latest</option>
-              <option value="oldest">Sort: Oldest</option>
-              <option value="revenue">Sort: Revenue (High to Low)</option>
-              <option value="rooms">Sort: Rooms</option>
-            </select>
+            <div className="flex items-center gap-2 bg-white border border-gray-200 px-4 h-11 rounded-xl text-xs font-semibold text-gray-700 shadow-2xs w-full sm:w-auto">
+              <ArrowDownAZ className="text-gray-400" size={15} />
+              <select
+                value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+                className="bg-transparent outline-none cursor-pointer w-full text-gray-800 font-bold"
+              >
+                <option value="city">Sort: City (A-Z)</option>
+                <option value="latest">Sort: Latest</option>
+                <option value="oldest">Sort: Oldest</option>
+                <option value="revenue">Sort: High Revenue</option>
+                <option value="rooms">Sort: Max Rooms</option>
+              </select>
+            </div>
           </div>
+
         </div>
 
         {/* 🗂️ TABS FILTER */}
@@ -490,9 +558,9 @@ const AdminDashboard = () => {
               <button
                 key={status}
                 onClick={() => { setStatusFilter(status); setPage(1); }}
-                className={`px-4 py-2.5 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 cursor-pointer ${isActive
-                    ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
-                    : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
+                className={`px-5 py-3 font-['Space_Grotesk',sans-serif] font-medium text-xs rounded-t-xl transition whitespace-nowrap border-b-2 -mb-[1px] flex items-center gap-2 cursor-pointer ${isActive
+                  ? "border-blue-600 text-blue-600 bg-white font-bold shadow-2xs"
+                  : "border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100/60"
                   }`}
               >
                 {status} Listings
@@ -563,8 +631,8 @@ const AdminDashboard = () => {
                     key={pageNum}
                     onClick={() => setPage(pageNum)}
                     className={`w-8 h-8 rounded-xl font-bold transition shadow-2xs cursor-pointer flex items-center justify-center ${isSelected
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-100"
                       }`}
                   >
                     {pageNum}

@@ -8,6 +8,7 @@ const State = require("../Model/stateModel");
 const Review = require("../Model/reviewModel");
 const SignupUser = require("../Model/signupModel");
 const dayjs = require("dayjs");
+const XLSX = require("xlsx");
 const relativeTime = require("dayjs/plugin/relativeTime");
 dayjs.extend(relativeTime);
 
@@ -361,15 +362,299 @@ exports.getSuperAdminDashboardAnalytics = async (req, res) => {
     }
 };
 
+exports.exportSuperAdminDashboard = async (req, res) => {
+    try {
+        const {
+            filter = "all",
+            id = "all",
+            status = "all",
+            search = "",
+            sortBy = "newest",
+        } = req.query;
+
+        // -----------------------------
+        // Same hotel filter as dashboard
+        // -----------------------------
+
+        let hotelQuery = {};
+
+        if (status && status !== "all") {
+            hotelQuery.status = status;
+        }
+
+        // Admin filter
+        if (filter === "admin" && id && id !== "all") {
+
+            hotelQuery.adminId = id;
+
+        }
+
+        // City filter
+        else if (filter === "city" && id && id !== "all") {
+
+            hotelQuery.city = id;
+
+        }
+
+        // State filter
+        else if (filter === "state" && id && id !== "all") {
+
+            const citiesInState = await City.find().populate({
+                path: "districtId",
+                match: { stateId: id },
+            });
+
+            const validCityIds = citiesInState
+                .filter((c) => c.districtId != null)
+                .map((c) => c._id);
+
+            hotelQuery.city = {
+                $in: validCityIds,
+            };
+        }
+
+        // Hotel filter
+        else if (filter === "hotel" && id && id !== "all") {
+
+            hotelQuery._id = id;
+        }
+
+        // Search
+        if (search && search.trim() !== "") {
+
+            const searchRegex = new RegExp(
+                search.trim(),
+                "i"
+            );
+
+            hotelQuery.$or = [
+                { hotelName: searchRegex },
+                { hotelEmail: searchRegex },
+                { trackingId: searchRegex },
+            ];
+        }
+
+        // -----------------------------
+        // Get hotels
+        // -----------------------------
+
+        const hotels = await Hotel.find(hotelQuery)
+            .populate({
+                path: "city",
+                select: "cityName districtId",
+                populate: {
+                    path: "districtId",
+                    select: "districtName stateId",
+                    populate: {
+                        path: "stateId",
+                        select: "stateName",
+                    },
+                },
+            })
+            .populate("adminId", "name email");
+
+        // -----------------------------
+        // Prepare Excel data
+        // -----------------------------
+
+        const exportData = [];
+
+        for (let i = 0; i < hotels.length; i++) {
+
+            const hotel = hotels[i];
+
+            // Rooms
+            const rooms = await Room.find({
+                hotelId: hotel._id,
+            });
+
+            const roomCount =
+                rooms.length > 0
+                    ? rooms.length
+                    : Number(hotel.totalRooms || 0);
+
+            // Bookings / Revenue
+            const bookings = await Booking.find({
+                hotelId: hotel._id,
+                bookingStatus: {
+                    $ne: "Cancelled",
+                },
+            });
+
+            const revenue = bookings.reduce(
+                (total, booking) => {
+                    return (
+                        total +
+                        Number(
+                            booking.finalAmount ||
+                            booking.totalAmount ||
+                            booking.amount ||
+                            0
+                        )
+                    );
+                },
+                0
+            );
+
+            const cityName =
+                hotel.city?.cityName || "Unassigned";
+
+            const districtName =
+                hotel.city?.districtId?.districtName ||
+                "Unassigned";
+
+            const stateName =
+                hotel.city?.districtId?.stateId?.stateName ||
+                "Unassigned";
+
+            const adminName =
+                hotel.adminId?.name || "Unassigned";
+
+            exportData.push({
+                "S.No": i + 1,
+                "Hotel Name": hotel.hotelName || "",
+                "Admin Name": adminName,
+                "City": cityName,
+                "District": districtName,
+                "State": stateName,
+                "Total Rooms": roomCount,
+                "Revenue": revenue,
+                "Status": hotel.status || "",
+                "Created Date": hotel.createdAt
+                    ? new Date(
+                        hotel.createdAt
+                    ).toLocaleDateString("en-IN")
+                    : "",
+            });
+        }
+
+        // -----------------------------
+        // Sorting
+        // -----------------------------
+
+        if (sortBy === "newest") {
+
+            exportData.sort(
+                (a, b) =>
+                    new Date(b["Created Date"]) -
+                    new Date(a["Created Date"])
+            );
+
+        } else if (sortBy === "oldest") {
+
+            exportData.sort(
+                (a, b) =>
+                    new Date(a["Created Date"]) -
+                    new Date(b["Created Date"])
+            );
+
+        } else if (sortBy === "name") {
+
+            exportData.sort((a, b) =>
+                a["Hotel Name"].localeCompare(
+                    b["Hotel Name"]
+                )
+            );
+
+        } else if (sortBy === "rooms") {
+
+            exportData.sort(
+                (a, b) =>
+                    b["Total Rooms"] -
+                    a["Total Rooms"]
+            );
+
+        } else if (sortBy === "revenue") {
+
+            exportData.sort(
+                (a, b) =>
+                    b["Revenue"] -
+                    a["Revenue"]
+            );
+        }
+
+        // Re-number after sorting
+        exportData.forEach((item, index) => {
+            item["S.No"] = index + 1;
+        });
+
+        // -----------------------------
+        // Create Excel
+        // -----------------------------
+
+        const worksheet =
+            XLSX.utils.json_to_sheet(exportData);
+
+        // Column widths
+        worksheet["!cols"] = [
+            { wch: 8 },   // S.No
+            { wch: 25 },  // Hotel
+            { wch: 20 },  // Admin
+            { wch: 18 },  // City
+            { wch: 18 },  // District
+            { wch: 18 },  // State
+            { wch: 15 },  // Rooms
+            { wch: 18 },  // Revenue
+            { wch: 15 },  // Status
+            { wch: 18 },  // Created
+        ];
+
+        const workbook =
+            XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(
+            workbook,
+            worksheet,
+            "Hotels"
+        );
+
+        // -----------------------------
+        // Send Excel file
+        // -----------------------------
+
+        const excelBuffer =
+            XLSX.write(workbook, {
+                type: "buffer",
+                bookType: "xlsx",
+            });
+
+        res.setHeader(
+            "Content-Disposition",
+            'attachment; filename="hotel_dashboard.xlsx"'
+        );
+
+        res.setHeader(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+
+        return res.send(excelBuffer);
+
+    } catch (error) {
+
+        console.error(
+            "Dashboard Export Error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
 
 /* ===========================================================
    GET DASHBOARD SUMMARY (Admin / Hotel Dashboard)
 =========================================================== */
+// ==========================================
+// 1. GET DASHBOARD SUMMARY (Regular Dashboard)
+// ==========================================
 exports.getDashboardSummary = async (req, res) => {
     try {
-        const hotelIds = await getAccessibleHotelIds(req.user);
+        const baseHotelIds = await getAccessibleHotelIds(req.user);
 
-        if (hotelIds.length === 0 && req.user?.role !== "superAdmin") {
+        if (baseHotelIds.length === 0 && req.user?.role !== "superAdmin") {
             return res.status(200).json({
                 success: true,
                 summary: { totalRooms: 0, availableRooms: 0, occupiedRooms: 0, todayBookings: 0, todayRevenue: 0, todayCheckIns: 0, todayCheckOuts: 0 },
@@ -384,25 +669,30 @@ exports.getDashboardSummary = async (req, res) => {
         }
 
         const range = req.query.range || "today";
-
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
 
         let endDate = new Date();
         endDate.setHours(23, 59, 59, 999);
 
-        if (range === "7days") {
-            startDate.setDate(startDate.getDate() - 6);
-        } else if (range === "30days") {
-            startDate.setDate(startDate.getDate() - 29);
-        } else if (range === "year") {
-            const currentYear = new Date().getFullYear();
-            startDate = new Date(`${currentYear}-01-01`);
-        } else if (range === "all") {
-            startDate = new Date(0);
-        }
+        if (range === "7days") startDate.setDate(startDate.getDate() - 6);
+        else if (range === "30days") startDate.setDate(startDate.getDate() - 29);
+        else if (range === "year") startDate = new Date(`${new Date().getFullYear()}-01-01`);
+        else if (range === "all") startDate = new Date(0);
 
-        const hotelQuery = req.user?.role === "superAdmin" ? {} : { hotelId: { $in: hotelIds } };
+        // 🚀 FIX: Extract ONLY "Approved" Hotels for calculation
+        const approvedHotelFilter = req.user?.role === "superAdmin"
+            ? { status: "Approved" }
+            : { _id: { $in: baseHotelIds }, status: "Approved" };
+
+        const approvedHotels = await Hotel.find(approvedHotelFilter).select("_id");
+        const approvedHotelIds = approvedHotels.map(h => h._id);
+
+        // Use this strict filter for ALL metrics
+        const bookingHotelQuery = { hotelId: { $in: approvedHotelIds } };
+        const hotelQuery = { hotelId: { $in: approvedHotelIds } }; // Because Room collection uses hotelId
+        const reviewQuery = { hotelId: { $in: approvedHotelIds } };
+
         const totalRooms = await Room.countDocuments(hotelQuery);
 
         const occupiedRoomsCount = await Room.countDocuments({
@@ -411,8 +701,6 @@ exports.getDashboardSummary = async (req, res) => {
         });
 
         const availableRoomsCount = Math.max(0, totalRooms - occupiedRoomsCount);
-
-        const bookingHotelQuery = req.user?.role === "superAdmin" ? {} : { hotelId: { $in: hotelIds } };
 
         const bookingsInRange = await Booking.find({
             ...bookingHotelQuery,
@@ -457,31 +745,26 @@ exports.getDashboardSummary = async (req, res) => {
             .populate('userId', 'name email')
             .populate('roomId', 'roomType roomNumber');
 
-        const reviewQuery = req.user?.role === "superAdmin" ? {} : { hotelId: { $in: hotelIds } };
         const recentReviews = await Review.find(reviewQuery)
             .sort({ createdAt: -1 })
             .limit(4)
             .populate('userId', 'name');
 
-        const reviewStatsPipeline = req.user?.role === "superAdmin" ? [] : [{ $match: { hotelId: { $in: hotelIds } } }];
-        reviewStatsPipeline.push({
-            $group: {
-                _id: null,
-                totalReviews: { $sum: 1 },
-                avgCleanliness: { $avg: "$cleanliness" },
-                avgStaff: { $avg: "$staff" },
-                avgLocation: { $avg: "$location" },
-                avgValueForMoney: { $avg: "$valueForMoney" }
+        const reviewStats = await Review.aggregate([
+            { $match: reviewQuery },
+            {
+                $group: {
+                    _id: null,
+                    totalReviews: { $sum: 1 },
+                    avgCleanliness: { $avg: "$cleanliness" },
+                    avgStaff: { $avg: "$staff" },
+                    avgLocation: { $avg: "$location" },
+                    avgValueForMoney: { $avg: "$valueForMoney" }
+                }
             }
-        });
+        ]);
 
-        const reviewStats = await Review.aggregate(reviewStatsPipeline);
-
-        let ratingSummary = {
-            averageRating: 0,
-            totalReviews: 0,
-            categories: { cleanliness: 0, staff: 0, location: 0, valueForMoney: 0 }
-        };
+        let ratingSummary = { averageRating: 0, totalReviews: 0, categories: { cleanliness: 0, staff: 0, location: 0, valueForMoney: 0 } };
 
         if (reviewStats.length > 0) {
             const stats = reviewStats[0];
@@ -503,8 +786,8 @@ exports.getDashboardSummary = async (req, res) => {
             };
         }
 
-        const revAggPipeline = req.user?.role === "superAdmin" ? [] : [{ $match: { hotelId: { $in: hotelIds } } }];
-        revAggPipeline.push(
+        const revenueAggregation = await Booking.aggregate([
+            { $match: bookingHotelQuery },
             {
                 $match: {
                     $or: [
@@ -517,16 +800,13 @@ exports.getDashboardSummary = async (req, res) => {
                 $group: {
                     _id: { $month: "$createdAt" },
                     revenue: {
-                        $sum: {
-                            $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }]
-                        }
+                        $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] }
                     }
                 }
             },
             { $sort: { "_id": 1 } }
-        );
+        ]);
 
-        const revenueAggregation = await Booking.aggregate(revAggPipeline);
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const monthlyRevenue = monthNames.map((name, index) => {
             const found = revenueAggregation.find(item => item._id === index + 1);
@@ -537,8 +817,8 @@ exports.getDashboardSummary = async (req, res) => {
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
         sevenDaysAgo.setHours(0, 0, 0, 0);
 
-        const trendAggPipeline = req.user?.role === "superAdmin" ? [] : [{ $match: { hotelId: { $in: hotelIds } } }];
-        trendAggPipeline.push(
+        const bookingTrendAggregation = await Booking.aggregate([
+            { $match: bookingHotelQuery },
             {
                 $match: {
                     bookingStatus: { $ne: "Cancelled" },
@@ -552,9 +832,8 @@ exports.getDashboardSummary = async (req, res) => {
                 }
             },
             { $sort: { "_id": 1 } }
-        );
+        ]);
 
-        const bookingTrendAggregation = await Booking.aggregate(trendAggPipeline);
         const bookingTrend = [];
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
@@ -582,21 +861,10 @@ exports.getDashboardSummary = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            summary: {
-                totalRooms,
-                availableRooms: availableRoomsCount,
-                occupiedRooms: occupiedRoomsCount,
-                todayBookings,
-                todayRevenue,
-                todayCheckIns,
-                todayCheckOuts,
-            },
+            summary: { totalRooms, availableRooms: availableRoomsCount, occupiedRooms: occupiedRoomsCount, todayBookings, todayRevenue, todayCheckIns, todayCheckOuts },
             monthlyRevenue,
             bookingTrend,
-            roomStatus: [
-                { name: "Available", value: availableRoomsCount },
-                { name: "Occupied", value: occupiedRoomsCount }
-            ],
+            roomStatus: [{ name: "Available", value: availableRoomsCount }, { name: "Occupied", value: occupiedRoomsCount }],
             recentBookings,
             ratingSummary,
             recentReviews,
@@ -605,28 +873,17 @@ exports.getDashboardSummary = async (req, res) => {
 
     } catch (error) {
         console.error("Dashboard API Error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch dashboard summary.",
-            error: error.message
-        });
+        return res.status(500).json({ success: false, message: "Failed to fetch dashboard summary.", error: error.message });
     }
 };
 
 
-//Admin Dashboard
+// ==========================================
+// 2. GET PLATFORM ANALYTICS (Admin Dashboard)
+// ==========================================
 exports.getPlatformAnalytics = async (req, res) => {
     try {
-        const {
-            range = "all",
-            hotelId,
-            search = "",
-            status = "All",
-            city = "",
-            sortBy = "city",
-            page = 1,
-            limit = 10
-        } = req.query;
+        const { range = "all", hotelId, search = "", status = "All", city = "", sortBy = "city", page = 1, limit = 10 } = req.query;
 
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
@@ -634,16 +891,10 @@ exports.getPlatformAnalytics = async (req, res) => {
         let endDate = new Date();
         endDate.setHours(23, 59, 59, 999);
 
-        if (range === "7days") {
-            startDate.setDate(startDate.getDate() - 6);
-        } else if (range === "30days") {
-            startDate.setDate(startDate.getDate() - 29);
-        } else if (range === "year") {
-            const currentYear = new Date().getFullYear();
-            startDate = new Date(`${currentYear}-01-01`);
-        } else if (range === "all") {
-            startDate = new Date(0);
-        }
+        if (range === "7days") startDate.setDate(startDate.getDate() - 6);
+        else if (range === "30days") startDate.setDate(startDate.getDate() - 29);
+        else if (range === "year") startDate = new Date(`${new Date().getFullYear()}-01-01`);
+        else if (range === "all") startDate = new Date(0);
 
         let bookingMatch = {
             bookingStatus: { $ne: "Cancelled" },
@@ -660,12 +911,8 @@ exports.getPlatformAnalytics = async (req, res) => {
 
         let hotelMatch = {};
 
-        // 🌟 ROLE-BASED SECURITY ENFORCEMENT & OVERWRITE PREVENTION
         if (req.user && req.user.role === "admin") {
-            const adminHotels = await Hotel.find(
-                { adminId: req.user._id },
-                "_id"
-            );
+            const adminHotels = await Hotel.find({ adminId: req.user._id }, "_id");
             const hotelIds = adminHotels.map(h => h._id);
 
             if (hotelId && hotelId !== "all" && mongoose.Types.ObjectId.isValid(hotelId)) {
@@ -674,32 +921,19 @@ exports.getPlatformAnalytics = async (req, res) => {
 
                 if (isOwned) {
                     hotelMatch._id = objectIdHotelId;
-                    bookingMatch.hotelId = objectIdHotelId;
-                    revenueMatch.hotelId = objectIdHotelId;
                 } else {
-                    // Prevent unauthorized cross-admin inspection attempt
                     hotelMatch._id = { $in: hotelIds };
-                    bookingMatch.hotelId = { $in: hotelIds };
-                    revenueMatch.hotelId = { $in: hotelIds };
                 }
             } else {
                 hotelMatch._id = { $in: hotelIds };
-                bookingMatch.hotelId = { $in: hotelIds };
-                revenueMatch.hotelId = { $in: hotelIds };
             }
         } else {
-            // Super Admin Scope Handling
             if (hotelId && hotelId !== "all" && mongoose.Types.ObjectId.isValid(hotelId)) {
-                const objectIdHotelId = new mongoose.Types.ObjectId(hotelId);
-                bookingMatch.hotelId = objectIdHotelId;
-                revenueMatch.hotelId = objectIdHotelId;
-                hotelMatch._id = objectIdHotelId;
+                hotelMatch._id = new mongoose.Types.ObjectId(hotelId);
             }
         }
 
         const totalHotels = (hotelId && hotelId !== "all" && req.user?.role !== "admin") ? 1 : await Hotel.countDocuments(hotelMatch);
-
-        // Approved and Pending Hotel Counts for KPIs and Pie Chart
         const approvedHotels = await Hotel.countDocuments({ ...hotelMatch, status: "Approved" });
         const pendingHotels = await Hotel.countDocuments({ ...hotelMatch, status: "Pending" });
         const rejectedHotels = await Hotel.countDocuments({ ...hotelMatch, status: "Rejected" });
@@ -709,6 +943,13 @@ exports.getPlatformAnalytics = async (req, res) => {
             { name: "Pending", value: pendingHotels },
             { name: "Rejected", value: rejectedHotels }
         ];
+
+        // 🚀 FIX: Get ONLY Approved Hotels for Revenue & Booking Queries
+        const approvedHotelsList = await Hotel.find({ ...hotelMatch, status: "Approved" }).select("_id");
+        const approvedHotelIds = approvedHotelsList.map(h => h._id);
+
+        const globalBookingMatch = { ...bookingMatch, hotelId: { $in: approvedHotelIds } };
+        const globalRevenueMatch = { ...revenueMatch, hotelId: { $in: approvedHotelIds } };
 
         let totalRooms = 0;
         let bookedRoomsCount = 0;
@@ -735,18 +976,20 @@ exports.getPlatformAnalytics = async (req, res) => {
         }
 
         const occupancyRate = totalRooms > 0 ? Math.round((bookedRoomsCount / totalRooms) * 100) : 0;
-        const totalBookings = await Booking.countDocuments(bookingMatch);
-        const totalCustomers = await Booking.distinct("userId", bookingMatch).then(users => users.filter(Boolean).length);
+
+        // Use global matches for valid metrics
+        const totalBookings = await Booking.countDocuments(globalBookingMatch);
+        const totalCustomers = await Booking.distinct("userId", globalBookingMatch).then(users => users.filter(Boolean).length);
 
         const revenueResult = await Booking.aggregate([
-            { $match: revenueMatch },
+            { $match: globalRevenueMatch },
             { $group: { _id: null, totalRevenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } } } }
         ]);
         const totalRevenue = revenueResult[0]?.totalRevenue || 0;
 
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const revenueAggregation = await Booking.aggregate([
-            { $match: revenueMatch },
+            { $match: globalRevenueMatch },
             {
                 $group: {
                     _id: { $month: "$createdAt" },
@@ -761,15 +1004,9 @@ exports.getPlatformAnalytics = async (req, res) => {
             return { name, revenue: found ? found.revenue : 0 };
         });
 
-        // Hotels Added Trend (Month-wise onboarding count)
         const hotelsAddedAggregation = await Hotel.aggregate([
             { $match: hotelMatch },
-            {
-                $group: {
-                    _id: { $month: "$createdAt" },
-                    count: { $sum: 1 }
-                }
-            },
+            { $group: { _id: { $month: "$createdAt" }, count: { $sum: 1 } } },
             { $sort: { "_id": 1 } }
         ]);
 
@@ -787,7 +1024,7 @@ exports.getPlatformAnalytics = async (req, res) => {
         const hotelsByCity = Object.entries(cityCounts).map(([city, count]) => ({ city, count }));
 
         const topHotelsAgg = await Booking.aggregate([
-            { $match: revenueMatch },
+            { $match: globalRevenueMatch },
             {
                 $group: {
                     _id: "$hotelId",
@@ -796,14 +1033,7 @@ exports.getPlatformAnalytics = async (req, res) => {
             },
             { $sort: { revenue: -1 } },
             { $limit: 5 },
-            {
-                $lookup: {
-                    from: "hotels",
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "hotelInfo"
-                }
-            },
+            { $lookup: { from: "hotels", localField: "_id", foreignField: "_id", as: "hotelInfo" } },
             { $unwind: { path: "$hotelInfo", preserveNullAndEmptyArrays: true } }
         ]);
 
@@ -817,36 +1047,20 @@ exports.getPlatformAnalytics = async (req, res) => {
             const hTotal = hRooms.length > 0 ? hRooms.length : Number(h.totalRooms || 1);
             const hBooked = hRooms.filter(r => r.bookingStatus === "Booked" || r.status === "Booked" || r.isBooked).length;
             const rate = hTotal > 0 ? Math.round((hBooked / hTotal) * 100) : 0;
-            return {
-                hotel: h.hotelName || "Hotel",
-                occupancy: rate
-            };
+            return { hotel: h.hotelName || "Hotel", occupancy: rate };
         }));
 
-        // SERVER-SIDE TABLE FILTERING & DATE-RANGE SYNCED METRICS
         let tableQuery = { ...hotelMatch };
-
-        if (status && status !== "All") {
-            tableQuery.status = status;
-        }
-
-        if (city && mongoose.Types.ObjectId.isValid(city)) {
-            tableQuery.city = new mongoose.Types.ObjectId(city);
-        }
-
+        if (status && status !== "All") tableQuery.status = status;
+        if (city && mongoose.Types.ObjectId.isValid(city)) tableQuery.city = new mongoose.Types.ObjectId(city);
         if (search.trim()) {
             const searchRegex = new RegExp(search, "i");
-            tableQuery.$or = [
-                { hotelName: searchRegex },
-                { hotelEmail: searchRegex },
-                { trackingId: searchRegex }
-            ];
+            tableQuery.$or = [{ hotelName: searchRegex }, { hotelEmail: searchRegex }, { trackingId: searchRegex }];
         }
 
         const pageNum = Number(page) || 1;
         const limitNum = Number(limit) || 10;
         const skip = (pageNum - 1) * limitNum;
-
         const totalTableHotels = await Hotel.countDocuments(tableQuery);
 
         const paginatedHotels = await Hotel.find(tableQuery)
@@ -857,25 +1071,32 @@ exports.getPlatformAnalytics = async (req, res) => {
 
         const hotelsWithDetails = await Promise.all(
             paginatedHotels.map(async (h) => {
-                const hRevenueRes = await Booking.aggregate([
-                    {
-                        $match: {
-                            hotelId: h._id,
-                            ...revenueMatch
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: null,
-                            totalRevenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } }
-                        }
-                    }
-                ]);
+                let hTotalRevenue = 0;
+                let hBookingsCount = 0;
 
-                const hBookingsCount = await Booking.countDocuments({
-                    hotelId: h._id,
-                    ...bookingMatch
-                });
+                // 🚀 FIX: Ignore Revenue & Booking count if Hotel is not Approved
+                if (h.status === "Approved") {
+                    const hRevenueRes = await Booking.aggregate([
+                        {
+                            $match: {
+                                hotelId: h._id,
+                                ...revenueMatch // Base revenue match, avoiding the global array
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                totalRevenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } }
+                            }
+                        }
+                    ]);
+                    hTotalRevenue = hRevenueRes[0]?.totalRevenue || 0;
+
+                    hBookingsCount = await Booking.countDocuments({
+                        hotelId: h._id,
+                        ...bookingMatch
+                    });
+                }
 
                 const hRooms = await Room.find({ hotelId: h._id });
                 const hTotalRooms = hRooms.length > 0 ? hRooms.length : Number(h.totalRooms || 1);
@@ -884,61 +1105,197 @@ exports.getPlatformAnalytics = async (req, res) => {
 
                 return {
                     ...h.toObject(),
-                    totalRevenue: hRevenueRes[0]?.totalRevenue || 0,
+                    totalRevenue: hTotalRevenue,
                     totalBookings: hBookingsCount,
                     occupancyRate: hOccupancy
                 };
             })
         );
 
-        if (sortBy === "latest") {
-            hotelsWithDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        } else if (sortBy === "oldest") {
-            hotelsWithDetails.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-        } else if (sortBy === "rooms") {
-            hotelsWithDetails.sort((a, b) => Number(b.totalRooms || 0) - Number(a.totalRooms || 0));
-        } else if (sortBy === "revenue") {
-            hotelsWithDetails.sort((a, b) => b.totalRevenue - a.totalRevenue);
-        } else if (sortBy === "bookings") {
-            hotelsWithDetails.sort((a, b) => b.totalBookings - a.totalBookings);
-        } else if (sortBy === "occupancy") {
-            hotelsWithDetails.sort((a, b) => b.occupancyRate - a.occupancyRate);
-        } else {
-            hotelsWithDetails.sort((a, b) => (a.city?.cityName || "").localeCompare(b.city?.cityName || ""));
-        }
+        if (sortBy === "latest") hotelsWithDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        else if (sortBy === "oldest") hotelsWithDetails.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        else if (sortBy === "rooms") hotelsWithDetails.sort((a, b) => Number(b.totalRooms || 0) - Number(a.totalRooms || 0));
+        else if (sortBy === "revenue") hotelsWithDetails.sort((a, b) => b.totalRevenue - a.totalRevenue);
+        else if (sortBy === "bookings") hotelsWithDetails.sort((a, b) => b.totalBookings - a.totalBookings);
+        else if (sortBy === "occupancy") hotelsWithDetails.sort((a, b) => b.occupancyRate - a.occupancyRate);
+        else hotelsWithDetails.sort((a, b) => (a.city?.cityName || "").localeCompare(b.city?.cityName || ""));
 
         return res.status(200).json({
             success: true,
             analytics: {
                 kpis: {
-                    totalHotels,
-                    totalRooms,
-                    totalBookings,
-                    totalCustomers,
-                    totalRevenue,
-                    occupancyRate,
-                    averageRating: 4.5,
-                    activeOwners: totalHotels,
-                    approvedHotels,
-                    pendingHotels
+                    totalHotels, totalRooms, totalBookings, totalCustomers, totalRevenue, occupancyRate,
+                    averageRating: 4.5, activeOwners: totalHotels, approvedHotels, pendingHotels
                 },
-                monthlyRevenue,
-                hotelsAddedTrend,
-                hotelStatusBreakdown,
-                hotelsByCity,
-                topPerformingHotels,
-                occupancyComparison,
-                tableData: {
-                    hotels: hotelsWithDetails,
-                    total: totalTableHotels,
-                    page: pageNum,
-                    totalPages: Math.ceil(totalTableHotels / limitNum)
-                }
+                monthlyRevenue, hotelsAddedTrend, hotelStatusBreakdown, hotelsByCity,
+                topPerformingHotels, occupancyComparison,
+                tableData: { hotels: hotelsWithDetails, total: totalTableHotels, page: pageNum, totalPages: Math.ceil(totalTableHotels / limitNum) }
             }
         });
 
     } catch (error) {
         console.error("Platform Analytics Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.exportPlatformAnalytics = async (req, res) => {
+    try {
+        const {
+            range = "all",
+            hotelId = "all",
+            status = "All",
+            city = "",
+            search = "",
+            sortBy = "city",
+        } = req.query;
+
+        // 1. Date Range Constraints (For Revenue)
+        let startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
+        let endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
+
+        if (range === "7days") startDate.setDate(startDate.getDate() - 6);
+        else if (range === "30days") startDate.setDate(startDate.getDate() - 29);
+        else if (range === "year") startDate = new Date(`${new Date().getFullYear()}-01-01`);
+        else if (range === "all") startDate = new Date(0);
+
+        let revenueMatch = {
+            $or: [
+                { bookingStatus: { $in: SUCCESS_BOOKINGS } },
+                { status: { $in: SUCCESS_BOOKINGS } }
+            ],
+            createdAt: { $gte: startDate, $lte: endDate }
+        };
+
+        // 2. Base Query & Admin Role Verification
+        let hotelMatch = {};
+
+        if (req.user && req.user.role === "admin") {
+            const adminHotels = await Hotel.find({ adminId: req.user._id }, "_id");
+            const hotelIds = adminHotels.map(h => h._id);
+
+            if (hotelId && hotelId !== "all" && mongoose.Types.ObjectId.isValid(hotelId)) {
+                const objectIdHotelId = new mongoose.Types.ObjectId(hotelId);
+                const isOwned = hotelIds.some(hId => hId.toString() === objectIdHotelId.toString());
+
+                if (isOwned) {
+                    hotelMatch._id = objectIdHotelId;
+                } else {
+                    hotelMatch._id = { $in: hotelIds };
+                }
+            } else {
+                hotelMatch._id = { $in: hotelIds };
+            }
+        }
+
+        // Apply UI Filters
+        if (status && status !== "All") hotelMatch.status = status;
+        if (city && mongoose.Types.ObjectId.isValid(city)) hotelMatch.city = new mongoose.Types.ObjectId(city);
+        if (search.trim()) {
+            const searchRegex = new RegExp(search, "i");
+            hotelMatch.$or = [
+                { hotelName: searchRegex },
+                { hotelEmail: searchRegex },
+                { trackingId: searchRegex }
+            ];
+        }
+
+        // 3. Fetch Hotels (NO PAGINATION for EXCEL) with deep populate
+        const hotelsList = await Hotel.find(hotelMatch)
+            .populate({
+                path: "city",
+                select: "cityName districtId",
+                populate: {
+                    path: "districtId",
+                    select: "districtName stateId",
+                    populate: {
+                        path: "stateId",
+                        select: "stateName",
+                    },
+                },
+            });
+
+        // 4. Calculate Revenue & Rooms for Excel
+        const hotelsWithDetails = await Promise.all(
+            hotelsList.map(async (h) => {
+                let hTotalRevenue = 0;
+
+                // Revenue only counts for Approved hotels
+                if (h.status === "Approved") {
+                    const hRevenueRes = await Booking.aggregate([
+                        {
+                            $match: {
+                                hotelId: h._id,
+                                ...revenueMatch
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                totalRevenue: { $sum: { $ifNull: ["$finalAmount", { $ifNull: ["$totalAmount", "$amount"] }] } }
+                            }
+                        }
+                    ]);
+                    hTotalRevenue = hRevenueRes[0]?.totalRevenue || 0;
+                }
+
+                const hRooms = await Room.find({ hotelId: h._id });
+                const hTotalRooms = hRooms.length > 0 ? hRooms.length : Number(h.totalRooms || 0);
+
+                return {
+                    ...h.toObject(),
+                    totalRevenue: hTotalRevenue,
+                    totalRooms: hTotalRooms
+                };
+            })
+        );
+
+        // 5. Apply Sorting
+        if (sortBy === "latest") hotelsWithDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        else if (sortBy === "oldest") hotelsWithDetails.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        else if (sortBy === "rooms") hotelsWithDetails.sort((a, b) => Number(b.totalRooms || 0) - Number(a.totalRooms || 0));
+        else if (sortBy === "revenue") hotelsWithDetails.sort((a, b) => b.totalRevenue - a.totalRevenue);
+        else hotelsWithDetails.sort((a, b) => (a.city?.cityName || "").localeCompare(b.city?.cityName || ""));
+
+        // 6. Map Data to Excel Sheet format
+        const excelData = hotelsWithDetails.map((hotel, index) => ({
+            "S.No": index + 1,
+            "Hotel Name": hotel.hotelName || "",
+            "Hotel Email": hotel.hotelEmail || "",
+            "City": hotel.city?.cityName || "",
+            "District": hotel.city?.districtId?.districtName || "",
+            "State": hotel.city?.districtId?.stateId?.stateName || "",
+            "Rooms": hotel.totalRooms || 0,
+            "Revenue": hotel.totalRevenue || 0,
+            "Status": hotel.status || "",
+            "Created Date": hotel.createdAt ? dayjs(hotel.createdAt).format("DD-MM-YYYY") : "",
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+        // Styling columns width
+        worksheet["!cols"] = [
+            { wch: 8 }, { wch: 25 }, { wch: 25 }, { wch: 15 },
+            { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 },
+            { wch: 12 }, { wch: 15 },
+        ];
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Hotels");
+
+        const buffer = XLSX.write(workbook, {
+            type: "buffer",
+            bookType: "xlsx",
+        });
+
+        res.setHeader("Content-Disposition", `attachment; filename=hotel-report-${Date.now()}.xlsx`);
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return res.send(buffer);
+
+    } catch (error) {
+        console.error("Export Platform Analytics Error:", error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };

@@ -681,7 +681,7 @@ const HotelDetails = () => {
                     </div>
                 )}
 
-                <div className="max-w-[1600px] mx-auto px-6 sm:px-8 pt-28 lg:pb-24 pb-16">
+                <div className="max-w-[1600px] mx-auto px-6 sm:px-8 pt-28 lg:pb-24 pb-28">
 
                     {/* HEADER */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
@@ -774,9 +774,11 @@ const HotelDetails = () => {
                                 {hotel.amenities?.length > 0 ? (
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                         {hotel.amenities.map((amenity, index) => (
-                                            <div key={index} className="flex items-center gap-2.5 text-xs font-semibold text-gray-700">
-                                                <div className="text-blue-600">{amenityIcons[amenity] || <Check size={16} className="text-blue-600" />}</div>
-                                                {amenity}
+                                            <div key={index} className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50/60 border border-gray-100 text-xs font-semibold text-gray-700">
+                                                <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                                                    {amenityIcons[amenity] || <Check size={16} className="text-blue-600" />}
+                                                </div>
+                                                <span className="truncate">{amenity}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -1250,6 +1252,23 @@ const HotelDetails = () => {
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* 📱 MOBILE STICKY BOTTOM BOOKING BAR */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-6 py-4 flex items-center justify-between shadow-2xl">
+                <div>
+                    <span className="text-[10px] font-['IBM_Plex_Mono'] text-gray-400 uppercase tracking-wider block">Starting from</span>
+                    <span className="text-lg font-bold text-gray-900 font-['Space_Grotesk']">
+                        {minPrice > 0 ? `₹${Number(minPrice).toLocaleString("en-IN")}` : "N/A"} <span className="text-xs font-normal text-gray-500 font-sans">/ night</span>
+                    </span>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => document.getElementById("rooms-section")?.scrollIntoView({ behavior: 'smooth' })}
+                    className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs transition shadow-2xs cursor-pointer"
+                >
+                    Select Room
+                </button>
             </div>
         </div>
     );
