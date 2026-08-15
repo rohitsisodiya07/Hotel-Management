@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { signupApi } from "../api";
+import logo from '../assets/logo.png' // Fix: Removed curly braces
 import {
     LayoutDashboard,
     Map,
@@ -28,6 +29,8 @@ const AdminLayout = () => {
     const token = localStorage.getItem("token");
 
     const [notifications, setNotifications] = useState([]);
+
+    // 🌟 Safely parse localStorage
     const [readIds, setReadIds] = useState(() => {
         try {
             return JSON.parse(localStorage.getItem("read_notifications") || "[]");
@@ -35,6 +38,7 @@ const AdminLayout = () => {
             return [];
         }
     });
+
     const [showNotifications, setShowNotifications] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -111,19 +115,22 @@ const AdminLayout = () => {
         }
     };
 
-    // Mark single notification as read
+    // 🚀 FIX: Prevent duplicate IDs in localStorage
     const handleMarkAsRead = (e, id) => {
         e.stopPropagation(); // prevent clicking wrapper navigation
-        const updated = [...readIds, id];
-        setReadIds(updated);
-        localStorage.setItem("read_notifications", JSON.stringify(updated));
+        if (!readIds.includes(id)) {
+            const updated = [...readIds, id];
+            setReadIds(updated);
+            localStorage.setItem("read_notifications", JSON.stringify(updated));
+        }
     };
 
-    // Mark all as read
+    // 🚀 FIX: Merge new read IDs with old ones instead of overwriting
     const handleMarkAllAsRead = () => {
         const allIds = notifications.map(n => n.id);
-        setReadIds(allIds);
-        localStorage.setItem("read_notifications", JSON.stringify(allIds));
+        const updatedReadIds = Array.from(new Set([...readIds, ...allIds]));
+        setReadIds(updatedReadIds);
+        localStorage.setItem("read_notifications", JSON.stringify(updatedReadIds));
     };
 
     const unreadNotifications = notifications.filter(n => !readIds.includes(n.id));
@@ -170,21 +177,23 @@ const AdminLayout = () => {
             {/* Sidebar */}
             <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between flex-shrink-0 z-10 sticky top-0 h-screen shadow-2xs">
                 <div>
-                    {/* Brand */}
-                    <div className="px-6 py-6 border-b border-gray-100">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-['Space_Grotesk'] text-sm font-bold flex items-center justify-center shadow-2xs">
-                                {initials(user?.name) || "SA"}
-                            </div>
-                            <div>
-                                <h1 className="font-['Space_Grotesk'] text-base font-bold text-gray-900 tracking-tight m-0">
-                                    Super Admin
-                                </h1>
-                                <p className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 mt-0.5 m-0 uppercase">
-                                    WORKSPACE
-                                </p>
-                            </div>
-                        </div>
+                    {/* Brand Section with Logo */}
+                    <div className="px-6 py-7 border-b border-gray-100 flex flex-col items-start gap-3">
+                        <Link to="/" className="block cursor-pointer group">
+                            <img
+                                src={logo}
+                                alt="AuraStays"
+                                className="h-20 w-auto object-contain invert opacity-90 transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.style.display = 'none';
+                                    e.target.insertAdjacentHTML('afterend', '<h1 class="font-[\'Space_Grotesk\'] text-xl font-bold text-gray-900 tracking-tight m-0">AuraStays</h1>');
+                                }}
+                            />
+                        </Link>
+                        <span className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase bg-blue-50 border border-blue-100 px-2 py-1 rounded-md">
+                            Super Admin Panel
+                        </span>
                     </div>
 
                     {/* Navigation Groups */}
@@ -204,8 +213,8 @@ const AdminLayout = () => {
                                                 key={item.path}
                                                 to={item.path}
                                                 className={`relative flex items-center justify-between px-3 py-2.5 transition-all duration-200 rounded-xl group ${active
-                                                        ? "bg-blue-600 text-white font-semibold shadow-2xs"
-                                                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                                    ? "bg-blue-600 text-white font-semibold shadow-2xs"
+                                                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-3">
@@ -227,7 +236,7 @@ const AdminLayout = () => {
                 {/* Bottom Actions */}
                 <div className="p-4 border-t border-gray-100 flex flex-col gap-2.5 bg-gray-50/50">
                     <button
-                        onClick={() => navigate("reset-password")}
+                        onClick={() => navigate("/reset")}
                         className="w-full h-9 rounded-xl text-xs font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-100 transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer uppercase tracking-wider"
                     >
                         <ShieldCheck size={15} className="text-blue-600" />
@@ -321,8 +330,8 @@ const AdminLayout = () => {
                                                             }`}
                                                     >
                                                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${notif.type === "hotel"
-                                                                ? "bg-blue-50 text-blue-600 border border-blue-200"
-                                                                : "bg-purple-50 text-purple-600 border border-purple-200"
+                                                            ? "bg-blue-50 text-blue-600 border border-blue-200"
+                                                            : "bg-purple-50 text-purple-600 border border-purple-200"
                                                             }`}>
                                                             <AlertCircle size={17} />
                                                         </div>
@@ -374,7 +383,7 @@ const AdminLayout = () => {
                                     {user?.name || "Super Admin"}
                                 </p>
                                 <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider font-['IBM_Plex_Mono'] m-0">
-                                    Super Workspace
+                                    Workspace
                                 </p>
                             </div>
                             <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-['Space_Grotesk'] font-bold text-sm border border-gray-200 shadow-2xs flex items-center justify-center">

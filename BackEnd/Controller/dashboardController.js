@@ -644,9 +644,6 @@ exports.exportSuperAdminDashboard = async (req, res) => {
     }
 };
 
-/* ===========================================================
-   GET DASHBOARD SUMMARY (Admin / Hotel Dashboard)
-=========================================================== */
 // ==========================================
 // 1. GET DASHBOARD SUMMARY (Regular Dashboard)
 // ==========================================
@@ -876,6 +873,84 @@ exports.getDashboardSummary = async (req, res) => {
         return res.status(500).json({ success: false, message: "Failed to fetch dashboard summary.", error: error.message });
     }
 };
+
+exports.exportDashboardSummary = async (req, res) => {
+    try {
+        const baseHotelIds = await getAccessibleHotelIds(req.user);
+
+        if (baseHotelIds.length === 0 && req.user?.role !== "superAdmin") {
+            return res.status(400).json({ success: false, message: "No accessible hotels found." });
+        }
+
+        const range = req.query.range || "today";
+        let startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
+        let endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
+
+        if (range === "7days") startDate.setDate(startDate.getDate() - 6);
+        else if (range === "30days") startDate.setDate(startDate.getDate() - 29);
+        else if (range === "year") startDate = new Date(`${new Date().getFullYear()}-01-01`);
+        else if (range === "all") startDate = new Date(0);
+
+        const approvedHotelFilter = req.user?.role === "superAdmin"
+            ? { status: "Approved" }
+            : { _id: { $in: baseHotelIds }, status: "Approved" };
+
+        const approvedHotels = await Hotel.find(approvedHotelFilter).select("_id");
+        const approvedHotelIds = approvedHotels.map(h => h._id);
+
+        const bookingHotelQuery = { hotelId: { $in: approvedHotelIds } };
+
+        // Sirf unn bookings ko laao jo cancelled nahi hain us specific time range mein
+        const bookingsInRange = await Booking.find({
+            ...bookingHotelQuery,
+            createdAt: { $gte: startDate, $lte: endDate },
+            bookingStatus: { $ne: "Cancelled" }
+        })
+            .populate('userId', 'name email')
+            .populate('roomId', 'roomType roomNumber')
+            .populate('hotelId', 'hotelName')
+            .sort({ createdAt: -1 });
+
+        const excelData = bookingsInRange.map((b, index) => ({
+            "S.No": index + 1,
+            "Booking ID": b.bookingId || b._id.toString(),
+            "Guest Name": b.userId?.name || "Guest",
+            "Guest Email": b.userId?.email || "N/A",
+            "Hotel Name": b.hotelId?.hotelName || "N/A",
+            "Room Type": b.roomId?.roomType || "N/A",
+            "Room Number": b.roomId?.roomNumber || "N/A",
+            "Check-In Date": dayjs(b.checkIn).format("DD-MM-YYYY"),
+            "Check-Out Date": dayjs(b.checkOut).format("DD-MM-YYYY"),
+            "Amount (₹)": b.finalAmount || b.totalAmount || b.amount || 0,
+            "Status": b.bookingStatus || "N/A",
+            "Booking Date": dayjs(b.createdAt).format("DD-MM-YYYY")
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+        // Define Column Widths
+        worksheet["!cols"] = [
+            { wch: 8 }, { wch: 25 }, { wch: 20 }, { wch: 25 },
+            { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+            { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+        ];
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Dashboard Bookings");
+        const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+        res.setHeader("Content-Disposition", `attachment; filename=dashboard-report-${Date.now()}.xlsx`);
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return res.send(buffer);
+
+    } catch (error) {
+        console.error("Dashboard Export Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 
 
 // ==========================================

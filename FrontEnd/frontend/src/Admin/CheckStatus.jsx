@@ -13,6 +13,7 @@ import {
     Copy,
     Check
 } from "lucide-react";
+import logo from '../assets/logo.png'
 
 const STATUS_STYLES = {
     Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -93,206 +94,810 @@ const CheckStatus = () => {
         "w-full border pl-10 pr-3.5 h-11 rounded-xl text-xs font-medium outline-none transition-all bg-gray-50/50 text-gray-900 border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 shadow-2xs";
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-800 font-['Inter',sans-serif] flex items-center justify-center px-4 py-12 relative overflow-hidden">
+        <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
 
-            {/* Background Decorative Glows */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            {/* ================= MAIN CARD ================= */}
+            <div className="w-full max-w-[1100px] min-h-[650px] bg-white rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
 
-            <div className="w-full max-w-lg bg-white border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl relative z-10">
+                {/* =====================================================
+                LEFT BRAND SECTION
+            ===================================================== */}
+                <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 overflow-hidden">
 
-                {/* Back Button */}
-                <button
-                    onClick={() => navigate(-1)}
-                    className="flex items-center gap-1.5 text-xs font-bold text-gray-400 hover:text-gray-900 transition-colors mb-6 cursor-pointer font-['IBM_Plex_Mono'] uppercase tracking-wider"
-                >
-                    <ArrowLeft size={15} /> Back
-                </button>
+                    {/* Background glow */}
+                    <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
 
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-4 shadow-2xs">
-                        <FileText size={22} />
-                    </div>
-                    <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
-                        Application Tracker
-                    </span>
-                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 m-0 tracking-tight">
-                        Check Request Status
-                    </h1>
-                    <p className="text-gray-500 text-xs mt-1 font-medium">
-                        Enter your tracking ID to securely view your approval status.
-                    </p>
-                </div>
+                    <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
 
-                {/* Info Message */}
-                {infoMessage && (
-                    <div role="status" className="mb-6 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
-                        <CheckCircle2 className="mt-0.5 shrink-0" size={14} />
-                        <span>{infoMessage}</span>
-                    </div>
-                )}
+                    {/* Decorative dots */}
+                    <div className="absolute top-24 right-20 w-3 h-3 rounded-full bg-white/30" />
+                    <div className="absolute top-36 right-32 w-2 h-2 rounded-full bg-white/20" />
+                    <div className="absolute bottom-28 left-20 w-2 h-2 rounded-full bg-white/20" />
 
-                {/* OTP Sent Message */}
-                {otpSentMessage && showOtp && !admin && (
-                    <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
-                        <CheckCircle2 className="mt-0.5 shrink-0" size={14} />
-                        <span>{otpSentMessage}</span>
-                    </div>
-                )}
 
-                {/* Error Alert */}
-                {error && (
-                    <div role="alert" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
-                        <AlertCircle className="mt-0.5 shrink-0" size={14} />
-                        <span>{error}</span>
-                    </div>
-                )}
+                    {/* ================= BRAND ================= */}
+                    <div className="relative z-20 flex flex-col items-center text-center">
 
-                {/* Send OTP Step */}
-                {!showOtp && (
-                    <form onSubmit={handleSendOtp} className="space-y-4">
-                        <div>
-                            <label htmlFor="tracking-id" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
-                                Tracking ID
-                            </label>
-                            <div className="relative">
-                                <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                <input
-                                    id="tracking-id"
-                                    type="text"
-                                    placeholder="Enter your tracking ID"
-                                    value={trackingId}
-                                    onChange={(e) => setTrackingId(e.target.value)}
-                                    className={fieldClass}
-                                />
-                            </div>
+                        <p className="text-[13px] uppercase tracking-[0.25em] font-semibold text-white/70 mb-7">
+                            Welcome to
+                        </p>
+
+
+                        {/* LOGO */}
+                        <div className="w-[250px] mb-9">
+                            <img
+                                src={logo}
+                                alt="AuraStay Logo"
+                                className="w-full h-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.18)]"
+                            />
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
-                        >
-                            {loading && <Loader2 className="animate-spin" size={15} />}
-                            {loading ? "Sending OTP..." : "Send Verification OTP"}
-                        </button>
-                    </form>
-                )}
 
-                {/* Verify OTP Step */}
-                {showOtp && !admin && (
-                    <form onSubmit={handleVerifyOtp} className="space-y-4">
-                        <div>
-                            <label htmlFor="otp" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
-                                Enter OTP
-                            </label>
-                            <div className="relative">
-                                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                <input
-                                    id="otp"
-                                    type="text"
-                                    inputMode="numeric"
-                                    placeholder="Enter 6-digit OTP"
-                                    value={otp}
-                                    onChange={(e) => setOtp(e.target.value)}
-                                    className={fieldClass}
-                                />
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
-                        >
-                            {loading && <Loader2 className="animate-spin" size={15} />}
-                            {loading ? "Verifying..." : "Verify & View Status"}
-                        </button>
-                    </form>
-                )}
-
-                {/* Admin Status Details Card */}
-                {admin && (
-                    <div className="mt-4 border border-gray-200 rounded-2xl p-6 bg-gray-50/60 shadow-2xs">
-                        <h2 className="font-['Space_Grotesk'] font-bold text-base text-gray-900 mb-4 text-center">
-                            Request Details
+                        <h2 className="text-2xl font-bold mb-3">
+                            Track your application.
                         </h2>
 
-                        {admin.profileImage && (
-                            <img
-                                src={admin.profileImage}
-                                alt={`${admin.name}'s profile`}
-                                className="w-16 h-16 rounded-2xl object-cover mx-auto mb-4 border border-gray-200 shadow-2xs"
-                            />
+
+                        <p className="text-[14px] leading-6 max-w-[280px] text-white/80">
+                            Check your administrator application status
+                            securely using your tracking ID.
+                        </p>
+
+
+                        {/* Steps */}
+                        <div className="mt-10 space-y-4 text-left">
+
+                            <div className="flex items-center gap-3">
+
+                                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                                    <FileText size={15} />
+                                </div>
+
+                                <span className="text-xs text-white/80">
+                                    Enter your tracking ID
+                                </span>
+
+                            </div>
+
+
+                            <div className="flex items-center gap-3">
+
+                                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                                    <KeyRound size={15} />
+                                </div>
+
+                                <span className="text-xs text-white/80">
+                                    Verify with OTP
+                                </span>
+
+                            </div>
+
+
+                            <div className="flex items-center gap-3">
+
+                                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                                    <ShieldCheck size={15} />
+                                </div>
+
+                                <span className="text-xs text-white/80">
+                                    View application status
+                                </span>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    {/* =================================================
+                    CURVED EDGE
+                ================================================= */}
+                    <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[61%] -right-12 w-28 h-40 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[82%] -right-5 w-16 h-24 bg-blue-600 rounded-full" />
+                    <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-blue-600 rounded-full" />
+
+                </div>
+
+
+                {/* =====================================================
+                RIGHT CONTENT
+            ===================================================== */}
+                <div className="w-full lg:w-[57%] flex items-center justify-center bg-white">
+
+                    <div className="w-full max-w-[470px] px-6 py-10 sm:px-10 lg:px-12">
+
+
+                        {/* ================= BACK ================= */}
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-blue-600 transition mb-7 cursor-pointer"
+                        >
+                            <ArrowLeft size={15} />
+                            Back
+                        </button>
+
+
+                        {/* ================= HEADER ================= */}
+                        <div className="mb-7">
+
+                            <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
+                                Application Tracker
+                            </p>
+
+
+                            <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-tight text-gray-900">
+                                Check your status.
+                            </h1>
+
+
+                            <p className="text-sm text-gray-500 mt-2 leading-6">
+                                Verify your application to securely view
+                                the latest approval status.
+                            </p>
+
+                        </div>
+
+
+                        {/* =================================================
+                        STEP INDICATOR
+                    ================================================= */}
+                        {!admin && (
+
+                            <div className="flex items-center mb-7">
+
+                                {/* Step 1 */}
+                                <div className="flex items-center gap-2">
+
+                                    <div
+                                        className={`
+                                        w-8 h-8
+                                        rounded-full
+                                        flex items-center justify-center
+                                        text-xs font-bold
+                                        ${!showOtp
+                                                ? "bg-blue-600 text-white"
+                                                : "bg-blue-100 text-blue-600"
+                                            }
+                                    `}
+                                    >
+                                        {showOtp ? "✓" : "1"}
+                                    </div>
+
+                                    <span
+                                        className={`text-[11px] font-bold ${!showOtp
+                                                ? "text-blue-600"
+                                                : "text-gray-400"
+                                            }`}
+                                    >
+                                        Tracking ID
+                                    </span>
+
+                                </div>
+
+
+                                {/* Connector */}
+                                <div className="flex-1 mx-3 h-1 rounded-full bg-gray-100">
+
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-500 ${showOtp
+                                                ? "w-full bg-blue-600"
+                                                : "w-0"
+                                            }`}
+                                    />
+
+                                </div>
+
+
+                                {/* Step 2 */}
+                                <div className="flex items-center gap-2">
+
+                                    <div
+                                        className={`
+                                        w-8 h-8
+                                        rounded-full
+                                        flex items-center justify-center
+                                        text-xs font-bold
+                                        ${showOtp
+                                                ? "bg-blue-600 text-white"
+                                                : "bg-gray-100 text-gray-400"
+                                            }
+                                    `}
+                                    >
+                                        2
+                                    </div>
+
+                                    <span
+                                        className={`text-[11px] font-bold ${showOtp
+                                                ? "text-blue-600"
+                                                : "text-gray-400"
+                                            }`}
+                                    >
+                                        Verify
+                                    </span>
+
+                                </div>
+
+                            </div>
+
                         )}
 
-                        <div className="space-y-2.5 text-xs">
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
-                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Name</span>
-                                <span className="font-bold text-gray-900">{admin.name}</span>
+
+                        {/* =================================================
+                        INFO MESSAGE
+                    ================================================= */}
+                        {infoMessage && (
+
+                            <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 flex items-start gap-3">
+
+                                <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+
+                                    <CheckCircle2
+                                        size={15}
+                                        className="text-amber-600"
+                                    />
+
+                                </div>
+
+                                <p className="text-xs leading-5 text-amber-800 font-medium">
+                                    {infoMessage}
+                                </p>
+
                             </div>
 
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
-                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Email</span>
-                                <span className="font-semibold text-gray-900">{admin.email}</span>
+                        )}
+
+
+                        {/* =================================================
+                        OTP SENT MESSAGE
+                    ================================================= */}
+                        {otpSentMessage && showOtp && !admin && (
+
+                            <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 flex items-start gap-3">
+
+                                <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+
+                                    <CheckCircle2
+                                        size={15}
+                                        className="text-emerald-600"
+                                    />
+
+                                </div>
+
+                                <p className="text-xs leading-5 text-emerald-800 font-medium">
+                                    {otpSentMessage}
+                                </p>
+
                             </div>
 
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
-                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Mobile</span>
-                                <span className="font-semibold text-gray-900">{admin.mobile}</span>
+                        )}
+
+
+                        {/* =================================================
+                        ERROR
+                    ================================================= */}
+                        {error && (
+
+                            <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 flex items-start gap-3">
+
+                                <div className="w-7 h-7 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+
+                                    <AlertCircle
+                                        size={15}
+                                        className="text-rose-600"
+                                    />
+
+                                </div>
+
+                                <p className="text-xs leading-5 text-rose-700 font-medium">
+                                    {error}
+                                </p>
+
                             </div>
 
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-200">
-                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Tracking ID</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-['IBM_Plex_Mono',monospace] font-bold text-blue-600">{admin.trackingId}</span>
-                                    <button
-                                        onClick={() => handleCopyTrackingId(admin.trackingId)}
-                                        className="p-1 text-gray-400 hover:text-blue-600 bg-white rounded-md border border-gray-200 shadow-2xs cursor-pointer"
-                                        title="Copy ID"
+                        )}
+
+
+                        {/* =================================================
+                        STEP 1 — TRACKING ID
+                    ================================================= */}
+                        {!showOtp && (
+
+                            <form
+                                onSubmit={handleSendOtp}
+                                className="space-y-5"
+                            >
+
+                                <div>
+
+                                    <label
+                                        htmlFor="tracking-id"
+                                        className="block text-xs font-bold text-gray-600 mb-2"
                                     >
-                                        {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
-                                    </button>
+                                        Tracking ID
+                                    </label>
+
+
+                                    <div className="relative">
+
+                                        <FileText
+                                            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                                            size={17}
+                                        />
+
+                                        <input
+                                            id="tracking-id"
+                                            type="text"
+                                            placeholder="Enter your tracking ID"
+                                            value={trackingId}
+                                            onChange={(e) =>
+                                                setTrackingId(
+                                                    e.target.value
+                                                )
+                                            }
+                                            className="
+                                            w-full
+                                            h-[52px]
+                                            rounded-xl
+                                            border
+                                            border-gray-200
+                                            pl-11
+                                            pr-4
+                                            text-sm
+                                            font-medium
+                                            outline-none
+                                            bg-gray-50/50
+                                            focus:border-blue-500
+                                            focus:bg-white
+                                            focus:ring-2
+                                            focus:ring-blue-500/10
+                                            transition-all
+                                        "
+                                        />
+
+                                    </div>
+
                                 </div>
-                            </div>
 
-                            <div className="flex justify-between items-center pt-1">
-                                <span className="text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Status</span>
-                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-2xs ${STATUS_STYLES[admin.status] || "bg-gray-100 text-gray-700 border-gray-200"}`}>
-                                    {admin.status}
-                                </span>
-                            </div>
 
-                            {admin.status === "Rejected" && admin.remark && (
-                                <div className="pt-2 text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200">
-                                    <span className="font-bold">Remark: </span> {admin.remark}
+                                <div className="rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3">
+
+                                    <p className="text-xs leading-5 text-blue-700">
+                                        Enter the tracking ID you received
+                                        after submitting your administrator
+                                        application.
+                                    </p>
+
                                 </div>
-                            )}
 
-                            {admin.status === "Pending" && (
+
                                 <button
-                                    onClick={() => navigate(`/adminSignup/${admin._id}`)}
-                                    className="w-full mt-3 h-10 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 transition shadow-2xs cursor-pointer"
+                                    type="submit"
+                                    disabled={loading}
+                                    className="
+                                    w-full
+                                    h-[52px]
+                                    rounded-xl
+                                    bg-blue-600
+                                    hover:bg-blue-700
+                                    text-white
+                                    text-sm
+                                    font-bold
+                                    transition-all
+                                    duration-300
+                                    flex
+                                    items-center
+                                    justify-center
+                                    gap-2
+                                    shadow-[0_8px_20px_rgba(37,99,235,0.25)]
+                                    hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)]
+                                    hover:-translate-y-[1px]
+                                    disabled:opacity-60
+                                    disabled:cursor-not-allowed
+                                "
                                 >
-                                    Edit Request
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                )}
 
-                {/* Streamlined Footer */}
-                <div className="mt-8 border-t border-gray-100 pt-6 flex flex-col items-center justify-center text-xs text-center">
-                    <p className="text-gray-500 font-medium">
-                        Already verified or have credentials?{" "}
-                        <Link to="/login" className="text-blue-600 font-bold hover:underline underline-offset-4">
-                            Log in
-                        </Link>
-                    </p>
+                                    {loading && (
+                                        <Loader2
+                                            className="animate-spin"
+                                            size={17}
+                                        />
+                                    )}
+
+                                    {loading
+                                        ? "Sending OTP..."
+                                        : "Send Verification OTP"}
+
+                                </button>
+
+                            </form>
+
+                        )}
+
+
+                        {/* =================================================
+                        STEP 2 — OTP
+                    ================================================= */}
+                        {showOtp && !admin && (
+
+                            <form
+                                onSubmit={handleVerifyOtp}
+                                className="space-y-5"
+                            >
+
+                                <div className="rounded-2xl bg-[#f7f8fc] border border-gray-100 p-6">
+
+                                    <div className="flex justify-center mb-5">
+
+                                        <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center">
+
+                                            <KeyRound
+                                                size={26}
+                                                className="text-blue-600"
+                                            />
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <p className="text-center text-sm font-bold text-gray-800">
+                                        Verify your application
+                                    </p>
+
+
+                                    <p className="text-center text-xs text-gray-400 mt-1 mb-6">
+                                        Enter the 6-digit OTP sent to your
+                                        registered email.
+                                    </p>
+
+
+                                    <label
+                                        htmlFor="otp"
+                                        className="block text-xs font-bold text-gray-600 mb-2"
+                                    >
+                                        Verification Code
+                                    </label>
+
+
+                                    <div className="relative">
+
+                                        <KeyRound
+                                            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                                            size={17}
+                                        />
+
+                                        <input
+                                            id="otp"
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={6}
+                                            placeholder="000000"
+                                            value={otp}
+                                            onChange={(e) =>
+                                                setOtp(e.target.value)
+                                            }
+                                            className="
+                                            w-full
+                                            h-[54px]
+                                            rounded-xl
+                                            border
+                                            border-gray-200
+                                            bg-white
+                                            pl-11
+                                            pr-4
+                                            text-center
+                                            text-xl
+                                            font-bold
+                                            tracking-[0.5em]
+                                            outline-none
+                                            focus:border-blue-500
+                                            focus:ring-2
+                                            focus:ring-blue-500/10
+                                        "
+                                        />
+
+                                    </div>
+
+                                </div>
+
+
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="
+                                    w-full
+                                    h-[52px]
+                                    rounded-xl
+                                    bg-blue-600
+                                    hover:bg-blue-700
+                                    text-white
+                                    text-sm
+                                    font-bold
+                                    transition-all
+                                    duration-300
+                                    flex
+                                    items-center
+                                    justify-center
+                                    gap-2
+                                    shadow-[0_8px_20px_rgba(37,99,235,0.25)]
+                                    hover:-translate-y-[1px]
+                                    disabled:opacity-60
+                                    disabled:cursor-not-allowed
+                                "
+                                >
+
+                                    {loading && (
+                                        <Loader2
+                                            className="animate-spin"
+                                            size={17}
+                                        />
+                                    )}
+
+                                    {loading
+                                        ? "Verifying..."
+                                        : "Verify & View Status"}
+
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowOtp(false);
+                                        setOtp("");
+                                        setError("");
+                                        setOtpSentMessage("");
+                                    }}
+                                    className="w-full h-11 rounded-xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition-all"
+                                >
+                                    ← Change Tracking ID
+                                </button>
+
+                            </form>
+
+                        )}
+
+
+                        {/* =================================================
+                        ADMIN STATUS
+                    ================================================= */}
+                        {admin && (
+
+                            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+
+                                {/* Status Header */}
+                                <div className="px-5 py-5 bg-gray-50 border-b border-gray-100">
+
+                                    <div className="flex items-center justify-between">
+
+                                        <div>
+
+                                            <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-gray-400">
+                                                Application
+                                            </p>
+
+                                            <h2 className="text-lg font-extrabold text-gray-900 mt-1">
+                                                Request Details
+                                            </h2>
+
+                                        </div>
+
+
+                                        <span
+                                            className={`
+                                            px-3 py-1.5
+                                            rounded-full
+                                            text-[10px]
+                                            font-bold
+                                            uppercase
+                                            tracking-wider
+                                            border
+                                            ${STATUS_STYLES[admin.status] ||
+                                                "bg-gray-100 text-gray-700 border-gray-200"}
+                                        `}
+                                        >
+                                            {admin.status}
+                                        </span>
+
+                                    </div>
+
+                                </div>
+
+
+                                <div className="p-5">
+
+                                    {/* Profile */}
+                                    <div className="flex items-center gap-4 mb-5">
+
+                                        {admin.profileImage ? (
+
+                                            <img
+                                                src={admin.profileImage}
+                                                alt={`${admin.name}'s profile`}
+                                                className="w-16 h-16 rounded-2xl object-cover border border-gray-200 shadow-sm"
+                                            />
+
+                                        ) : (
+
+                                            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
+
+                                                <ShieldCheck
+                                                    size={24}
+                                                    className="text-blue-600"
+                                                />
+
+                                            </div>
+
+                                        )}
+
+
+                                        <div>
+
+                                            <h3 className="font-bold text-gray-900">
+                                                {admin.name}
+                                            </h3>
+
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                Administrator Application
+                                            </p>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    {/* Details */}
+                                    <div className="space-y-0 rounded-xl border border-gray-100 overflow-hidden">
+
+                                        <div className="flex justify-between items-center px-4 py-3 bg-gray-50/60 border-b border-gray-100">
+
+                                            <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                                                Email
+                                            </span>
+
+                                            <span className="text-xs font-semibold text-gray-900">
+                                                {admin.email}
+                                            </span>
+
+                                        </div>
+
+
+                                        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+
+                                            <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                                                Mobile
+                                            </span>
+
+                                            <span className="text-xs font-semibold text-gray-900">
+                                                {admin.mobile}
+                                            </span>
+
+                                        </div>
+
+
+                                        <div className="flex justify-between items-center px-4 py-3 bg-gray-50/60">
+
+                                            <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                                                Tracking ID
+                                            </span>
+
+                                            <div className="flex items-center gap-2">
+
+                                                <span className="text-xs font-bold text-blue-600 font-mono">
+                                                    {admin.trackingId}
+                                                </span>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleCopyTrackingId(
+                                                            admin.trackingId
+                                                        )
+                                                    }
+                                                    className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-blue-600 transition"
+                                                    title="Copy Tracking ID"
+                                                >
+
+                                                    {copied ? (
+                                                        <Check
+                                                            size={13}
+                                                            className="text-emerald-600"
+                                                        />
+                                                    ) : (
+                                                        <Copy size={13} />
+                                                    )}
+
+                                                </button>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    {/* Rejected Remark */}
+                                    {admin.status === "Rejected" &&
+                                        admin.remark && (
+
+                                            <div className="mt-4 p-4 rounded-xl bg-rose-50 border border-rose-200">
+
+                                                <p className="text-xs text-rose-700 leading-5">
+
+                                                    <span className="font-bold">
+                                                        Remark:
+                                                    </span>{" "}
+                                                    {admin.remark}
+
+                                                </p>
+
+                                            </div>
+
+                                        )}
+
+
+                                    {/* Pending Edit */}
+                                    {admin.status === "Pending" && (
+
+                                        <button
+                                            onClick={() =>
+                                                navigate(
+                                                    `/adminSignup/${admin._id}`
+                                                )
+                                            }
+                                            className="
+                                            w-full
+                                            mt-4
+                                            h-[48px]
+                                            rounded-xl
+                                            bg-gray-900
+                                            hover:bg-gray-800
+                                            text-white
+                                            text-sm
+                                            font-bold
+                                            transition-all
+                                        "
+                                        >
+                                            Edit Application
+                                        </button>
+
+                                    )}
+
+                                </div>
+
+                            </div>
+
+                        )}
+
+
+                        {/* ================= FOOTER ================= */}
+                        <div className="mt-7 pt-6 border-t border-gray-100 text-center">
+
+                            <p className="text-[13px] text-gray-500">
+
+                                Already verified or have credentials?{" "}
+
+                                <Link
+                                    to="/login"
+                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4"
+                                >
+                                    Log in
+                                </Link>
+
+                            </p>
+
+                        </div>
+
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
     );
 };

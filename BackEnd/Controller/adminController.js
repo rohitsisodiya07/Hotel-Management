@@ -2,15 +2,35 @@ const adminModel = require('../Model/adminModel');
 const { v4: uuidv4 } = require("uuid");
 const mongoose = require("mongoose");
 const signupModel = require('../Model/signupModel');
-const sendEmail = require("../Utilities/NodeMailer");
+const sendEmail = require("../Utilities/ResendEmail");
 const bcrypt = require("bcrypt");
 const { uploadImage } = require("../Utilities/Cloudinary");
+
+// --- REUSABLE EMAIL TEMPLATE GENERATOR ---
+const generateAuraStayEmail = (title, subtitle, content) => `
+    <div style="max-width:600px;margin:auto;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:16px;overflow:hidden;font-family:'Inter',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1F2937;">
+        <div style="background:#0F172A;padding:40px 30px;text-align:center;">
+            <h1 style="color:#ffffff;margin:0;font-size:28px;font-weight:700;letter-spacing:1.5px;">AuraStay</h1>
+            <p style="color:#D97706;margin:8px 0 0 0;font-size:12px;text-transform:uppercase;letter-spacing:2px;font-weight:600;">${subtitle}</p>
+        </div>
+        <div style="padding:40px;background:#ffffff;">
+            <h2 style="color:#111827;margin-top:0;font-size:22px;font-weight:600;">${title}</h2>
+            ${content}
+            <hr style="border:none;border-top:1px solid #E5E7EB;margin:30px 0;" />
+            <p style="font-size:12px;color:#6B7280;text-align:center;margin:0;">
+                © ${new Date().getFullYear()} AuraStay. All rights reserved.<br/>
+                This is an automated security message. Please do not reply.
+            </p>
+        </div>
+    </div>
+`;
 
 // STEP 1: Send OTP for Admin Signup
 const sendAdminSignupOtp = async (req, res) => {
     try {
         let { name, email, mobile } = req.body;
 
+        // Validation Logic Inside Function
         if (!name?.trim() || !email?.trim() || !mobile?.trim()) {
             return res.status(400).json({ success: false, message: "All fields are required" });
         }
@@ -19,16 +39,18 @@ const sendAdminSignupOtp = async (req, res) => {
         email = email.trim().toLowerCase();
         mobile = mobile.trim();
 
-        if (!/^[A-Za-z\s.]+$/.test(name)) {
-            return res.status(400).json({ success: false, message: "Invalid name" });
-        }
+        const nameRegex = /^[A-Za-z\s.]+$/;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const mobileRegex = /^[6-9][0-9]{9}$/;
 
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (!nameRegex.test(name)) {
+            return res.status(400).json({ success: false, message: "Invalid name format" });
+        }
+        if (!emailRegex.test(email)) {
             return res.status(400).json({ success: false, message: "Invalid email address" });
         }
-
-        if (!/^[6-9][0-9]{9}$/.test(mobile)) {
-            return res.status(400).json({ success: false, message: "Invalid mobile number" });
+        if (!mobileRegex.test(mobile)) {
+            return res.status(400).json({ success: false, message: "Invalid mobile number (must be 10 digits starting with 6-9)" });
         }
 
         const existingRequest = await adminModel.findOne({ email });
@@ -48,14 +70,11 @@ const sendAdminSignupOtp = async (req, res) => {
 
         if (!pendingAdmin) {
             pendingAdmin = new adminModel({
-                name,
-                email,
-                mobile,
+                name, email, mobile,
                 profileImage: "https://via.placeholder.com/150",
                 trackingId: uuidv4(),
                 status: "Pending",
-                otp,
-                otpExpire
+                otp, otpExpire
             });
         } else {
             pendingAdmin.name = name;
@@ -66,30 +85,17 @@ const sendAdminSignupOtp = async (req, res) => {
 
         await pendingAdmin.save();
 
-        const html = `
-            <div style="max-width:600px;margin:auto;background:#F7F6F0;border:1px solid #E5E2D5;border-radius:16px;overflow:hidden;font-family:'Inter',Arial,sans-serif;color:#1B2537;">
-                <div style="background:#1B2537;padding:35px;text-align:center;">
-                    <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:1px;">STAYFINDER</h1>
-                    <p style="color:#A2782E;margin:5px 0 0 0;font-size:10px;text-transform:uppercase;letter-spacing:2px;">Security Verification</p>
-                </div>
-                <div style="padding:40px;background:#ffffff;">
-                    <h2 style="color:#1B2537;margin-top:0;font-size:20px;">Email Verification Code</h2>
-                    <p style="font-size:14px;color:#555;line-height:1.6;">Hello <strong>${name}</strong>,</p>
-                    <p style="font-size:14px;color:#555;line-height:1.6;">Please use the secure verification code below to proceed with your admin registration. Valid for 5 minutes.</p>
-                    <div style="background:#F7F6F0;padding:25px;border-radius:12px;text-align:center;margin:30px 0;border:1px solid #E5E2D5;">
-                        <span style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#1B2537;font-family:monospace;">${otp}</span>
-                    </div>
-                </div>
+        const emailContent = `
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Hello <strong>${name}</strong>,</p>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Please use the secure verification code below to proceed with your admin registration. This code is valid for <strong>5 minutes</strong>.</p>
+            <div style="background:#F3F4F6;padding:20px;border-radius:8px;text-align:center;margin:30px 0;border:1px dashed #D1D5DB;">
+                <span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#0F172A;font-family:monospace;">${otp}</span>
             </div>
         `;
+        const html = generateAuraStayEmail("Email Verification Code", "Security Verification", emailContent);
+        await sendEmail(email, "🔐 Verification Code — AuraStay", html);
 
-        await sendEmail(email, "🔐 Email Verification OTP — StayFinder", html);
-
-        return res.status(200).json({
-            success: true,
-            message: "OTP sent successfully to your email",
-            tempId: pendingAdmin._id
-        });
+        return res.status(200).json({ success: true, message: "OTP sent successfully to your email", tempId: pendingAdmin._id });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -100,8 +106,14 @@ const verifyAndCreateAdmin = async (req, res) => {
     try {
         const { adminId, otp } = req.body;
 
-        if (!adminId || !otp?.trim()) {
-            return res.status(400).json({ success: false, message: "Admin ID and OTP are required" });
+        // Validation Logic Inside Function
+        if (!adminId || !mongoose.Types.ObjectId.isValid(adminId)) {
+            return res.status(400).json({ success: false, message: "Valid Admin ID is required" });
+        }
+        
+        const otpRegex = /^\d{6}$/;
+        if (!otp?.trim() || !otpRegex.test(otp.trim())) {
+            return res.status(400).json({ success: false, message: "Valid 6-digit OTP is required" });
         }
 
         const admin = await adminModel.findById(adminId);
@@ -125,11 +137,19 @@ const verifyAndCreateAdmin = async (req, res) => {
         admin.trackingId = trackingId;
         await admin.save();
 
-        return res.status(201).json({
-            success: true,
-            message: "OTP verified successfully. Tracking ID sent to email.",
-            admin,
-        });
+        const emailContent = `
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Hello <strong>${admin.name}</strong>,</p>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Your registration request has been submitted successfully and is currently under review by our master administrators.</p>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">You can track the status of your application using your unique Tracking ID below:</p>
+            <div style="background:#FEF3C7;padding:20px;border-radius:8px;text-align:center;margin:30px 0;border:1px solid #FDE68A;">
+                <span style="font-size:20px;font-weight:700;color:#92400E;font-family:monospace;">${trackingId}</span>
+            </div>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Keep this ID safe, as you will need it to check your status.</p>
+        `;
+        const html = generateAuraStayEmail("Registration Submitted", "Application Tracker", emailContent);
+        await sendEmail(admin.email, "📝 Application Received — AuraStay", html);
+
+        return res.status(201).json({ success: true, message: "OTP verified successfully. Tracking ID sent to email.", admin });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -137,16 +157,21 @@ const verifyAndCreateAdmin = async (req, res) => {
 
 // HELPER FOR SERVER-SIDE SEARCH, PAGINATION & SORTING
 const getFilteredAdminsQuery = async (req, status) => {
-    const { search = "", page = 1, limit = 10, sort = "newest" } = req.query;
+    let { search = "", page = 1, limit = 10, sort = "newest" } = req.query;
 
-    const pageNum = Number(page) || 1;
-    const limitNum = Number(limit) || 10;
+    // Validation Logic Inside Function
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Math.min(Number(limit) || 10, 100)); // Cap limit at 100
     const skip = (pageNum - 1) * limitNum;
+
+    const validSorts = ["newest", "oldest", "name"];
+    if (!validSorts.includes(sort)) sort = "newest";
 
     let query = { status };
 
     if (search.trim()) {
-        const searchRegex = new RegExp(search, "i");
+        const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(safeSearch, "i");
         query.$or = [
             { name: searchRegex },
             { email: searchRegex },
@@ -156,27 +181,16 @@ const getFilteredAdminsQuery = async (req, status) => {
     }
 
     let sortOption = { createdAt: -1 };
-
     if (sort === "oldest") sortOption = { createdAt: 1 };
     else if (sort === "name") sortOption = { name: 1 };
 
-    const admins = await adminModel
-        .find(query)
-        .sort(sortOption)
-        .skip(skip)
-        .limit(limitNum);
-
+    const admins = await adminModel.find(query).sort(sortOption).skip(skip).limit(limitNum);
     const total = await adminModel.countDocuments(query);
 
-    return {
-        admins,
-        total,
-        page: pageNum,
-        totalPages: Math.ceil(total / limitNum),
-    };
+    return { admins, total, page: pageNum, totalPages: Math.ceil(total / limitNum) };
 };
 
-// Get Pending Requests (Backend Pagination & Search)
+// Get Pending Requests
 const getPendingAdminRequests = async (req, res) => {
     try {
         const data = await getFilteredAdminsQuery(req, "Pending");
@@ -186,7 +200,7 @@ const getPendingAdminRequests = async (req, res) => {
     }
 };
 
-// Get Approved Requests (Backend Pagination & Search)
+// Get Approved Requests
 const getApprovedAdminRequests = async (req, res) => {
     try {
         const data = await getFilteredAdminsQuery(req, "Approved");
@@ -196,20 +210,13 @@ const getApprovedAdminRequests = async (req, res) => {
     }
 };
 
-// Get Rejected Requests (Backend Pagination & Search)
+// Get Rejected Requests
 const getRejectedAdminRequests = async (req, res) => {
     try {
         const data = await getFilteredAdminsQuery(req, "Rejected");
-
-        res.status(200).json({
-            success: true,
-            ...data,
-        });
+        res.status(200).json({ success: true, ...data });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -217,15 +224,20 @@ const getRejectedAdminRequests = async (req, res) => {
 const approveAdminRequest = async (req, res) => {
     const session = await mongoose.startSession();
     try {
+        const { id } = req.params;
         const { password } = req.body;
 
+        // Validation Logic Inside Function
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: "Valid Request ID is required" });
+        }
         if (!password?.trim() || password.trim().length < 6) {
             return res.status(400).json({ success: false, message: "Password must be at least 6 characters" });
         }
 
         session.startTransaction();
 
-        const admin = await adminModel.findById(req.params.id).session(session);
+        const admin = await adminModel.findById(id).session(session);
         if (!admin || admin.status !== "Pending") {
             await session.abortTransaction();
             return res.status(404).json({ success: false, message: "Valid pending request not found" });
@@ -237,7 +249,7 @@ const approveAdminRequest = async (req, res) => {
             return res.status(400).json({ success: false, message: "User already exists" });
         }
 
-        const hashPassword = await bcrypt.hash(password, 10);
+        const hashPassword = await bcrypt.hash(password.trim(), 10);
 
         await signupModel.create([{
             name: admin.name,
@@ -253,6 +265,14 @@ const approveAdminRequest = async (req, res) => {
 
         await session.commitTransaction();
 
+        const emailContent = `
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Congratulations <strong>${admin.name}</strong>!</p>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Your application to become an administrator at AuraStay has been <strong>approved</strong>.</p>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">You can now log in to the admin dashboard using your registered email address.</p>
+        `;
+        const html = generateAuraStayEmail("Application Approved", "Welcome Aboard", emailContent);
+        await sendEmail(admin.email, "🎉 Welcome to AuraStay Admin!", html);
+
         res.status(200).json({ success: true, message: "Admin approved successfully" });
     } catch (error) {
         if (session.inTransaction()) await session.abortTransaction();
@@ -265,19 +285,39 @@ const approveAdminRequest = async (req, res) => {
 // Reject Admin Request
 const rejectAdminRequest = async (req, res) => {
     try {
+        const { id } = req.params;
         const { remark } = req.body;
-        if (!remark?.trim()) {
-            return res.status(400).json({ success: false, message: "Remark is required" });
+
+        // Validation Logic Inside Function
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: "Valid Request ID is required" });
+        }
+        if (!remark?.trim() || remark.trim().length < 5) {
+            return res.status(400).json({ success: false, message: "A valid remark (min 5 characters) is required for rejection" });
         }
 
-        const admin = await adminModel.findById(req.params.id);
+        const admin = await adminModel.findById(id);
         if (!admin) {
             return res.status(404).json({ success: false, message: "Request not found" });
+        }
+        if (admin.status !== "Pending") {
+             return res.status(400).json({ success: false, message: "Only pending requests can be rejected" });
         }
 
         admin.status = "Rejected";
         admin.remark = remark.trim();
         await admin.save();
+
+        const emailContent = `
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Hello <strong>${admin.name}</strong>,</p>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Thank you for your interest in becoming an administrator at AuraStay. After careful review, we regret to inform you that we are unable to approve your application at this time.</p>
+            <div style="background:#FEF2F2;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #DC2626;">
+                <h4 style="margin:0 0 10px 0;color:#991B1B;font-size:14px;text-transform:uppercase;">Reason for Rejection:</h4>
+                <p style="margin:0;color:#7F1D1D;font-size:15px;">${admin.remark}</p>
+            </div>
+        `;
+        const html = generateAuraStayEmail("Application Update", "Status: Rejected", emailContent);
+        await sendEmail(admin.email, "Update regarding your AuraStay Application", html);
 
         res.status(200).json({ success: true, message: "Request rejected successfully" });
     } catch (error) {
@@ -289,19 +329,32 @@ const rejectAdminRequest = async (req, res) => {
 const sendOtp = async (req, res) => {
     try {
         const { trackingId } = req.body;
-        if (!trackingId?.trim()) {
-            return res.status(400).json({ success: false, message: "Tracking ID is required" });
+        
+        // Validation Logic Inside Function
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!trackingId?.trim() || !uuidRegex.test(trackingId.trim())) {
+            return res.status(400).json({ success: false, message: "A valid Tracking ID is required" });
         }
 
         const admin = await adminModel.findOne({ trackingId: trackingId.trim() });
         if (!admin) {
-            return res.status(404).json({ success: false, message: "Invalid Tracking ID" });
+            return res.status(404).json({ success: false, message: "Tracking ID not found" });
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         admin.otp = otp;
         admin.otpExpire = Date.now() + 2 * 60 * 1000;
         await admin.save();
+
+        const emailContent = `
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">Hello <strong>${admin.name}</strong>,</p>
+            <p style="font-size:15px;color:#4B5563;line-height:1.6;">You recently requested to check the status of your AuraStay application. Use the OTP below to authenticate. Valid for <strong>2 minutes</strong>.</p>
+            <div style="background:#F3F4F6;padding:20px;border-radius:8px;text-align:center;margin:30px 0;border:1px dashed #D1D5DB;">
+                <span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#0F172A;font-family:monospace;">${otp}</span>
+            </div>
+        `;
+        const html = generateAuraStayEmail("Tracker Verification", "Status Check", emailContent);
+        await sendEmail(admin.email, "🔍 Tracker OTP — AuraStay", html);
 
         res.status(200).json({ success: true, message: "OTP sent successfully", email: admin.email });
     } catch (error) {
@@ -313,6 +366,18 @@ const sendOtp = async (req, res) => {
 const verifyOtp = async (req, res) => {
     try {
         const { trackingId, otp } = req.body;
+        
+        // Validation Logic Inside Function
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const otpRegex = /^\d{6}$/;
+
+        if (!trackingId?.trim() || !uuidRegex.test(trackingId.trim())) {
+            return res.status(400).json({ success: false, message: "A valid Tracking ID is required" });
+        }
+        if (!otp?.trim() || !otpRegex.test(otp.trim())) {
+            return res.status(400).json({ success: false, message: "A valid 6-digit OTP is required" });
+        }
+
         const admin = await adminModel.findOne({ trackingId: trackingId.trim() });
         if (!admin || !admin.otp || admin.otpExpire < Date.now() || admin.otp !== otp.trim()) {
             return res.status(400).json({ success: false, message: "Invalid or expired OTP" });
@@ -330,8 +395,16 @@ const verifyOtp = async (req, res) => {
 
 const getAdminById = async (req, res) => {
     try {
-        const admin = await adminModel.findById(req.params.id);
-        if (!admin) return res.status(404).json({ success: false, message: "Not found" });
+        const { id } = req.params;
+
+        // Validation Logic Inside Function
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: "Valid Admin ID is required" });
+        }
+
+        const admin = await adminModel.findById(id);
+        if (!admin) return res.status(404).json({ success: false, message: "Admin request not found" });
+        
         res.status(200).json({ success: true, admin });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -340,14 +413,51 @@ const getAdminById = async (req, res) => {
 
 const updateRequest = async (req, res) => {
     try {
-        const admin = await adminModel.findById(req.params.id);
-        if (!admin || admin.status !== "Pending") {
-            return res.status(400).json({ success: false, message: "Invalid request or not pending" });
-        }
+        const { id } = req.params;
         let { name, email, mobile } = req.body;
-        admin.name = name?.trim() || admin.name;
-        admin.email = email?.trim().toLowerCase() || admin.email;
-        admin.mobile = mobile?.trim() || admin.mobile;
+
+        // Validation Logic Inside Function
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: "Valid Request ID is required" });
+        }
+
+        const admin = await adminModel.findById(id);
+        if (!admin || admin.status !== "Pending") {
+            return res.status(400).json({ success: false, message: "Invalid request or request is no longer pending" });
+        }
+
+        // Validate individual fields if they are provided in the update request
+        if (name !== undefined) {
+            name = name.trim();
+            const nameRegex = /^[A-Za-z\s.]+$/;
+            if (!nameRegex.test(name)) return res.status(400).json({ success: false, message: "Invalid name format" });
+            admin.name = name;
+        }
+
+        if (email !== undefined) {
+            email = email.trim().toLowerCase();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) return res.status(400).json({ success: false, message: "Invalid email address" });
+            
+            // Ensure new email doesn't conflict with existing users/admins
+            if (email !== admin.email) {
+                const existingAdmin = await adminModel.findOne({ email });
+                if (existingAdmin) return res.status(400).json({ success: false, message: "Email already in use by another admin request" });
+                
+                const existingUser = await signupModel.findOne({ email });
+                if (existingUser) return res.status(400).json({ success: false, message: "Email already in use by a registered user" });
+                
+                admin.email = email;
+            }
+        }
+
+        if (mobile !== undefined) {
+            mobile = mobile.trim();
+            const mobileRegex = /^[6-9][0-9]{9}$/;
+            if (!mobileRegex.test(mobile)) return res.status(400).json({ success: false, message: "Invalid mobile number" });
+            admin.mobile = mobile;
+        }
+
         await admin.save();
         res.status(200).json({ success: true, message: "Updated successfully", admin });
     } catch (error) {
@@ -366,5 +476,5 @@ module.exports = {
     verifyOtp,
     getAdminById,
     updateRequest,
-    getRejectedAdminRequests: getRejectedAdminRequests,
+    getRejectedAdminRequests,
 };

@@ -2,7 +2,16 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { signupApi } from "./api";
-import { ShieldCheck, Eye, EyeOff, ArrowLeft, Loader2, KeyRound, AlertCircle } from "lucide-react";
+import {
+    ShieldCheck,
+    Eye,
+    EyeOff,
+    ArrowLeft,
+    Loader2,
+    KeyRound,
+    AlertCircle,
+    Lock
+} from "lucide-react"; import logo from './assets/logo.png'
 
 const ResetPassword = () => {
     const navigate = useNavigate();
@@ -84,128 +93,437 @@ const ResetPassword = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-800 font-['Inter',sans-serif] flex flex-col items-center justify-center p-4 relative overflow-hidden">
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');`}</style>
+        <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
 
-            {/* Background Decorative Glows */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            {/* ================= MAIN CARD ================= */}
+            <div className="w-full max-w-[1100px] min-h-[650px] bg-white rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
 
-            <div className="w-full max-w-[440px] relative z-10">
-                {/* Back Button */}
-                <button
-                    onClick={() => navigate(-1)}
-                    className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 mb-6 font-semibold text-xs uppercase tracking-wider transition cursor-pointer font-['IBM_Plex_Mono']"
-                >
-                    <ArrowLeft size={15} /> Return Back
-                </button>
+                {/* =====================================================
+                LEFT BRAND SECTION
+            ===================================================== */}
+                <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 z-10 overflow-hidden">
 
-                {/* Main Card */}
-                <div className="bg-white rounded-3xl shadow-xl border border-gray-200 overflow-hidden">
+                    {/* Decorative background */}
+                    <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
 
-                    {/* Header */}
-                    <div className="p-8 border-b border-gray-100 bg-gray-50/60 text-center">
-                        <div className="w-14 h-14 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-600 shadow-2xs">
-                            <ShieldCheck size={26} strokeWidth={1.75} />
+                    <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
+
+                    {/* Decorative dots */}
+                    <div className="absolute top-24 right-20 w-3 h-3 rounded-full bg-white/30" />
+                    <div className="absolute top-36 right-32 w-2 h-2 rounded-full bg-white/20" />
+                    <div className="absolute bottom-28 left-20 w-2 h-2 rounded-full bg-white/20" />
+
+                    {/* ================= BRAND CONTENT ================= */}
+                    <div className="relative z-20 flex flex-col items-center justify-center text-center">
+
+                        <h2 className="text-xl font-medium tracking-wide mb-8">
+                            Welcome to
+                        </h2>
+
+                        {/* LOGO */}
+                        <div className="w-[250px] mb-10 flex items-center justify-center">
+                            <img
+                                src={logo}
+                                alt="AuraStay Logo"
+                                className="w-full h-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.18)]"
+                            />
                         </div>
-                        <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
-                            Security Credentials
-                        </span>
-                        <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 mb-1 tracking-tight">
-                            Reset Password
-                        </h1>
-                        <p className="text-gray-500 text-xs font-medium">
-                            Update your account password to maintain secure access.
+
+                        {/* Tagline */}
+                        <p className="text-[15px] leading-7 max-w-[250px] text-center font-medium text-white/90">
+                            Discover and Find Your
+                            <br />
+                            Perfect Healing Place
                         </p>
+
+                        {/* Bottom tagline */}
+                        <div className="flex items-center gap-3 mt-12 text-[10px] tracking-[0.25em] uppercase text-white/50">
+
+                            <span className="w-8 h-px bg-white/30" />
+
+                            Stay • Explore • Relax
+
+                            <span className="w-8 h-px bg-white/30" />
+
+                        </div>
+
                     </div>
 
-                    {/* Form */}
-                    <form onSubmit={handleSubmit} className="p-8 space-y-5 text-xs">
+                    {/* =================================================
+                    CURVED RIGHT EDGE
+                ================================================= */}
+                    <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[61%] -right-12 w-28 h-40 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[82%] -right-5 w-16 h-24 bg-blue-600 rounded-full" />
+                    <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-blue-600 rounded-full" />
 
-                        {/* Old Password */}
-                        <div>
-                            <label className="block text-[11px] font-['IBM_Plex_Mono',monospace] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
-                                Current Password
-                            </label>
-                            <div className="relative">
-                                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                <input
-                                    type={showPasswords ? "text" : "password"}
-                                    name="oldPassword"
-                                    placeholder="Enter current password"
-                                    value={formData.oldPassword}
-                                    onChange={handleChange}
-                                    className="w-full bg-gray-50/50 border border-gray-200 rounded-xl pl-10 pr-10 py-3 text-xs font-medium outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition shadow-2xs text-gray-900"
+                </div>
+
+
+                {/* =====================================================
+                RIGHT RESET PASSWORD SECTION
+            ===================================================== */}
+                <div className="w-full lg:w-[57%] flex items-center justify-center bg-white relative z-0">
+
+                    <div className="w-full max-w-[440px] px-6 py-10 sm:px-10 lg:px-12">
+
+                        {/* ================= HEADER ================= */}
+                        <div className="mb-8">
+
+                            <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
+                                Security Settings
+                            </p>
+
+                            <h1 className="text-[34px] sm:text-[38px] font-extrabold tracking-tight text-gray-900">
+                                Change password.
+                            </h1>
+
+                            <p className="text-sm text-gray-500 mt-2 leading-6">
+                                Update your password to keep your AuraStay account secure.
+                            </p>
+
+                        </div>
+
+
+                        {/* ================= SECURITY INFO ================= */}
+                        <div className="mb-6 rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3.5 flex items-start gap-3">
+
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+
+                                <ShieldCheck
+                                    size={17}
+                                    className="text-blue-600"
                                 />
+
+                            </div>
+
+                            <div>
+
+                                <p className="text-xs font-bold text-blue-800">
+                                    Secure password update
+                                </p>
+
+                                <p className="text-[11px] text-blue-600 mt-0.5 leading-5">
+                                    Use a password of at least 6 characters and keep it private.
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        {/* ================= FORM ================= */}
+                        <form
+                            onSubmit={handleSubmit}
+                            className="space-y-5"
+                        >
+
+                            {/* =================================================
+                            CURRENT PASSWORD
+                        ================================================= */}
+                            <div>
+
+                                <label className="block text-xs font-bold text-gray-600 mb-2">
+                                    Current Password
+                                </label>
+
+                                <div className="relative">
+
+                                    <KeyRound
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                                        size={17}
+                                    />
+
+                                    <input
+                                        type={
+                                            showPasswords
+                                                ? "text"
+                                                : "password"
+                                        }
+                                        name="oldPassword"
+                                        autoComplete="current-password"
+                                        placeholder="Enter your current password"
+                                        value={formData.oldPassword}
+                                        onChange={handleChange}
+                                        className={`
+                                        w-full
+                                        h-[52px]
+                                        rounded-xl
+                                        border
+                                        pl-11
+                                        pr-12
+                                        text-sm
+                                        font-medium
+                                        outline-none
+                                        transition-all
+                                        bg-gray-50/50
+                                        ${errors.oldPassword
+                                                ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
+                                                : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                                            }
+                                    `}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowPasswords(
+                                                !showPasswords
+                                            )
+                                        }
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
+                                    >
+                                        {showPasswords ? (
+                                            <EyeOff size={17} />
+                                        ) : (
+                                            <Eye size={17} />
+                                        )}
+                                    </button>
+
+                                </div>
+
+                                {errors.oldPassword && (
+                                    <p className="text-rose-600 font-medium text-[11px] mt-1.5 flex items-center gap-1">
+                                        <AlertCircle size={12} />
+                                        {errors.oldPassword}
+                                    </p>
+                                )}
+
+                            </div>
+
+
+                            {/* Divider */}
+                            <div className="flex items-center gap-3 py-1">
+
+                                <div className="flex-1 h-px bg-gray-100" />
+
+                                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-300">
+                                    New credentials
+                                </span>
+
+                                <div className="flex-1 h-px bg-gray-100" />
+
+                            </div>
+
+
+                            {/* =================================================
+                            NEW PASSWORD
+                        ================================================= */}
+                            <div>
+
+                                <label className="block text-xs font-bold text-gray-600 mb-2">
+                                    New Password
+                                </label>
+
+                                <div className="relative">
+
+                                    <Lock
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                                        size={17}
+                                    />
+
+                                    <input
+                                        type={
+                                            showPasswords
+                                                ? "text"
+                                                : "password"
+                                        }
+                                        name="newPassword"
+                                        autoComplete="new-password"
+                                        placeholder="Enter new password"
+                                        value={formData.newPassword}
+                                        onChange={handleChange}
+                                        className={`
+                                        w-full
+                                        h-[52px]
+                                        rounded-xl
+                                        border
+                                        pl-11
+                                        pr-12
+                                        text-sm
+                                        font-medium
+                                        outline-none
+                                        transition-all
+                                        bg-gray-50/50
+                                        ${errors.newPassword
+                                                ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
+                                                : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                                            }
+                                    `}
+                                    />
+
+                                </div>
+
+                                {errors.newPassword && (
+                                    <p className="text-rose-600 font-medium text-[11px] mt-1.5 flex items-center gap-1">
+                                        <AlertCircle size={12} />
+                                        {errors.newPassword}
+                                    </p>
+                                )}
+
+                            </div>
+
+
+                            {/* =================================================
+                            CONFIRM PASSWORD
+                        ================================================= */}
+                            <div>
+
+                                <label className="block text-xs font-bold text-gray-600 mb-2">
+                                    Confirm New Password
+                                </label>
+
+                                <div className="relative">
+
+                                    <Lock
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                                        size={17}
+                                    />
+
+                                    <input
+                                        type={
+                                            showPasswords
+                                                ? "text"
+                                                : "password"
+                                        }
+                                        name="confirmPassword"
+                                        autoComplete="new-password"
+                                        placeholder="Re-enter your new password"
+                                        value={formData.confirmPassword}
+                                        onChange={handleChange}
+                                        className={`
+                                        w-full
+                                        h-[52px]
+                                        rounded-xl
+                                        border
+                                        pl-11
+                                        pr-12
+                                        text-sm
+                                        font-medium
+                                        outline-none
+                                        transition-all
+                                        bg-gray-50/50
+                                        ${errors.confirmPassword
+                                                ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
+                                                : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                                            }
+                                    `}
+                                    />
+
+                                </div>
+
+                                {errors.confirmPassword && (
+                                    <p className="text-rose-600 font-medium text-[11px] mt-1.5 flex items-center gap-1">
+                                        <AlertCircle size={12} />
+                                        {errors.confirmPassword}
+                                    </p>
+                                )}
+
+                            </div>
+
+
+                            {/* =================================================
+                            PASSWORD VISIBILITY
+                        ================================================= */}
+                            <div className="flex items-center justify-between pt-1">
+
                                 <button
                                     type="button"
-                                    onClick={() => setShowPasswords(!showPasswords)}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition cursor-pointer"
+                                    onClick={() =>
+                                        setShowPasswords(
+                                            !showPasswords
+                                        )
+                                    }
+                                    className="text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-2"
                                 >
-                                    {showPasswords ? <EyeOff size={16} /> : <Eye size={16} />}
+
+                                    {showPasswords ? (
+                                        <EyeOff size={15} />
+                                    ) : (
+                                        <Eye size={15} />
+                                    )}
+
+                                    {showPasswords
+                                        ? "Hide passwords"
+                                        : "Show passwords"}
+
                                 </button>
+
+                                <span className="text-[11px] text-gray-400">
+                                    Minimum 6 characters
+                                </span>
+
                             </div>
-                            {errors.oldPassword && (
-                                <p className="text-rose-600 font-medium text-[11px] mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.oldPassword}</p>
-                            )}
-                        </div>
 
-                        <hr className="border-gray-100" />
 
-                        {/* New Password */}
-                        <div>
-                            <label className="block text-[11px] font-['IBM_Plex_Mono',monospace] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
-                                New Password
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type={showPasswords ? "text" : "password"}
-                                    name="newPassword"
-                                    placeholder="Min. 6 characters"
-                                    value={formData.newPassword}
-                                    onChange={handleChange}
-                                    className="w-full bg-gray-50/50 border border-gray-200 rounded-xl px-4 py-3 text-xs font-medium outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition shadow-2xs text-gray-900"
-                                />
-                            </div>
-                            {errors.newPassword && (
-                                <p className="text-rose-600 font-medium text-[11px] mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.newPassword}</p>
-                            )}
-                        </div>
-
-                        {/* Confirm Password */}
-                        <div>
-                            <label className="block text-[11px] font-['IBM_Plex_Mono',monospace] font-bold text-gray-500 uppercase tracking-widest mb-1.5">
-                                Confirm New Password
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type={showPasswords ? "text" : "password"}
-                                    name="confirmPassword"
-                                    placeholder="Re-enter new password"
-                                    value={formData.confirmPassword}
-                                    onChange={handleChange}
-                                    className="w-full bg-gray-50/50 border border-gray-200 rounded-xl px-4 py-3 text-xs font-medium outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition shadow-2xs text-gray-900"
-                                />
-                            </div>
-                            {errors.confirmPassword && (
-                                <p className="text-rose-600 font-medium text-[11px] mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.confirmPassword}</p>
-                            )}
-                        </div>
-
-                        {/* Submit Button */}
-                        <div className="pt-2">
+                            {/* =================================================
+                            SUBMIT
+                        ================================================= */}
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-2xs disabled:opacity-50 transition cursor-pointer"
+                                className="
+                                w-full
+                                h-[52px]
+                                mt-2
+                                rounded-xl
+                                bg-blue-600
+                                hover:bg-blue-700
+                                text-white
+                                text-sm
+                                font-bold
+                                transition-all
+                                duration-300
+                                flex
+                                items-center
+                                justify-center
+                                gap-2
+                                shadow-[0_8px_20px_rgba(37,99,235,0.25)]
+                                hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)]
+                                hover:-translate-y-[1px]
+                                disabled:opacity-60
+                                disabled:cursor-not-allowed
+                                disabled:hover:translate-y-0
+                            "
                             >
-                                {loading && <Loader2 size={15} className="animate-spin" />}
-                                {loading ? "Authenticating..." : "Update Security Key"}
+
+                                {loading && (
+                                    <Loader2
+                                        size={17}
+                                        className="animate-spin"
+                                    />
+                                )}
+
+                                {loading
+                                    ? "Updating Password..."
+                                    : "Update Password"}
+
                             </button>
+
+                        </form>
+
+
+                        {/* ================= BACK ================= */}
+                        <div className="mt-7 pt-6 border-t border-gray-100 text-center">
+
+                            <button
+                                type="button"
+                                onClick={() => navigate(-1)}
+                                className="text-[13px] font-semibold text-gray-500 hover:text-blue-600 transition-colors"
+                            >
+                                ← Go Back
+                            </button>
+
                         </div>
-                    </form>
+
+                    </div>
+
                 </div>
+
             </div>
+
         </div>
     );
 };

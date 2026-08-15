@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import axios from "axios";
 import { signupApi } from "../api";
+import logo from '../assets/logo.png'
 import {
     LayoutDashboard,
     BedDouble,
@@ -45,7 +46,16 @@ const HotelLayout = () => {
                 });
 
                 if (res.data?.success && res.data.notifications) {
-                    setNotifications(res.data.notifications);
+                    const readNotifications = JSON.parse(
+                        localStorage.getItem("readNotifications") || "[]"
+                    );
+
+                    const updatedNotifications = res.data.notifications.map((n) => ({
+                        ...n,
+                        unread: !readNotifications.includes(String(n.id)),
+                    }));
+
+                    setNotifications(updatedNotifications);
                 }
             } catch (error) {
                 console.error("Failed to load notifications:", error);
@@ -71,7 +81,7 @@ const HotelLayout = () => {
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (
-                notifRef.current && 
+                notifRef.current &&
                 !notifRef.current.contains(e.target) &&
                 bellRef.current &&
                 !bellRef.current.contains(e.target)
@@ -84,7 +94,30 @@ const HotelLayout = () => {
     }, []);
 
     const markAllAsRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
+        const readNotifications = JSON.parse(
+            localStorage.getItem("readNotifications") || "[]"
+        );
+
+        const allIds = notifications.map((n) => String(n.id));
+
+        const updatedReadIds = [
+            ...new Set([
+                ...readNotifications,
+                ...allIds
+            ])
+        ];
+
+        localStorage.setItem(
+            "readNotifications",
+            JSON.stringify(updatedReadIds)
+        );
+
+        setNotifications((prev) =>
+            prev.map((n) => ({
+                ...n,
+                unread: false,
+            }))
+        );
     };
 
     let user = null;
@@ -132,15 +165,22 @@ const HotelLayout = () => {
 
             {/* ================= SIDEBAR (Desktop) ================= */}
             <aside className="w-64 bg-white border-r border-gray-200 flex-col shrink-0 hidden lg:flex shadow-2xs z-20 relative">
-                <div className="h-20 flex items-center px-6 border-b border-gray-100">
-                    <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate("/hotel/hotelDashboard")}>
-                        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
-                            <Hotel size={18} />
-                        </div>
-                        <span className="font-bold text-lg tracking-tight text-gray-900 truncate">
-                            {user?.name || "AuraStays"}
-                        </span>
+                <div className="px-6 py-7 border-b border-gray-100 flex flex-col items-start gap-3">
+                    <div className="flex items-center cursor-pointer group" onClick={() => navigate("/hotel/hotelDashboard")}>
+                        <img
+                            src={logo}
+                            alt="AuraStays"
+                            className="h-20 w-auto object-contain invert opacity-90 transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.style.display = 'none';
+                                e.target.insertAdjacentHTML('afterend', '<span class="font-bold text-lg tracking-tight text-gray-900 truncate font-[\'Space_Grotesk\']">AuraStays</span>');
+                            }}
+                        />
                     </div>
+                    <span className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase bg-blue-50 border border-blue-100 px-2 py-1 rounded-md">
+                        Hotel Panel
+                    </span>
                 </div>
 
                 <div className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
@@ -187,14 +227,23 @@ const HotelLayout = () => {
                 <div className="fixed inset-0 z-50 lg:hidden flex">
                     <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-xs" onClick={() => setMobileMenuOpen(false)}></div>
                     <aside className="w-64 bg-white h-full shadow-2xl relative z-10 flex flex-col animate-in slide-in-from-left-4 duration-200">
-                        <div className="h-20 flex items-center justify-between px-6 border-b border-gray-100">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                                    <Hotel size={18} />
-                                </div>
-                                <span className="font-bold text-base tracking-tight text-gray-900">Menu</span>
+                        <div className="px-6 py-7 border-b border-gray-100 flex flex-col items-start gap-3 relative">
+                            <div className="flex items-center cursor-pointer group" onClick={() => { setMobileMenuOpen(false); navigate("/hotel/hotelDashboard"); }}>
+                                <img
+                                    src={logo}
+                                    alt="AuraStays"
+                                    className="h-20 w-auto object-contain invert opacity-90 transition-transform duration-300 group-hover:scale-105"
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.style.display = 'none';
+                                        e.target.insertAdjacentHTML('afterend', '<span class="font-bold text-base tracking-tight text-gray-900 font-[\'Space_Grotesk\']">AuraStays</span>');
+                                    }}
+                                />
                             </div>
-                            <button onClick={() => setMobileMenuOpen(false)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md cursor-pointer">
+                            <span className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase bg-blue-50 border border-blue-100 px-2 py-1 rounded-md">
+                                Hotel Panel
+                            </span>
+                            <button onClick={() => setMobileMenuOpen(false)} className="absolute top-6 right-6 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md cursor-pointer">
                                 <X size={20} />
                             </button>
                         </div>

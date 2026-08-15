@@ -7,6 +7,7 @@ import PopularCity from "./PopularCity";
 import Promotions from "./Promotions";
 import Testimonials from "./Testimonials";
 import Footer from "./Footer";
+import logo from '../assets/logo.png'
 
 import {
     Search,
@@ -335,19 +336,21 @@ const PublicHome = () => {
                             <img src={bgImg} alt="Hotel Background Slide" className="w-full h-full object-cover" />
                         </div>
                     ))}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/60"></div>
+                    <div className="absolute inset-0"></div>
 
                     {/* Merged Navbar inside Full Screen Hero */}
                     <nav className="relative z-50 w-full max-w-[1600px] mx-auto flex items-center justify-between py-6 px-6 sm:px-12">
-                        <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => navigate("/")}>
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-600 text-white shadow-md font-bold">
-                                <Hotel size={19} />
-                            </div>
-                            <span className="font-bold text-2xl tracking-tight text-white font-['Space_Grotesk'] drop-shadow-sm">
-                                AuraStays
-                            </span>
+                        <div
+                            className="flex items-center cursor-pointer group"
+                            onClick={() => navigate("/")}
+                        >
+                            <img
+                                src={logo}
+                                alt="Aura Stay"
+                                
+                                className="h-20 w-auto object-contain mix-blend-multiply drop-shadow-sm"
+                            />
                         </div>
-
                         <div className="hidden md:flex items-center gap-8 text-white/90 font-semibold text-xs uppercase tracking-wider">
                             <span onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="cursor-pointer hover:text-blue-400 transition">Home</span>
                             <a href="#hotels-section" className="cursor-pointer hover:text-blue-400 transition">Hotels</a>

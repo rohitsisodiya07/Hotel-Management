@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
 import useSearch from "../Hooks/useSearch";
 import {
-    Search, Eye, Trash2, Power, PowerOff, Edit2, Users, BedDouble,
-    Loader2, Hotel, X, ArrowRight, Plus, RefreshCw, ChevronLeft, ChevronRight, Sparkles
+    Search, Eye, Trash2, Edit2, Users, BedDouble, Loader2, Hotel, X, Plus,
+    Sparkles, FileSpreadsheet, Upload, AlertTriangle, CheckCircle2
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import Skeleton from "react-loading-skeleton";
@@ -21,19 +21,31 @@ const AllRooms = () => {
 
     // 🌟 Filter & Control States
     const [searchQuery, setSearchQuery] = useState("");
-    const [statusFilter, setStatusFilter] = useState("All"); // All, Active, Inactive
-    const [roomTypeFilter, setRoomTypeFilter] = useState("All"); // Deluxe, Suite, etc.
+    const [statusFilter, setStatusFilter] = useState("All");
+    const [roomTypeFilter, setRoomTypeFilter] = useState("All");
     const [sortBy, setSortBy] = useState("newest");
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(6);
 
     // 🌟 Modals & Actions States
     const [selectedRoom, setSelectedRoom] = useState(null);
-    const [activeImageIndex, setActiveImageIndex] = useState(0);
     const [deleteModalRoom, setDeleteModalRoom] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
 
-    // 🌟 Fix 1: Headers hata diye kyunki hook khud localStorage se token utha raha hai
+    // 📂 Bulk Import States
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [importFile, setImportFile] = useState(null);
+    const [previewRows, setPreviewRows] = useState([]);
+    const [previewSummary, setPreviewSummary] = useState(null);
+    const [importing, setImporting] = useState(false);
+
+    // Drag to scroll ref
+    const scrollRef = useRef(null);
+    let isDown = false;
+    let startX;
+    let scrollLeft;
+
     const roomSearch = useSearch(`${signupApi}room/myRooms`, searchQuery, {
         page,
         limit,
@@ -49,7 +61,6 @@ const AllRooms = () => {
     const totalPages = resData.totalPages || 1;
     const totalCount = resData.totalRooms || 0;
 
-    // Fetch unique room types for dynamic filter dropdown
     const roomTypesList = useMemo(() => {
         return [...new Set(rooms.map(r => r.roomType).filter(Boolean))];
     }, [rooms]);
@@ -60,7 +71,7 @@ const AllRooms = () => {
             setActionLoading(true);
             await axios.patch(`${signupApi}room/status/${id}`, {}, { headers });
             toast.success("Room status updated successfully.");
-            roomSearch.fetchData(); // Fix 2: Hook ab fetchData return kar raha hai
+            roomSearch.fetchData();
             if (selectedRoom && selectedRoom._id === id) {
                 setSelectedRoom(prev => ({ ...prev, isActive: !prev.isActive }));
             }
@@ -71,7 +82,6 @@ const AllRooms = () => {
         }
     };
 
-    // Custom Modal Delete Execution
     const confirmDelete = async () => {
         if (!deleteModalRoom) return;
         try {
@@ -80,12 +90,113 @@ const AllRooms = () => {
             toast.success("Room deleted successfully.");
             setDeleteModalRoom(null);
             if (selectedRoom?._id === deleteModalRoom._id) setSelectedRoom(null);
-            roomSearch.fetchData(); // Fix 2: Hook ab fetchData return kar raha hai
+            roomSearch.fetchData();
         } catch {
             toast.error("Delete failed. Please try again.");
         } finally {
             setActionLoading(false);
         }
+    };
+
+    // --- Bulk Import Methods ---
+    const handleBulkPreview = async (e) => {
+        e.preventDefault();
+        if (!importFile) {
+            toast.error("Please select an Excel file first.");
+            return;
+        }
+
+        try {
+            setImporting(true);
+            const formData = new FormData();
+            formData.append("file", importFile);
+
+            const response = await axios.post(`${signupApi}room/bulk-preview`, formData, { headers });
+
+            setPreviewRows(response.data.preview || []);
+            setPreviewSummary({
+                totalRows: response.data.totalRows,
+                valid: response.data.validRows,
+                invalid: response.data.invalidRows
+            });
+
+            toast.success(response.data.message || "Preview generated successfully");
+            setShowImportModal(false);
+            setShowPreview(true);
+
+        } catch (error) {
+            console.log("BULK PREVIEW ERROR:", error.response?.data);
+            toast.error(error.response?.data?.message || "Failed to generate preview");
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    const removePreviewRow = (rowNumber) => {
+        const updatedRows = previewRows.filter((row) => row.rowNumber !== rowNumber);
+        setPreviewRows(updatedRows);
+        const valid = updatedRows.filter((row) => row.status === "Valid").length;
+        const invalid = updatedRows.filter((row) => row.status === "Invalid").length;
+        setPreviewSummary({ totalRows: updatedRows.length, valid, invalid });
+    };
+
+    const handleFinalImport = async () => {
+        const validRows = previewRows.filter((row) => row.status === "Valid");
+        if (validRows.length === 0) {
+            toast.error("No valid rooms available for import");
+            return;
+        }
+
+        try {
+            setImporting(true);
+            const roomsData = validRows.map((row) => row.originalData);
+
+            const response = await axios.post(`${signupApi}room/bulk-import`, { rooms: roomsData }, { headers });
+
+            toast.success(response.data.message || "Bulk import completed");
+            setShowPreview(false);
+            setPreviewRows([]);
+            setPreviewSummary(null);
+            setImportFile(null);
+            roomSearch.fetchData();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Bulk import failed");
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    // --- Drag to Scroll Handlers ---
+    const handleMouseDown = (e) => {
+        isDown = true;
+        scrollRef.current.classList.add('cursor-grabbing');
+        scrollRef.current.classList.remove('cursor-grab');
+        startX = e.pageX - scrollRef.current.offsetLeft;
+        scrollLeft = scrollRef.current.scrollLeft;
+    };
+
+    const handleMouseLeave = () => {
+        isDown = false;
+        if (scrollRef.current) {
+            scrollRef.current.classList.remove('cursor-grabbing');
+            scrollRef.current.classList.add('cursor-grab');
+        }
+    };
+
+    const handleMouseUp = () => {
+        isDown = false;
+        if (scrollRef.current) {
+            scrollRef.current.classList.remove('cursor-grabbing');
+            scrollRef.current.classList.add('cursor-grab');
+        }
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - scrollRef.current.offsetLeft;
+        const walk = (x - startX) * 2; // scroll speed multiplier
+        scrollRef.current.scrollLeft = scrollLeft - walk;
     };
 
     return (
@@ -98,7 +209,7 @@ const AllRooms = () => {
             `}</style>
 
             {/* 1. HEADER SECTION */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-7 rounded-3xl border border-gray-200/80 shadow-2xs">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-7 rounded-3xl border border-gray-200/80 shadow-2xs">
                 <div>
                     <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.2em] text-blue-600 font-bold uppercase block mb-1">
                         INVENTORY MANAGEMENT HUB
@@ -110,12 +221,21 @@ const AllRooms = () => {
                         Manage all hotel rooms, pricing configurations, and live operational statuses.
                     </p>
                 </div>
-                <button
-                    onClick={() => navigate("/hotel/room")}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 h-12 rounded-2xl text-xs font-bold uppercase tracking-wider transition shadow-sm cursor-pointer shrink-0"
-                >
-                    <Plus size={16} /> Create Room
-                </button>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto mt-4 md:mt-0">
+                    <button
+                        onClick={() => setShowImportModal(true)}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-5 h-12 rounded-2xl text-xs font-bold uppercase tracking-wider transition shadow-sm cursor-pointer shrink-0"
+                    >
+                        <FileSpreadsheet size={16} /> Bulk Import
+                    </button>
+                    <button
+                        onClick={() => navigate("/hotel/room")}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 h-12 rounded-2xl text-xs font-bold uppercase tracking-wider transition shadow-sm cursor-pointer shrink-0"
+                    >
+                        <Plus size={16} /> Create Room
+                    </button>
+                </div>
             </div>
 
             {/* 2. STATISTICS CARDS */}
@@ -208,7 +328,7 @@ const AllRooms = () => {
                 </div>
             </div>
 
-            {/* ROOM GRID */}
+            {/* ROOM GRID - ENHANCED UI */}
             <div className="relative min-h-[400px]">
                 {loading && (
                     <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex justify-center items-center z-20 rounded-3xl">
@@ -231,11 +351,11 @@ const AllRooms = () => {
                         </button>
                     </div>
                 ) : (
-                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-8">
                         {loading && rooms.length === 0 ? (
                             Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="bg-white p-5 rounded-3xl border border-gray-200 space-y-4">
-                                    <Skeleton height={190} borderRadius={16} />
+                                <div key={i} className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm space-y-4">
+                                    <Skeleton height={200} borderRadius={16} />
                                     <Skeleton height={24} width={`70%`} />
                                     <Skeleton height={40} />
                                 </div>
@@ -244,97 +364,109 @@ const AllRooms = () => {
                             rooms.map((room) => (
                                 <div
                                     key={room._id}
-                                    className="bg-white rounded-3xl border border-gray-200/80 shadow-2xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
+                                    className="bg-white rounded-[24px] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between overflow-hidden group"
                                 >
-                                    <div className="relative h-52 w-full bg-gray-100 overflow-hidden shrink-0 border-b border-gray-100">
+                                    {/* Image Section */}
+                                    <div className="relative h-60 w-full bg-gray-100 overflow-hidden shrink-0">
                                         <img
                                             src={room.roomImages?.[0] || "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=600&auto=format&fit=crop"}
                                             onError={(e) => {
                                                 e.target.onerror = null;
                                                 e.target.src = "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=600&auto=format&fit=crop";
                                             }}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                             alt="Room Thumbnail"
                                         />
 
-                                        <div className="absolute top-3 left-3 bg-gray-900/85 backdrop-blur-md text-white px-3.5 py-1.5 rounded-xl font-['Space_Grotesk'] text-xs font-bold tracking-wide shadow-sm">
-                                            ₹{room.pricePerNight} <span className="text-[10px] font-normal text-gray-300 uppercase">/ Night</span>
+                                        {/* Gradient Overlay */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/20 to-gray-900/40 pointer-events-none"></div>
+
+                                        {/* Top Tags */}
+                                        <div className="absolute top-4 left-4 flex gap-2">
+                                            {room.isFeatured && (
+                                                <div className="bg-amber-500 text-white px-2.5 py-1 rounded-lg font-['IBM_Plex_Mono'] text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
+                                                    <Sparkles size={11} /> Featured
+                                                </div>
+                                            )}
+                                            {room.roomImages?.length > 1 && (
+                                                <div className="bg-black/50 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[10px] font-bold border border-white/10">
+                                                    1/{room.roomImages.length}
+                                                </div>
+                                            )}
                                         </div>
 
-                                        <div className="absolute top-3 right-3 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-sm border border-gray-200">
-                                            <span className={`text-[10px] font-['IBM_Plex_Mono'] font-bold uppercase ${room.isActive ? "text-emerald-700" : "text-rose-700"}`}>
+                                        {/* Status Toggle */}
+                                        <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
+                                            <span className={`text-[10px] font-['IBM_Plex_Mono'] font-bold uppercase ${room.isActive ? "text-emerald-400" : "text-rose-400"}`}>
                                                 {room.isActive ? "ON" : "OFF"}
                                             </span>
                                             <button
                                                 onClick={() => handleToggleStatus(room._id)}
-                                                className={`w-8 h-4 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${room.isActive ? "bg-emerald-500" : "bg-gray-300"}`}
+                                                className={`w-8 h-4 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${room.isActive ? "bg-emerald-500" : "bg-gray-400/50"}`}
                                                 title="Toggle Status"
                                             >
                                                 <div className={`bg-white w-3 h-3 rounded-full shadow-md transform transition-transform ${room.isActive ? "translate-x-4" : "translate-x-0"}`} />
                                             </button>
                                         </div>
 
-                                        {room.roomImages?.length > 1 && (
-                                            <div className="absolute bottom-3 right-3 bg-black/60 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold backdrop-blur-md">
-                                                {room.roomImages.length} Photos
-                                            </div>
-                                        )}
-
-                                        {room.isFeatured && (
-                                            <div className="absolute bottom-3 left-3 bg-blue-600 text-white px-2.5 py-1 rounded-lg font-['IBM_Plex_Mono'] text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                                                ★ Featured
-                                            </div>
-                                        )}
+                                        {/* Bottom Price */}
+                                        <div className="absolute bottom-4 left-4">
+                                            <h3 className="text-white font-bold font-['Space_Grotesk'] text-2xl tracking-tight leading-none">
+                                                ₹{room.pricePerNight} <span className="text-xs text-gray-300 font-medium uppercase font-sans">/ Night</span>
+                                            </h3>
+                                        </div>
                                     </div>
 
-                                    <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                                    {/* Content Section */}
+                                    <div className="p-5 flex-1 flex flex-col justify-between">
                                         <div>
-                                            <h2 className="font-['Space_Grotesk',sans-serif] text-lg font-bold text-gray-900 leading-tight">
-                                                Unit No. {room.roomNumber}
-                                            </h2>
-                                            <p className="text-blue-600 font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-widest uppercase mt-0.5">
-                                                {room.roomType}
-                                            </p>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="text-blue-600 font-['IBM_Plex_Mono'] text-[10px] font-bold tracking-widest uppercase mb-1">
+                                                        {room.roomType}
+                                                    </p>
+                                                    <h2 className="font-['Space_Grotesk',sans-serif] text-xl font-bold text-gray-900 leading-tight">
+                                                        Unit No. {room.roomNumber}
+                                                    </h2>
+                                                </div>
+                                            </div>
 
-                                            <div className="grid grid-cols-2 gap-2 border-t border-b border-gray-100 py-3.5 my-3 text-xs">
-                                                <div className="flex items-center gap-2 text-gray-600 font-medium">
-                                                    <Users size={15} className="text-gray-400" />
+                                            <div className="flex flex-wrap items-center gap-2.5 mt-4">
+                                                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-600">
+                                                    <Users size={14} className="text-gray-400" />
                                                     {room.maxOccupancy} Guests
                                                 </div>
-                                                <div className="flex items-center gap-2 text-gray-600 font-medium">
-                                                    <BedDouble size={15} className="text-gray-400" />
+                                                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-600">
+                                                    <BedDouble size={14} className="text-gray-400" />
                                                     {room.totalBeds} {room.bedType}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-3 pt-1">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <button
-                                                    onClick={() => { setSelectedRoom(room); setActiveImageIndex(0); }}
-                                                    className="flex-1 bg-gray-900 hover:bg-gray-800 text-white py-3 rounded-2xl flex items-center justify-center gap-1.5 font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
-                                                >
-                                                    <Eye size={15} /> View Details
-                                                </button>
+                                        <div className="mt-5 pt-5 border-t border-gray-100 flex items-center justify-between gap-3">
+                                            <button
+                                                onClick={() => setSelectedRoom(room)}
+                                                className="flex-1 bg-gray-900 hover:bg-gray-800 text-white py-2.5 rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs uppercase tracking-wider transition shadow-sm cursor-pointer"
+                                            >
+                                                <Eye size={15} /> Details
+                                            </button>
+
+                                            <div className="flex gap-2">
                                                 <button
                                                     onClick={() => navigate(`/hotel/room?edit=${room._id}`)}
-                                                    className="w-11 h-11 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl flex items-center justify-center transition shadow-2xs cursor-pointer"
+                                                    className="w-10 h-10 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl flex items-center justify-center transition shadow-sm cursor-pointer"
                                                     title="Edit Configuration"
                                                 >
-                                                    <Edit2 size={15} />
+                                                    <Edit2 size={14} />
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteModalRoom(room)}
-                                                    className="w-11 h-11 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 rounded-2xl flex items-center justify-center transition shadow-2xs cursor-pointer"
+                                                    className="w-10 h-10 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 rounded-xl flex items-center justify-center transition shadow-sm cursor-pointer"
                                                     title="Delete Room"
                                                 >
-                                                    <Trash2 size={15} />
+                                                    <Trash2 size={14} />
                                                 </button>
                                             </div>
-
-                                            <p className="text-[10px] text-gray-400 font-['IBM_Plex_Mono'] text-center">
-                                                Updated {dayjs(room.updatedAt || room.createdAt).fromNow()}
-                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -370,69 +502,208 @@ const AllRooms = () => {
                 </div>
             </div>
 
-            {/* VIEW MODAL */}
+            {/* 📁 BULK IMPORT UPLOAD MODAL */}
+            {showImportModal && (
+                <div className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden p-6 relative border border-gray-200">
+                        <button onClick={() => { setShowImportModal(false); setImportFile(null); }} className="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition cursor-pointer">
+                            <X size={16} />
+                        </button>
+                        <div className="flex items-center gap-2 mb-2 text-emerald-600">
+                            <FileSpreadsheet size={20} />
+                            <h3 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900">Bulk Import Rooms</h3>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+                            Upload an Excel (.xlsx) or CSV file containing room specifications.
+                        </p>
+                        <form onSubmit={handleBulkPreview} className="space-y-4">
+                            <div className="border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-6 text-center bg-gray-50 transition cursor-pointer relative">
+                                <input type="file" accept=".xlsx, .xls, .csv" onChange={(e) => { const file = e.target.files?.[0]; if (file) setImportFile(file); }} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                                <Upload size={28} className="mx-auto text-gray-400 mb-2" />
+                                <p className="text-xs font-bold text-gray-800">{importFile ? importFile.name : "Click to browse or drag & drop file"}</p>
+                                <p className="text-[10px] text-gray-400 mt-1">Supports XLSX, XLS, CSV format</p>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={() => { setShowImportModal(false); setImportFile(null); }} className="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition cursor-pointer">
+                                    Cancel
+                                </button>
+                                <button type="submit" disabled={importing || !importFile} className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition shadow-2xs cursor-pointer">
+                                    {importing && <Loader2 size={14} className="animate-spin" />}
+                                    {importing ? "Generating Preview..." : "Upload & Preview"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 👁️ BULK IMPORT PREVIEW MODAL */}
+            {showPreview && (
+                <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden border border-gray-200 flex flex-col">
+                        <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <FileSpreadsheet size={20} className="text-emerald-600" />
+                                    <h3 className="text-lg font-bold text-gray-900 font-['Space_Grotesk']">Review Room Import</h3>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">Review your room configurations before importing. Remove invalid rows to proceed.</p>
+                            </div>
+                            <button onClick={() => setShowPreview(false)} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 cursor-pointer">
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {previewSummary && (
+                            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                                <div className="flex flex-wrap gap-3">
+                                    <div className="px-4 py-2 bg-white border border-gray-200 rounded-xl">
+                                        <p className="text-[10px] text-gray-400 uppercase font-bold">Total</p>
+                                        <p className="text-lg font-bold text-gray-900">{previewSummary.totalRows}</p>
+                                    </div>
+                                    <div className="px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                        <p className="text-[10px] text-emerald-600 uppercase font-bold">Valid</p>
+                                        <p className="text-lg font-bold text-emerald-700">{previewSummary.valid}</p>
+                                    </div>
+                                    <div className="px-4 py-2 bg-rose-50 border border-rose-200 rounded-xl">
+                                        <p className="text-[10px] text-rose-600 uppercase font-bold">Issues</p>
+                                        <p className="text-lg font-bold text-rose-700">{previewSummary.invalid}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="overflow-auto flex-1">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 bg-gray-100 z-10">
+                                    <tr className="text-[10px] uppercase tracking-wider text-gray-500">
+                                        <th className="px-4 py-3">Row</th>
+                                        <th className="px-4 py-3">Room No.</th>
+                                        <th className="px-4 py-3">Type</th>
+                                        <th className="px-4 py-3">Price</th>
+                                        <th className="px-4 py-3">Status</th>
+                                        <th className="px-4 py-3">Validation Message</th>
+                                        <th className="px-4 py-3 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {previewRows.map((row, index) => (
+                                        <tr key={index} className={`border-b border-gray-100 ${row.status === "Valid" ? "hover:bg-gray-50" : "bg-rose-50/60"}`}>
+                                            <td className="px-4 py-4 text-xs font-mono text-gray-500">{row.rowNumber}</td>
+                                            <td className="px-4 py-4 font-bold text-gray-900 text-xs">{row.roomNumber || "—"}</td>
+                                            <td className="px-4 py-4 text-xs text-gray-600">{row.roomType || "—"}</td>
+                                            <td className="px-4 py-4 text-xs font-['IBM_Plex_Mono'] font-bold text-blue-600">{row.pricePerNight ? `₹${row.pricePerNight}` : "—"}</td>
+                                            <td className="px-4 py-4">
+                                                {row.status === "Valid" ? (
+                                                    <span className="inline-flex items-center gap-1 text-emerald-600 text-xs font-bold"><CheckCircle2 size={14} /> Valid</span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 text-rose-600 text-xs font-bold"><AlertTriangle size={14} /> Invalid</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                {row.status === "Valid" ? <span className="text-xs text-gray-500">—</span> : (
+                                                    <div className="flex flex-col gap-1">
+                                                        {row.errors.map((error, errIdx) => (
+                                                            <span key={errIdx} className="text-[10px] text-rose-600 font-semibold whitespace-nowrap">✕ {error}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-4 text-right">
+                                                <button type="button" onClick={() => removePreviewRow(row.rowNumber)} className="w-8 h-8 inline-flex items-center justify-center shrink-0 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 transition cursor-pointer">
+                                                    <X size={14} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="px-6 py-4 border-t border-gray-200 bg-white flex flex-col sm:flex-row justify-between gap-3">
+                            <button onClick={() => { setShowPreview(false); setShowImportModal(true); }} className="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition cursor-pointer">
+                                ← Change File
+                            </button>
+                            <div className="flex gap-3">
+                                <button onClick={() => { setShowPreview(false); setPreviewRows([]); setPreviewSummary(null); setImportFile(null); }} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition cursor-pointer">
+                                    Cancel
+                                </button>
+                                <button type="button" onClick={handleFinalImport} disabled={importing || !previewSummary || previewSummary.invalid > 0 || previewRows.length === 0} className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer">
+                                    {importing ? "Importing..." : `Import ${previewSummary?.valid || 0} Rooms`}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* VIEW MODAL (Drag to Scroll Gallery) */}
             {selectedRoom && (
-                <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl max-w-[650px] w-full max-h-[90vh] overflow-hidden shadow-2xl border border-gray-200 flex flex-col relative">
+                <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl max-w-[800px] w-full max-h-[90vh] overflow-hidden shadow-2xl border border-gray-200 flex flex-col relative">
 
                         <div className="flex justify-between items-center border-b border-gray-100 p-6 bg-white shrink-0 z-10">
                             <div>
-                                <h2 className="font-['Space_Grotesk'] text-lg font-bold text-gray-900">Unit No. {selectedRoom.roomNumber}</h2>
+                                <h2 className="font-['Space_Grotesk'] text-xl font-bold text-gray-900">Unit No. {selectedRoom.roomNumber}</h2>
                                 <p className="font-['IBM_Plex_Mono'] text-[10px] text-blue-600 mt-0.5 tracking-widest font-bold uppercase">
                                     {selectedRoom.roomType} Configuration
                                 </p>
                             </div>
-                            <button onClick={() => setSelectedRoom(null)} className="text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-9 h-9 rounded-full flex items-center justify-center transition cursor-pointer">
-                                <X size={17} />
+                            <button onClick={() => setSelectedRoom(null)} className="text-gray-400 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 w-10 h-10 rounded-full flex items-center justify-center transition cursor-pointer">
+                                <X size={18} />
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto flex-1 bg-white">
-                            <div className="relative border-b border-gray-100 bg-gray-950 h-64 sm:h-72 flex items-center justify-center">
-                                <img
-                                    src={selectedRoom.roomImages?.[activeImageIndex] || "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=600"}
-                                    alt="Room View"
-                                    className="w-full h-full object-contain"
-                                />
-
-                                {selectedRoom.roomImages?.length > 1 && (
-                                    <>
-                                        <button
-                                            onClick={() => setActiveImageIndex((prev) => (prev === 0 ? selectedRoom.roomImages.length - 1 : prev - 1))}
-                                            className="absolute left-3 bg-black/60 hover:bg-black text-white p-2 rounded-full transition cursor-pointer backdrop-blur-md"
-                                        >
-                                            <ChevronLeft size={18} />
-                                        </button>
-                                        <button
-                                            onClick={() => setActiveImageIndex((prev) => (prev === selectedRoom.roomImages.length - 1 ? 0 : prev + 1))}
-                                            className="absolute right-3 bg-black/60 hover:bg-black text-white p-2 rounded-full transition cursor-pointer backdrop-blur-md"
-                                        >
-                                            <ChevronRight size={18} />
-                                        </button>
-                                        <div className="absolute bottom-3 bg-black/70 backdrop-blur-md text-white px-3 py-1 rounded-lg font-['IBM_Plex_Mono'] text-[11px] font-bold tracking-widest">
-                                            {activeImageIndex + 1} / {selectedRoom.roomImages.length}
+                        <div className="overflow-y-auto flex-1 bg-white scrollbar-hide">
+                            {/* Horizontal Scrollable Image Gallery */}
+                            <div className="bg-gray-50 border-b border-gray-100">
+                                <div
+                                    ref={scrollRef}
+                                    onMouseDown={handleMouseDown}
+                                    onMouseLeave={handleMouseLeave}
+                                    onMouseUp={handleMouseUp}
+                                    onMouseMove={handleMouseMove}
+                                    className="flex overflow-x-auto gap-4 p-6 snap-x snap-mandatory scrollbar-hide cursor-grab"
+                                    style={{ WebkitOverflowScrolling: 'touch' }}
+                                >
+                                    {selectedRoom.roomImages?.length > 0 ? (
+                                        selectedRoom.roomImages.map((img, idx) => (
+                                            <div key={idx} className="shrink-0 w-[85%] sm:w-[70%] h-64 sm:h-80 snap-center rounded-2xl overflow-hidden shadow-md border border-gray-200/50 relative bg-gray-200">
+                                                <img
+                                                    src={img}
+                                                    alt={`Room View ${idx + 1}`}
+                                                    className="w-full h-full object-cover pointer-events-none" // pointer-events-none ensures drag works smoothly
+                                                />
+                                                <div className="absolute bottom-3 right-3 bg-black/60 text-white text-[10px] font-bold font-['IBM_Plex_Mono'] px-2.5 py-1.5 rounded-lg backdrop-blur-md">
+                                                    {idx + 1} / {selectedRoom.roomImages.length}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="shrink-0 w-[85%] sm:w-[70%] h-64 sm:h-80 snap-center rounded-2xl overflow-hidden shadow-md relative bg-gray-200 flex items-center justify-center">
+                                            <Hotel size={48} className="text-gray-400" />
                                         </div>
-                                    </>
-                                )}
+                                    )}
+                                </div>
                             </div>
 
-                            <div className="p-6 space-y-5 text-xs">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                    <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4">
+                            <div className="p-6 space-y-6">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5">
                                         <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Pricing</p>
-                                        <h3 className="font-bold text-blue-600 text-sm tracking-wide">₹{selectedRoom.pricePerNight} <span className="text-[10px] text-gray-500 uppercase">/nt</span></h3>
+                                        <h3 className="font-bold text-gray-900 text-lg tracking-tight">₹{selectedRoom.pricePerNight} <span className="text-[10px] text-gray-500 uppercase font-sans">/nt</span></h3>
                                     </div>
-                                    <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4">
+                                    <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5">
                                         <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Occupancy</p>
-                                        <h3 className="font-bold text-gray-900 text-xs">{selectedRoom.maxOccupancy} Guests</h3>
+                                        <h3 className="font-bold text-gray-900 text-base">{selectedRoom.maxOccupancy} Guests</h3>
                                     </div>
-                                    <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4">
+                                    <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5">
                                         <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Bedding</p>
-                                        <h3 className="font-bold text-gray-900 text-xs">{selectedRoom.totalBeds} {selectedRoom.bedType}</h3>
+                                        <h3 className="font-bold text-gray-900 text-base">{selectedRoom.totalBeds} {selectedRoom.bedType}</h3>
                                     </div>
-                                    <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4">
+                                    <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5">
                                         <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Status</p>
-                                        <span className={`px-2 py-0.5 text-[10px] font-['IBM_Plex_Mono'] font-bold uppercase rounded-md inline-block ${selectedRoom.isActive ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
+                                        <span className={`px-2.5 py-1 text-[10px] font-['IBM_Plex_Mono'] font-bold uppercase rounded-md inline-block mt-0.5 ${selectedRoom.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-gray-100 text-gray-600 border border-gray-200"}`}>
                                             {selectedRoom.isActive ? "Active" : "Inactive"}
                                         </span>
                                     </div>
@@ -440,11 +711,11 @@ const AllRooms = () => {
 
                                 {selectedRoom.roomAmenities?.length > 0 && (
                                     <div>
-                                        <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Amenities Blueprint</p>
-                                        <div className="flex flex-wrap gap-2">
+                                        <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Amenities Blueprint</p>
+                                        <div className="flex flex-wrap gap-2.5">
                                             {selectedRoom.roomAmenities.map(a => (
-                                                <span key={a} className="bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-200 font-medium">
-                                                    ✓ {a}
+                                                <span key={a} className="bg-gray-50 text-gray-700 text-xs px-3.5 py-2 rounded-xl border border-gray-200 font-medium">
+                                                    {a}
                                                 </span>
                                             ))}
                                         </div>
@@ -452,18 +723,28 @@ const AllRooms = () => {
                                 )}
 
                                 <div>
-                                    <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Narrative Specification</p>
-                                    <p className="leading-relaxed text-gray-600 bg-gray-50 p-4 rounded-2xl border border-gray-200 italic m-0 text-xs">
-                                        "{selectedRoom.description || "No specific narrative text provided."}"
+                                    <p className="font-['IBM_Plex_Mono'] text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Narrative Specification</p>
+                                    <p className="leading-relaxed text-gray-600 bg-gray-50 p-5 rounded-2xl border border-gray-100 m-0 text-sm">
+                                        {selectedRoom.description || "No specific narrative text provided for this room."}
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-5 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-end">
+                        <div className="p-5 border-t border-gray-100 bg-white shrink-0 flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    const id = selectedRoom._id;
+                                    setSelectedRoom(null);
+                                    navigate(`/hotel/room?edit=${id}`);
+                                }}
+                                className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            >
+                                <Edit2 size={14} /> Edit Room
+                            </button>
                             <button
                                 onClick={() => setSelectedRoom(null)}
-                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition cursor-pointer shadow-xs"
                             >
                                 Close Inspector
                             </button>

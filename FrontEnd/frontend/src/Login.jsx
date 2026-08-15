@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { signupApi } from "./api";
 import { Hotel, Mail, Lock, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import logo from './assets/logo.png'
 
 const EyeIcon = ({ open }) =>
     open ? (
@@ -124,136 +125,430 @@ const Login = () => {
         ) : null;
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-800 font-['Inter',sans-serif] flex items-center justify-center px-4 py-12 relative overflow-hidden">
+        <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
 
-            {/* Background Decorative Glows */}
-            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+            {/* ================= MAIN CARD ================= */}
+            <div className="w-full max-w-[1100px] min-h-[650px] bg-white rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
 
-            <div className="w-full max-w-md bg-white border border-gray-200 rounded-3xl p-8 sm:p-10 shadow-xl relative z-10">
+                {/* =====================================================
+                LEFT BRAND SECTION
+            ===================================================== */}
+                <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 z-10 overflow-hidden">
 
-                {/* Brand Identity Block */}
-                <div className="text-center mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center mx-auto mb-4 shadow-sm">
-                        <Hotel size={22} />
+                    {/* Decorative background */}
+                    <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
+
+                    <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
+
+
+                    {/* Small dots */}
+                    <div className="absolute top-24 right-20 w-3 h-3 rounded-full bg-white/30" />
+
+                    <div className="absolute top-36 right-32 w-2 h-2 rounded-full bg-white/20" />
+
+                    <div className="absolute bottom-28 left-20 w-2 h-2 rounded-full bg-white/20" />
+
+
+                    {/* ================= BRAND CONTENT ================= */}
+                    <div className="relative z-20 flex flex-col items-center justify-center text-center">
+
+                        {/* Welcome */}
+                        <h2 className="text-xl font-medium tracking-wide mb-8">
+                            Welcome to
+                        </h2>
+
+
+                        {/* LOGO */}
+                        <div className="w-[250px] mb-10 flex items-center justify-center">
+
+                            <img
+                                src={logo}
+                                alt="AuraStay Logo"
+                                className="w-full h-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.18)]"
+                            />
+
+                        </div>
+
+
+                        {/* Tagline */}
+                        <p className="text-[15px] leading-7 max-w-[250px] text-center font-medium text-white/90">
+                            Discover and Find Your
+                            <br />
+                            Perfect Healing Place
+                        </p>
+
+
+                        {/* Bottom tagline */}
+                        <div className="flex items-center gap-3 mt-12 text-[10px] tracking-[0.25em] uppercase text-white/50">
+
+                            <span className="w-8 h-px bg-white/30" />
+
+                            Stay • Explore • Relax
+
+                            <span className="w-8 h-px bg-white/30" />
+
+                        </div>
+
                     </div>
-                    <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
-                        Secure Authentication
-                    </span>
-                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-gray-900 m-0 tracking-tight">
-                        Welcome Back
-                    </h1>
-                    <p className="text-gray-500 text-xs mt-1 font-medium">
-                        Log in to access your dashboard & reservations.
-                    </p>
+
+
+                    {/* =================================================
+                    CURVED RIGHT EDGE
+                ================================================= */}
+
+                    <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
+
+                    <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
+
+                    <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
+
+                    <div className="absolute top-[61%] -right-12 w-28 h-40 bg-blue-600 rounded-full" />
+
+                    <div className="absolute top-[82%] -right-5 w-16 h-24 bg-blue-600 rounded-full" />
+
+                    <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-blue-600 rounded-full" />
+
                 </div>
 
-                {/* Info Messages Alert */}
-                {infoMessage && (
-                    <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
-                        <CheckCircle2 className="mt-0.5 shrink-0" size={14} />
-                        <span>{infoMessage}</span>
-                    </div>
-                )}
 
-                {/* Failure Error Alert */}
-                {formError && (
-                    <div role="alert" className="mb-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs px-4 py-3 flex items-start gap-2 font-medium shadow-2xs">
-                        <AlertCircle className="mt-0.5 shrink-0" size={14} />
-                        <span>{formError}</span>
-                    </div>
-                )}
+                {/* =====================================================
+                RIGHT LOGIN SECTION
+            ===================================================== */}
+                <div className="w-full lg:w-[57%] flex items-center justify-center bg-white relative z-0">
 
-                <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                    <div className="w-full max-w-[440px] px-6 py-10 sm:px-10 lg:px-12">
 
-                    {/* Email Input */}
-                    <div>
-                        <label htmlFor="login-email" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1 font-['IBM_Plex_Mono']">
-                            Email Address
-                        </label>
-                        <div className="relative">
-                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input
-                                id="login-email"
-                                type="email"
-                                name="email"
-                                autoComplete="email"
-                                placeholder="name@example.com"
-                                value={formData.email}
-                                onChange={handleChange}
-                                aria-invalid={!!errors.email}
-                                aria-describedby={errors.email ? "email-error" : undefined}
-                                className={fieldClass("email")}
-                            />
+
+                        {/* ================= HEADER ================= */}
+                        <div className="mb-8">
+
+                            {/* Small label */}
+                            <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
+                                Secure Authentication
+                            </p>
+
+
+                            {/* Heading */}
+                            <h1 className="text-[34px] sm:text-[38px] font-extrabold tracking-tight text-gray-900">
+                                Welcome back.
+                            </h1>
+
+
+                            {/* Description */}
+                            <p className="text-sm text-gray-500 mt-2 leading-6">
+                                Log in to your AuraStay account and continue your journey.
+                            </p>
+
                         </div>
-                        <FieldError name="email" />
-                    </div>
 
-                    {/* Password Input */}
-                    <div>
-                        <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="login-password" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 font-['IBM_Plex_Mono']">
-                                Password
-                            </label>
-                            <Link to="/forgot" className="text-xs font-bold text-blue-600 hover:underline underline-offset-2">
-                                Forgot password?
-                            </Link>
-                        </div>
-                        <div className="relative">
-                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input
-                                id="login-password"
-                                type={showPassword ? "text" : "password"}
-                                name="password"
-                                autoComplete="current-password"
-                                placeholder="Enter your password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                aria-invalid={!!errors.password}
-                                aria-describedby={errors.password ? "password-error" : undefined}
-                                className={fieldClass("password")}
-                            />
-                            <button
-                                type="button"
-                                aria-label={showPassword ? "Hide password" : "Show password"}
-                                aria-pressed={showPassword}
-                                onClick={() => setShowPassword((v) => !v)}
-                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition cursor-pointer"
+
+                        {/* =================================================
+                        INFO MESSAGE
+                    ================================================= */}
+                        {infoMessage && (
+
+                            <div
+                                role="status"
+                                className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 flex items-start gap-3"
                             >
-                                <EyeIcon open={showPassword} />
+
+                                <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+
+                                    <CheckCircle2
+                                        size={15}
+                                        className="text-emerald-600"
+                                    />
+
+                                </div>
+
+                                <p className="text-xs leading-5 text-emerald-800 font-medium">
+                                    {infoMessage}
+                                </p>
+
+                            </div>
+
+                        )}
+
+
+                        {/* =================================================
+                        ERROR MESSAGE
+                    ================================================= */}
+                        {formError && (
+
+                            <div
+                                role="alert"
+                                className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 flex items-start gap-3"
+                            >
+
+                                <div className="w-7 h-7 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+
+                                    <AlertCircle
+                                        size={15}
+                                        className="text-rose-600"
+                                    />
+
+                                </div>
+
+                                <p className="text-xs leading-5 text-rose-700 font-medium">
+                                    {formError}
+                                </p>
+
+                            </div>
+
+                        )}
+
+
+                        {/* =================================================
+                        LOGIN FORM
+                    ================================================= */}
+                        <form
+                            onSubmit={handleSubmit}
+                            noValidate
+                            className="space-y-5"
+                        >
+
+                            {/* ================= EMAIL ================= */}
+                            <div>
+
+                                <label
+                                    htmlFor="login-email"
+                                    className="block text-xs font-bold text-gray-600 mb-2"
+                                >
+                                    Email Address
+                                </label>
+
+                                <div className="relative">
+
+                                    <Mail
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                                        size={17}
+                                    />
+
+                                    <input
+                                        id="login-email"
+                                        type="email"
+                                        name="email"
+                                        autoComplete="email"
+                                        placeholder="name@example.com"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        aria-invalid={!!errors.email}
+                                        aria-describedby={
+                                            errors.email
+                                                ? "email-error"
+                                                : undefined
+                                        }
+                                        className={`
+                                        w-full h-[52px]
+                                        rounded-xl
+                                        border
+                                        pl-11 pr-4
+                                        text-sm
+                                        font-medium
+                                        outline-none
+                                        transition-all
+                                        bg-gray-50/50
+                                        text-gray-900
+                                        ${errors.email
+                                                ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
+                                                : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                                            }
+                                    `}
+                                    />
+
+                                </div>
+
+
+                                <FieldError name="email" />
+
+                            </div>
+
+
+                            {/* ================= PASSWORD ================= */}
+                            <div>
+
+                                <div className="flex justify-between items-center mb-2">
+
+                                    <label
+                                        htmlFor="login-password"
+                                        className="block text-xs font-bold text-gray-600"
+                                    >
+                                        Password
+                                    </label>
+
+
+                                    <Link
+                                        to="/forgot"
+                                        className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline underline-offset-4"
+                                    >
+                                        Forgot password?
+                                    </Link>
+
+                                </div>
+
+
+                                <div className="relative">
+
+                                    <Lock
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                                        size={17}
+                                    />
+
+
+                                    <input
+                                        id="login-password"
+                                        type={
+                                            showPassword
+                                                ? "text"
+                                                : "password"
+                                        }
+                                        name="password"
+                                        autoComplete="current-password"
+                                        placeholder="Enter your password"
+                                        value={formData.password}
+                                        onChange={handleChange}
+                                        aria-invalid={!!errors.password}
+                                        aria-describedby={
+                                            errors.password
+                                                ? "password-error"
+                                                : undefined
+                                        }
+                                        className={`
+                                        w-full h-[52px]
+                                        rounded-xl
+                                        border
+                                        pl-11 pr-12
+                                        text-sm
+                                        font-medium
+                                        outline-none
+                                        transition-all
+                                        bg-gray-50/50
+                                        text-gray-900
+                                        ${errors.password
+                                                ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
+                                                : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+                                            }
+                                    `}
+                                    />
+
+
+                                    {/* Show / Hide Password */}
+                                    <button
+                                        type="button"
+                                        aria-label={
+                                            showPassword
+                                                ? "Hide password"
+                                                : "Show password"
+                                        }
+                                        aria-pressed={showPassword}
+                                        onClick={() =>
+                                            setShowPassword(
+                                                (v) => !v
+                                            )
+                                        }
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors cursor-pointer"
+                                    >
+
+                                        <EyeIcon
+                                            open={showPassword}
+                                        />
+
+                                    </button>
+
+                                </div>
+
+
+                                <FieldError name="password" />
+
+                            </div>
+
+
+                            {/* ================= LOGIN BUTTON ================= */}
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="
+                                w-full
+                                h-[52px]
+                                rounded-xl
+                                font-bold
+                                text-sm
+                                bg-blue-600
+                                text-white
+                                hover:bg-blue-700
+                                disabled:opacity-60
+                                disabled:cursor-not-allowed
+                                transition-all
+                                duration-300
+                                shadow-[0_8px_20px_rgba(37,99,235,0.25)]
+                                hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)]
+                                hover:-translate-y-[1px]
+                                disabled:hover:translate-y-0
+                                flex
+                                items-center
+                                justify-center
+                                gap-2
+                                mt-6
+                                cursor-pointer
+                            "
+                            >
+
+                                {loading && (
+                                    <Loader2
+                                        className="animate-spin"
+                                        size={17}
+                                    />
+                                )}
+
+                                {loading
+                                    ? "Authenticating..."
+                                    : "Log In"}
+
                             </button>
+
+                        </form>
+
+
+                        {/* =================================================
+                        FOOTER LINKS
+                    ================================================= */}
+                        <div className="mt-9 pt-6 border-t border-gray-100 text-center">
+
+                            <p className="text-[13px] text-gray-500">
+
+                                Don't have an account?{" "}
+
+                                <Link
+                                    to="/signup"
+                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4"
+                                >
+                                    Sign up as user
+                                </Link>
+
+                            </p>
+
+
+                            <p className="text-[13px] text-gray-500 mt-3">
+
+                                Want to manage properties?{" "}
+
+                                <Link
+                                    to="/adminSignup"
+                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4"
+                                >
+                                    Sign up as admin
+                                </Link>
+
+                            </p>
+
                         </div>
-                        <FieldError name="password" />
+
                     </div>
 
-                    {/* Submit Button */}
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full h-11 rounded-xl font-bold text-xs uppercase tracking-wider bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xs flex items-center justify-center gap-2 mt-4 cursor-pointer"
-                    >
-                        {loading && <Loader2 className="animate-spin" size={15} />}
-                        {loading ? "Authenticating..." : "Log In"}
-                    </button>
-                </form>
-
-                {/* Clean Streamlined Footer Links */}
-                <div className="mt-8 border-t border-gray-100 pt-6 flex flex-col items-center justify-center gap-2 text-xs text-center">
-                    <p className="text-gray-500 font-medium">
-                        Don't have an account?{" "}
-                        <Link to="/signup" className="text-gray-900 font-bold hover:text-blue-600 underline underline-offset-4">
-                            Sign up as user
-                        </Link>
-                    </p>
-                    <p className="text-gray-500 font-medium">
-                        Want to manage properties?{" "}
-                        <Link to="/adminSignup" className="text-blue-600 font-bold hover:underline underline-offset-4">
-                            Sign up as admin
-                        </Link>
-                    </p>
                 </div>
 
             </div>
+
         </div>
     );
 };
