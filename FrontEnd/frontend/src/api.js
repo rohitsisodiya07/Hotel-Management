@@ -1,1 +1,1 @@
-export const signupApi = "http://localhost:5000/";
+export const signupApi = "https://aurastay-backend.onrender.com/";
