@@ -1,34 +1,37 @@
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+    host: process.env.BREVO_SMTP_HOST,
+    port: Number(process.env.BREVO_SMTP_PORT),
+    secure: false,
+    auth: {
+        user: process.env.BREVO_SMTP_USER,
+        pass: process.env.BREVO_SMTP_PASS,
+    },
+});
 
 const sendEmail = async (to, subject, html) => {
     try {
-        const { data, error } = await resend.emails.send({
-            from: "AuraStay <onboarding@resend.dev>",
-            to: [to],
+        const info = await transporter.sendMail({
+            from: `"AuraStay" <${process.env.BREVO_FROM_EMAIL}>`,
+            to,
             subject,
             html,
         });
 
-        if (error) {
-            console.log("❌ Resend Error:", error);
-            throw new Error(error.message);
-        }
-
-        console.log("✅ Email Sent Successfully:", data);
+        console.log("✅ Email Sent Successfully");
+        console.log("Message ID:", info.messageId);
 
         return {
             success: true,
-            data
+            data: info,
         };
-
     } catch (error) {
         console.log("❌ Email Error:", error);
 
         return {
             success: false,
-            error: error.message
+            error: error.message,
         };
     }
 };
