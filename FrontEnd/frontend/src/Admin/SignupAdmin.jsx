@@ -266,7 +266,7 @@ const SignupAdmin = () => {
 
   const FieldError = ({ name }) =>
     errors[name] && touched[name] ? (
-      <p id={`${name}-error`} role="alert" className="text-[11px] text-rose-600 mt-1 flex items-center gap-1 font-medium">
+      <p id={`${name}-error`} role="alert" className="text-[11px] text-rose-600 mt-1.5 ml-1 flex items-center gap-1 font-medium">
         <AlertCircle size={12} />
         {errors[name]}
       </p>
@@ -287,16 +287,15 @@ const SignupAdmin = () => {
     <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
 
       {/* ================= MAIN CARD ================= */}
-      <div className="w-full max-w-[1150px] min-h-[680px] bg-white rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
+      <div className="w-full max-w-[1150px] min-h-[550px] lg:min-h-[680px] bg-white rounded-[24px] lg:rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
 
         {/* =====================================================
-                LEFT BRAND SECTION
+                LEFT BRAND SECTION (Desktop Only)
             ===================================================== */}
-        <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 overflow-hidden">
+        <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 overflow-hidden z-10">
 
           {/* Decorative background */}
           <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
-
           <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
 
           {/* Decorative dots */}
@@ -312,7 +311,7 @@ const SignupAdmin = () => {
             </p>
 
             {/* LOGO */}
-            <div className="w-[250px] mb-9">
+            <div className="w-[250px] mb-9 flex items-center justify-center">
               <img
                 src={logo}
                 alt="AuraStay Logo"
@@ -331,12 +330,10 @@ const SignupAdmin = () => {
 
             {/* Feature points */}
             <div className="mt-10 space-y-3 text-left">
-
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
                   <ShieldCheck size={14} />
                 </div>
-
                 <span className="text-xs text-white/80">
                   Secure administrator access
                 </span>
@@ -346,19 +343,15 @@ const SignupAdmin = () => {
                 <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
                   <Hotel size={14} />
                 </div>
-
                 <span className="text-xs text-white/80">
                   Manage your properties
                 </span>
               </div>
-
             </div>
 
           </div>
 
-          {/* =================================================
-                    CURVED RIGHT EDGE
-                ================================================= */}
+          {/* ================= CURVED RIGHT EDGE ================= */}
           <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
           <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
           <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
@@ -372,54 +365,40 @@ const SignupAdmin = () => {
         {/* =====================================================
                 RIGHT FORM SECTION
             ===================================================== */}
-        <div className="w-full lg:w-[57%] flex items-center justify-center bg-white">
+        <div className="w-full lg:w-[57%] flex items-center justify-center bg-white z-0">
 
-          <div className="w-full max-w-[470px] px-6 py-10 sm:px-10 lg:px-12">
+          <div className="w-full max-w-[470px] px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
+
+            {/* ================= MOBILE BRANDING (Mobile Only) ================= */}
+            <div className="lg:hidden flex flex-col items-center justify-center mb-8">
+              <div className="bg-blue-600 p-4 rounded-2xl shadow-[0_8px_20px_rgba(37,99,235,0.2)] flex items-center justify-center w-[180px]">
+                <img
+                  src={logo}
+                  alt="AuraStay Logo"
+                  className="w-full h-auto object-contain"
+                />
+              </div>
+            </div>
 
             {/* ================= HEADER ================= */}
-            <div className="mb-7">
+            <div className="mb-7 text-center lg:text-left">
 
               {/* Step indicator */}
-              <div className="flex items-center gap-3 mb-5">
-
-                <div
-                  className={`h-1.5 w-10 rounded-full ${step >= 1
-                      ? "bg-blue-600"
-                      : "bg-gray-200"
-                    }`}
-                />
-
-                <div
-                  className={`h-1.5 w-10 rounded-full ${step >= 2
-                      ? "bg-blue-600"
-                      : "bg-gray-200"
-                    }`}
-                />
-
+              <div className="flex items-center justify-center lg:justify-start gap-3 mb-5">
+                <div className={`h-1.5 w-10 rounded-full ${step >= 1 ? "bg-blue-600" : "bg-gray-200"}`} />
+                <div className={`h-1.5 w-10 rounded-full ${step >= 2 ? "bg-blue-600" : "bg-gray-200"}`} />
                 <span className="ml-1 text-[11px] font-semibold text-gray-400">
                   Step {step} of 2
                 </span>
-
               </div>
 
-
               <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
-                {step === 1
-                  ? isEdit
-                    ? "Update Request"
-                    : "Property Management"
-                  : "Email Verification"}
+                {step === 1 ? (isEdit ? "Update Request" : "Property Management") : "Email Verification"}
               </p>
 
-
-              <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-tight text-gray-900">
-                {step === 1
-                  ? isEdit
-                    ? "Update your request."
-                    : "Become a partner."
-                  : "Verify your email."}
+              <h1 className="text-[28px] sm:text-[32px] lg:text-[36px] font-extrabold tracking-tight text-gray-900">
+                {step === 1 ? (isEdit ? "Update your request." : "Become a partner.") : "Verify your email."}
               </h1>
-
 
               <p className="text-sm text-gray-500 mt-2 leading-6">
                 {step === 1
@@ -430,84 +409,43 @@ const SignupAdmin = () => {
             </div>
 
 
-            {/* =================================================
-                        SUCCESS
-                    ================================================= */}
+            {/* ================= SUCCESS MESSAGE ================= */}
             {formSuccess && (
-
               <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 flex items-start gap-3">
-
                 <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-
-                  <CheckCircle2
-                    size={15}
-                    className="text-emerald-600"
-                  />
-
+                  <CheckCircle2 size={15} className="text-emerald-600" />
                 </div>
-
                 <p className="text-xs leading-5 text-emerald-800 font-medium">
                   {formSuccess}
                 </p>
-
               </div>
-
             )}
 
 
-            {/* =================================================
-                        ERROR
-                    ================================================= */}
+            {/* ================= ERROR MESSAGE ================= */}
             {formError && (
-
               <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 flex items-start gap-3">
-
                 <div className="w-7 h-7 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-
-                  <AlertCircle
-                    size={15}
-                    className="text-rose-600"
-                  />
-
+                  <AlertCircle size={15} className="text-rose-600" />
                 </div>
-
                 <p className="text-xs leading-5 text-rose-700 font-medium">
                   {formError}
                 </p>
-
               </div>
-
             )}
 
 
-            {/* =================================================
-                        STEP 1
-                    ================================================= */}
+            {/* ================= STEP 1 FORM ================= */}
             {step === 1 && (
+              <form onSubmit={handleSubmit} noValidate className="space-y-4">
 
-              <form
-                onSubmit={handleSubmit}
-                noValidate
-                className="space-y-4"
-              >
-
-                {/* ================= NAME ================= */}
+                {/* NAME */}
                 <div>
-
-                  <label
-                    htmlFor="admin-name"
-                    className="block text-xs font-bold text-gray-600 mb-2"
-                  >
+                  <label htmlFor="admin-name" className="block text-[11px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
                     Full Name
                   </label>
-
-                  <div className="relative">
-
-                    <User
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                      size={17}
-                    />
-
+                  <div className="relative group">
+                    <User className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.name && touched.name ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={17} />
                     <input
                       id="admin-name"
                       type="text"
@@ -519,31 +457,17 @@ const SignupAdmin = () => {
                       onBlur={handleBlur}
                       className={fieldClass("name")}
                     />
-
                   </div>
-
                   <FieldError name="name" />
-
                 </div>
 
-
-                {/* ================= EMAIL ================= */}
+                {/* EMAIL */}
                 <div>
-
-                  <label
-                    htmlFor="admin-email"
-                    className="block text-xs font-bold text-gray-600 mb-2"
-                  >
+                  <label htmlFor="admin-email" className="block text-[11px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
                     Email Address
                   </label>
-
-                  <div className="relative">
-
-                    <Mail
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                      size={17}
-                    />
-
+                  <div className="relative group">
+                    <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.email && touched.email ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={17} />
                     <input
                       id="admin-email"
                       type="email"
@@ -555,31 +479,17 @@ const SignupAdmin = () => {
                       onBlur={handleBlur}
                       className={fieldClass("email")}
                     />
-
                   </div>
-
                   <FieldError name="email" />
-
                 </div>
 
-
-                {/* ================= MOBILE ================= */}
+                {/* MOBILE */}
                 <div>
-
-                  <label
-                    htmlFor="admin-mobile"
-                    className="block text-xs font-bold text-gray-600 mb-2"
-                  >
+                  <label htmlFor="admin-mobile" className="block text-[11px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
                     Mobile Number
                   </label>
-
-                  <div className="relative">
-
-                    <Phone
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                      size={17}
-                    />
-
+                  <div className="relative group">
+                    <Phone className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.mobile && touched.mobile ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={17} />
                     <input
                       id="admin-mobile"
                       type="tel"
@@ -593,77 +503,43 @@ const SignupAdmin = () => {
                       onBlur={handleBlur}
                       className={fieldClass("mobile")}
                     />
-
                   </div>
-
                   <FieldError name="mobile" />
-
                 </div>
 
-
-                {/* ================= PROFILE IMAGE ================= */}
+                {/* PROFILE IMAGE */}
                 <div>
-
-                  <label className="block text-xs font-bold text-gray-600 mb-2">
+                  <label className="block text-[11px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
                     Profile Verification Image
                   </label>
-
-                  <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
-
-                    <div className="flex items-center gap-4">
-
+                  <div className={`rounded-2xl border bg-gray-50/60 p-3 transition-colors duration-300 ${errors.profileImage && touched.profileImage ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200'}`}>
+                    <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4">
                       {/* Preview */}
                       <div className="w-16 h-16 rounded-xl border border-gray-200 bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-sm">
-
                         {imagePreview ? (
-
-                          <img
-                            src={imagePreview}
-                            alt="Profile preview"
-                            className="w-full h-full object-cover"
-                          />
-
+                          <img src={imagePreview} alt="Profile preview" className="w-full h-full object-cover" />
                         ) : (
-
-                          <User
-                            size={24}
-                            className="text-gray-300"
-                          />
-
+                          <User size={24} className="text-gray-300" />
                         )}
-
                       </div>
 
-
-                      <div className="flex-1 min-w-0">
-
+                      <div className="flex-1 min-w-0 text-center sm:text-left flex flex-col items-center sm:items-start">
                         <p className="text-xs font-semibold text-gray-700 mb-2">
                           Upload your profile photo
                         </p>
-
                         <label
                           htmlFor="admin-image"
-                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:text-blue-600 hover:border-blue-400 transition cursor-pointer shadow-sm"
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 hover:text-blue-600 hover:border-blue-400 transition cursor-pointer shadow-sm w-full sm:w-auto"
                         >
-
                           <Upload size={14} />
-
-                          {formData.profileImage
-                            ? "Change Photo"
-                            : "Choose Photo"}
-
+                          {formData.profileImage ? "Change Photo" : "Choose Photo"}
                         </label>
-
                         {formData.profileImage && (
-
-                          <p className="text-[10px] text-gray-400 truncate mt-1.5">
+                          <p className="text-[10px] text-gray-400 truncate mt-1.5 max-w-[150px] sm:max-w-[200px]">
                             {formData.profileImage.name}
                           </p>
-
                         )}
-
                       </div>
-
 
                       <input
                         ref={fileInputRef}
@@ -675,149 +551,66 @@ const SignupAdmin = () => {
                         onBlur={handleBlur}
                         className="sr-only"
                       />
-
                     </div>
-
-                    <p className="text-[10px] text-gray-400 mt-2 ml-20">
+                    <p className="text-[10px] text-gray-400 mt-3 text-center sm:text-left sm:ml-20">
                       JPG, JPEG or PNG • Maximum 1 MB
                     </p>
-
                   </div>
-
                   <FieldError name="profileImage" />
-
                 </div>
 
 
-                {/* ================= INFO ================= */}
-                <div className="rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3">
-
+                {/* INFO */}
+                <div className="rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3 mt-2">
                   <div className="flex items-start gap-3">
-
-                    <ShieldCheck
-                      size={17}
-                      className="text-blue-600 mt-0.5 shrink-0"
-                    />
-
+                    <ShieldCheck size={17} className="text-blue-600 mt-0.5 shrink-0" />
                     <p className="text-[11px] leading-5 text-blue-700">
-                      Your request will be reviewed by the
-                      Super Admin before administrator access
-                      is granted.
+                      Your request will be reviewed by the Super Admin before administrator access is granted.
                     </p>
-
                   </div>
-
                 </div>
 
 
-                {/* ================= BUTTON ================= */}
+                {/* BUTTON */}
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="
-                                    w-full
-                                    h-[52px]
-                                    rounded-xl
-                                    bg-blue-600
-                                    hover:bg-blue-700
-                                    text-white
-                                    text-sm
-                                    font-bold
-                                    transition-all
-                                    duration-300
-                                    flex
-                                    items-center
-                                    justify-center
-                                    gap-2
-                                    shadow-[0_8px_20px_rgba(37,99,235,0.25)]
-                                    hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)]
-                                    hover:-translate-y-[1px]
-                                    disabled:opacity-60
-                                    disabled:cursor-not-allowed
-                                    disabled:hover:translate-y-0
-                                "
+                  className="w-full h-[52px] mt-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                 >
-
-                  {submitting && (
-                    <Loader2
-                      className="animate-spin"
-                      size={17}
-                    />
-                  )}
-
-                  {submitting
-                    ? isEdit
-                      ? "Updating..."
-                      : "Sending OTP..."
-                    : isEdit
-                      ? "Update Request"
-                      : "Continue & Send OTP"}
-
-                  {!submitting && !isEdit && (
-                    <ArrowRight size={17} />
-                  )}
-
+                  {submitting && <Loader2 className="animate-spin" size={17} />}
+                  {submitting ? (isEdit ? "Updating..." : "Sending OTP...") : (isEdit ? "Update Request" : "Continue & Send OTP")}
+                  {!submitting && !isEdit && <ArrowRight size={17} />}
                 </button>
 
               </form>
-
             )}
 
 
-            {/* =================================================
-                        STEP 2 — OTP
-                    ================================================= */}
+            {/* ================= STEP 2 — OTP ================= */}
             {step === 2 && (
-
-              <form
-                onSubmit={handleVerifyOtp}
-                className="space-y-5"
-              >
-
+              <form onSubmit={handleVerifyOtp} className="space-y-5">
                 <div className="rounded-2xl bg-[#f7f8fc] border border-gray-100 p-6">
-
                   {/* OTP Icon */}
                   <div className="flex justify-center mb-5">
-
                     <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center">
-
-                      <KeyRound
-                        size={26}
-                        className="text-blue-600"
-                      />
-
+                      <KeyRound size={26} className="text-blue-600" />
                     </div>
-
                   </div>
-
 
                   <p className="text-center text-sm font-bold text-gray-800">
                     Verify your email
                   </p>
-
                   <p className="text-center text-xs text-gray-400 mt-1 mb-6">
                     We've sent a 6-digit code to
                     <br />
-                    <span className="font-semibold text-gray-600">
-                      {formData.email}
-                    </span>
+                    <span className="font-semibold text-gray-600">{formData.email}</span>
                   </p>
 
-
-                  <label
-                    htmlFor="admin-otp"
-                    className="block text-xs font-bold text-gray-600 mb-2"
-                  >
+                  <label htmlFor="admin-otp" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5 ml-1">
                     Verification Code
                   </label>
-
-                  <div className="relative">
-
-                    <KeyRound
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                      size={17}
-                    />
-
+                  <div className="relative group">
+                    <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors" size={18} />
                     <input
                       id="admin-otp"
                       type="text"
@@ -825,207 +618,82 @@ const SignupAdmin = () => {
                       maxLength={6}
                       placeholder="000000"
                       value={otp}
-                      onChange={(e) =>
-                        setOtp(
-                          e.target.value
-                        )
-                      }
-                      className="
-                                            w-full
-                                            h-[54px]
-                                            rounded-xl
-                                            border
-                                            border-gray-200
-                                            bg-white
-                                            pl-11
-                                            pr-4
-                                            text-center
-                                            text-xl
-                                            font-bold
-                                            tracking-[0.5em]
-                                            outline-none
-                                            focus:border-blue-500
-                                            focus:ring-2
-                                            focus:ring-blue-500/10
-                                        "
+                      onChange={(e) => setOtp(e.target.value)}
+                      className="w-full h-[54px] rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all"
                     />
-
                   </div>
-
                 </div>
-
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="
-                                    w-full
-                                    h-[52px]
-                                    rounded-xl
-                                    bg-blue-600
-                                    hover:bg-blue-700
-                                    text-white
-                                    text-sm
-                                    font-bold
-                                    transition-all
-                                    duration-300
-                                    flex
-                                    items-center
-                                    justify-center
-                                    gap-2
-                                    shadow-[0_8px_20px_rgba(37,99,235,0.25)]
-                                    hover:-translate-y-[1px]
-                                    disabled:opacity-60
-                                    disabled:cursor-not-allowed
-                                "
+                  className="w-full h-[52px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                 >
-
-                  {submitting && (
-                    <Loader2
-                      className="animate-spin"
-                      size={17}
-                    />
-                  )}
-
-                  {submitting
-                    ? "Verifying..."
-                    : "Verify & Generate Tracking ID"}
-
+                  {submitting && <Loader2 className="animate-spin" size={17} />}
+                  {submitting ? "Verifying..." : "Verify & Generate Tracking ID"}
                 </button>
-
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setStep(1);
-                    setOtp("");
-                    setFormError("");
-                  }}
+                  onClick={() => { setStep(1); setOtp(""); setFormError(""); }}
                   className="w-full h-11 rounded-xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition-all"
                 >
                   ← Back to application details
                 </button>
-
               </form>
-
             )}
 
 
-            {/* =================================================
-                        FOOTER LINKS
-                    ================================================= */}
+            {/* ================= FOOTER LINKS ================= */}
             <div className="mt-7 pt-6 border-t border-gray-100 text-center">
-
               <p className="text-[13px] text-gray-500">
-
                 Looking for a regular user account?{" "}
-
-                <Link
-                  to="/signup"
-                  className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4"
-                >
+                <Link to="/signup" className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4">
                   Sign up as user
                 </Link>
-
               </p>
-
-
               <p className="text-[13px] text-gray-500 mt-3">
-
                 Already have an account?{" "}
-
-                <Link
-                  to="/login"
-                  className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4"
-                >
+                <Link to="/login" className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4">
                   Log in
                 </Link>
-
               </p>
-
             </div>
 
 
-            {/* =================================================
-                        STATUS CARDS
-                    ================================================= */}
+            {/* ================= STATUS CARDS ================= */}
             <div className="mt-6 pt-5 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-              {/* Admin Status */}
-              <Link
-                to="/checkStatus"
-                className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-gray-50/50 hover:bg-blue-50/40 hover:border-blue-300 transition-all group"
-              >
-
+              <Link to="/checkStatus" className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-gray-50/50 hover:bg-blue-50/40 hover:border-blue-300 transition-all group">
                 <div className="flex items-center gap-2.5">
-
                   <div className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-blue-600 group-hover:scale-105 transition">
                     <FileText size={15} />
                   </div>
-
                   <div className="text-left">
-
-                    <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold">
-                      Tracker
-                    </p>
-
-                    <p className="text-[11px] font-bold text-gray-900">
-                      Admin Status
-                    </p>
-
+                    <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Tracker</p>
+                    <p className="text-[11px] font-bold text-gray-900">Admin Status</p>
                   </div>
-
                 </div>
-
-                <ArrowRight
-                  size={14}
-                  className="text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition"
-                />
-
+                <ArrowRight size={14} className="text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
               </Link>
 
-
-              {/* Hotel Status */}
-              <Link
-                to="/hotelStatus"
-                className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-gray-50/50 hover:bg-blue-50/40 hover:border-blue-300 transition-all group"
-              >
-
+              <Link to="/hotelStatus" className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-gray-50/50 hover:bg-blue-50/40 hover:border-blue-300 transition-all group">
                 <div className="flex items-center gap-2.5">
-
                   <div className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-blue-600 group-hover:scale-105 transition">
                     <Building2 size={15} />
                   </div>
-
                   <div className="text-left">
-
-                    <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold">
-                      Tracker
-                    </p>
-
-                    <p className="text-[11px] font-bold text-gray-900">
-                      Hotel Status
-                    </p>
-
+                    <p className="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Tracker</p>
+                    <p className="text-[11px] font-bold text-gray-900">Hotel Status</p>
                   </div>
-
                 </div>
-
-                <ArrowRight
-                  size={14}
-                  className="text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition"
-                />
-
+                <ArrowRight size={14} className="text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
               </Link>
-
             </div>
 
           </div>
-
         </div>
 
       </div>
-
     </div>
   );
 };
