@@ -32,6 +32,11 @@ const signupSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+
+        isVerified: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,

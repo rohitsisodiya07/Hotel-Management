@@ -1,8 +1,7 @@
 const SignupModel = require("../Model/signupModel");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const {sendEmail} = require("../Utilities/ResendEmail");
-
+const { sendEmail } = require("../Utilities/ResendEmail");
 
 // =========================================================================
 // REUSABLE EMAIL TEMPLATE GENERATOR
@@ -29,12 +28,9 @@ const generateAuraStayEmail = (title, subtitle, content) => `
 // 1. SEND SIGNUP OTP (Step 1 of Signup)
 // =========================================================================
 const sendSignupOtp = async (req, res) => {
-    console.log(sendEmail);
-    
     try {
         let { name, email, password } = req.body;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
         if (!name?.trim() || !email?.trim() || !password?.trim()) {
             return res.status(400).json({ success: false, message: "Name, Email and Password are required" });
         }
@@ -57,18 +53,19 @@ const sendSignupOtp = async (req, res) => {
         }
 
         const existingUser = await SignupModel.findOne({ email });
-        if (existingUser && existingUser.isVerified !== false) {
-            return res.status(400).json({ success: false, message: "Email already exists and is active." });
+
+        // Block if user exists and is already verified
+        if (existingUser && existingUser.isVerified) {
+            return res.status(409).json({ success: false, message: "Email already exists and is active." });
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpExpire = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
-        const hash = bcrypt.hashSync(password, 10);
+        const hash = await bcrypt.hash(password, 10);
 
-        let tempUser = await SignupModel.findOne({ email });
-
-        if (!tempUser) {
-            tempUser = await SignupModel.create({
+        if (!existingUser) {
+            // Create new unverified user
+            await SignupModel.create({
                 name,
                 email,
                 password: hash,
@@ -77,11 +74,13 @@ const sendSignupOtp = async (req, res) => {
                 isVerified: false
             });
         } else {
-            tempUser.name = name;
-            tempUser.otp = otp;
-            tempUser.otpExpire = otpExpire;
-            tempUser.password = hash;
-            await tempUser.save();
+            // Update existing unverified user
+            existingUser.name = name;
+            existingUser.otp = otp;
+            existingUser.otpExpire = otpExpire;
+            existingUser.password = hash;
+            existingUser.isVerified = false;
+            await existingUser.save();
         }
 
         const emailContent = `
@@ -98,18 +97,16 @@ const sendSignupOtp = async (req, res) => {
 
         return res.status(200).json({ success: true, message: "Verification OTP sent successfully to your email" });
     } catch (error) {
-        console.log(error);
-        
+        console.error("Send Signup OTP Error:", error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
 
 // =========================================================================
-// CREATE USER (Direct fallback if needed without OTP)
+// CREATE USER (Fallback)
 // =========================================================================
 const signup = async (req, res) => {
-        return sendSignupOtp(req, res);
-   
+    return sendSignupOtp(req, res);
 };
 
 // =========================================================================
@@ -119,29 +116,23 @@ const verifySignupOtp = async (req, res) => {
     try {
         let { email, otp } = req.body;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
         if (!email?.trim() || !otp?.trim()) {
             return res.status(400).json({ success: false, message: "Email and OTP are required" });
         }
 
         email = email.trim().toLowerCase();
 
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({ success: false, message: "Invalid email format" });
-        }
-
-        const otpRegex = /^\d{6}$/;
-        if (!otpRegex.test(otp.trim())) {
-            return res.status(400).json({ success: false, message: "OTP must be a valid 6-digit code" });
-        }
-
         const user = await SignupModel.findOne({ email });
+
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        if (user.otp !== otp.trim()) {
+        if (user.isVerified) {
+            return res.status(400).json({ success: false, message: "Email is already verified" });
+        }
+
+        if (!user.otp || user.otp !== otp.trim()) {
             return res.status(400).json({ success: false, message: "Invalid OTP code" });
         }
 
@@ -149,6 +140,7 @@ const verifySignupOtp = async (req, res) => {
             return res.status(400).json({ success: false, message: "OTP has expired" });
         }
 
+        // OTP correct → verify user
         user.otp = null;
         user.otpExpire = null;
         user.isVerified = true;
@@ -171,36 +163,41 @@ const verifySignupOtp = async (req, res) => {
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "5d" });
 
         return res.status(201).json({
-            success: true, message: "Account verified and registered successfully", token,
+            success: true,
+            message: "Account verified and registered successfully",
+            token,
             user: { id: user._id, name: user.name, email: user.email, role: user.role },
         });
     } catch (error) {
+        console.error("Verify Signup OTP Error:", error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
 
 // =========================================================================
-// 3. LOGIN USER
+// 3. LOGIN USER (With Verification Check)
 // =========================================================================
 const login = async (req, res) => {
     try {
         let { email, password } = req.body;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
         if (!email?.trim() || !password?.trim()) {
             return res.status(400).json({ success: false, message: "Email and Password are required" });
         }
 
         email = email.trim().toLowerCase();
 
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({ success: false, message: "Invalid email format" });
-        }
-
         const existingUser = await SignupModel.findOne({ email });
         if (!existingUser) {
             return res.status(404).json({ success: false, message: "Email not found" });
+        }
+
+        // 🔥 CRITICAL ADDITION: Prevent unverified users from logging in
+        if (!existingUser.isVerified) {
+            return res.status(403).json({
+                success: false,
+                message: "Please verify your email first"
+            });
         }
 
         const match = await bcrypt.compare(password, existingUser.password);
@@ -211,7 +208,9 @@ const login = async (req, res) => {
         const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET, { expiresIn: "5d" });
 
         return res.status(200).json({
-            success: true, message: "Login Successfully", token,
+            success: true,
+            message: "Login Successfully",
+            token,
             user: { id: existingUser._id, name: existingUser.name, email: existingUser.email, role: existingUser.role },
         });
     } catch (error) {
@@ -226,16 +225,11 @@ const sendOtp = async (req, res) => {
     try {
         let { email } = req.body;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
         if (!email?.trim()) {
             return res.status(400).json({ success: false, message: "Email is required" });
         }
 
         email = email.trim().toLowerCase();
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({ success: false, message: "Invalid email format" });
-        }
 
         const existingUser = await SignupModel.findOne({ email });
         if (!existingUser) {
@@ -274,22 +268,11 @@ const verifyOtp = async (req, res) => {
     try {
         let { email, otp } = req.body;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
         if (!email?.trim() || !otp?.trim()) {
             return res.status(400).json({ success: false, message: "Email and OTP are required" });
         }
 
         email = email.trim().toLowerCase();
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({ success: false, message: "Invalid email format" });
-        }
-
-        const otpRegex = /^\d{6}$/;
-        if (!otpRegex.test(otp.trim())) {
-            return res.status(400).json({ success: false, message: "OTP must be a valid 6-digit code" });
-        }
 
         const existingUser = await SignupModel.findOne({ email });
         if (!existingUser) {
@@ -317,16 +300,11 @@ const forgotPassword = async (req, res) => {
     try {
         let { email, password, confirmPassword } = req.body;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
         if (!email?.trim() || !password?.trim() || !confirmPassword?.trim()) {
             return res.status(400).json({ success: false, message: "Email, Password and Confirm Password are required" });
         }
 
         email = email.trim().toLowerCase();
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({ success: false, message: "Invalid email format" });
-        }
 
         if (password.length < 6) {
             return res.status(400).json({ success: false, message: "Password must be at least 6 characters" });
@@ -366,7 +344,6 @@ const resetPassword = async (req, res) => {
     try {
         const { oldPassword, newPassword, confirmPassword } = req.body;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
         if (!oldPassword?.trim() || !newPassword?.trim() || !confirmPassword?.trim()) {
             return res.status(400).json({ success: false, message: "All fields are required" });
         }
@@ -393,7 +370,6 @@ const resetPassword = async (req, res) => {
 
         await SignupModel.findByIdAndUpdate(req.user._id, { password: hash });
 
-        // Fixed the incorrect 'success: false' that was in the original code
         return res.status(200).json({ success: true, message: "Password updated successfully" });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
