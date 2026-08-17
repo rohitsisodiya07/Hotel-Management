@@ -1,39 +1,44 @@
-const nodemailer = require("nodemailer");
+require("dotenv").config();
 
-const transporter = nodemailer.createTransport({
-    host: process.env.BREVO_SMTP_HOST,
-    port: Number(process.env.BREVO_SMTP_PORT),
-    secure: false,
-    auth: {
-        user: process.env.BREVO_SMTP_USER,
-        pass: process.env.BREVO_SMTP_PASS,
-    },
-});
-
-const sendEmail = async (to, subject, html) => {
+const sendMail = async (to, subject, html) => {
     try {
-        const info = await transporter.sendMail({
-            from: `"AuraStay" <${process.env.BREVO_FROM_EMAIL}>`,
-            to,
-            subject,
-            html,
+        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+            method: "POST",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                "api-key": process.env.BREVO_API_KEY,
+            },
+            body: JSON.stringify({
+                sender: {
+                    email: process.env.BREVO_FROM_EMAIL,
+                    name: "AuraStay",
+                },
+                to: [{ email: to }],
+                subject,
+                htmlContent: html,
+            }),
         });
 
-        console.log("✅ Email Sent Successfully");
-        console.log("Message ID:", info.messageId);
+        if (!response.ok) {
+            const errorData = await response.json();
 
-        return {
-            success: true,
-            data: info,
-        };
-    } catch (error) {
-        console.log("❌ Email Error:", error);
+            console.log("Brevo Error:", errorData);
 
-        return {
-            success: false,
-            error: error.message,
-        };
+            throw new Error(
+                errorData.message || "Failed to send email via Brevo API"
+            );
+        }
+
+        const data = await response.json();
+
+        console.log("Email sent successfully:", data);
+
+        return data;
+    } catch (err) {
+        console.log("Email Error:", err.message);
+        throw err;
     }
 };
 
-module.exports = sendEmail;
+module.exports = { sendMail };
