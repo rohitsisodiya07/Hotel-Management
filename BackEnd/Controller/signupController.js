@@ -1,7 +1,8 @@
 const SignupModel = require("../Model/signupModel");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const sendEmail = require("../Utilities/ResendEmail");
+const {sendEmail} = require("../Utilities/ResendEmail");
+
 
 // =========================================================================
 // REUSABLE EMAIL TEMPLATE GENERATOR
@@ -28,6 +29,8 @@ const generateAuraStayEmail = (title, subtitle, content) => `
 // 1. SEND SIGNUP OTP (Step 1 of Signup)
 // =========================================================================
 const sendSignupOtp = async (req, res) => {
+    console.log(sendEmail);
+    
     try {
         let { name, email, password } = req.body;
 
@@ -95,6 +98,8 @@ const sendSignupOtp = async (req, res) => {
 
         return res.status(200).json({ success: true, message: "Verification OTP sent successfully to your email" });
     } catch (error) {
+        console.log(error);
+        
         return res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -103,7 +108,8 @@ const sendSignupOtp = async (req, res) => {
 // CREATE USER (Direct fallback if needed without OTP)
 // =========================================================================
 const signup = async (req, res) => {
-    return sendSignupOtp(req, res);
+        return sendSignupOtp(req, res);
+   
 };
 
 // =========================================================================
