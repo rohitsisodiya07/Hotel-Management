@@ -139,466 +139,185 @@ const Signup = () => {
         <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
 
             {/* ================= MAIN CARD ================= */}
-            <div className="w-full max-w-[1100px] min-h-[650px] bg-white rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
+            <div className="w-full max-w-[1100px] min-h-[550px] lg:min-h-[650px] bg-white rounded-[24px] lg:rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
 
                 {/* =====================================================
-                LEFT BRAND SECTION
+                LEFT BRAND SECTION (Desktop Only)
             ===================================================== */}
                 <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 z-10 overflow-hidden">
-
-                    {/* Soft decorative background */}
                     <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
-
                     <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
-
-
-                    {/* Small decorative dots */}
                     <div className="absolute top-24 right-20 w-3 h-3 rounded-full bg-white/30" />
-
                     <div className="absolute top-36 right-32 w-2 h-2 rounded-full bg-white/20" />
-
                     <div className="absolute bottom-28 left-20 w-2 h-2 rounded-full bg-white/20" />
 
-
-                    {/* ================= BRAND CONTENT ================= */}
                     <div className="relative z-20 flex flex-col items-center justify-center text-center">
-
-                        {/* Welcome */}
                         <h2 className="text-xl font-medium tracking-wide mb-8">
                             Welcome to
                         </h2>
 
-
-                        {/* ================= LOGO ================= */}
+                        {/* ================= DESKTOP LOGO ================= */}
                         <div className="w-[250px] mb-10 flex items-center justify-center">
-
                             <img
                                 src={logo}
                                 alt="AuraStay Logo"
                                 className="w-full h-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.18)]"
                             />
-
                         </div>
 
-
-                        {/* Tagline */}
                         <p className="text-[15px] leading-7 max-w-[250px] text-center font-medium text-white/90">
                             Discover and Find Your
                             <br />
                             Perfect Healing Place
                         </p>
 
-
-                        {/* Bottom tagline */}
                         <div className="flex items-center gap-3 mt-12 text-[10px] tracking-[0.25em] uppercase text-white/50">
-
                             <span className="w-8 h-px bg-white/30" />
-
                             Stay • Explore • Relax
-
                             <span className="w-8 h-px bg-white/30" />
-
                         </div>
-
                     </div>
 
-
-                    {/* =================================================
-                    CURVED / BUBBLE RIGHT EDGE
-                ================================================= */}
-
+                    {/* Edge bubbles */}
                     <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
-
                     <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
-
                     <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
-
                     <div className="absolute top-[61%] -right-12 w-28 h-40 bg-blue-600 rounded-full" />
-
                     <div className="absolute top-[82%] -right-5 w-16 h-24 bg-blue-600 rounded-full" />
-
                     <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-blue-600 rounded-full" />
-
                 </div>
-
 
                 {/* =====================================================
                 RIGHT FORM SECTION
             ===================================================== */}
                 <div className="w-full lg:w-[57%] flex items-center justify-center bg-white relative z-0">
+                    <div className="w-full max-w-[440px] px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
 
-                    <div className="w-full max-w-[440px] px-6 py-10 sm:px-10 lg:px-12">
-
+                        {/* ================= MOBILE BRANDING (Mobile Only) ================= */}
+                        <div className="lg:hidden flex flex-col items-center justify-center mb-8">
+                            <div className="bg-blue-600 p-4 rounded-2xl shadow-[0_8px_20px_rgba(37,99,235,0.2)] flex items-center justify-center w-[180px]">
+                                <img
+                                    src={logo}
+                                    alt="AuraStay Logo"
+                                    className="w-full h-auto object-contain"
+                                />
+                            </div>
+                        </div>
 
                         {/* ================= HEADER ================= */}
-                        <div className="mb-8">
-
-                            {/* Step Indicator */}
-                            <div className="flex items-center gap-3 mb-6">
-
-                                <div
-                                    className={`h-1.5 w-10 rounded-full ${step === 1
-                                            ? "bg-blue-600"
-                                            : "bg-blue-600"
-                                        }`}
-                                />
-
-                                <div
-                                    className={`h-1.5 w-10 rounded-full ${step === 2
-                                            ? "bg-blue-600"
-                                            : "bg-gray-200"
-                                        }`}
-                                />
-
+                        <div className="mb-8 text-center lg:text-left">
+                            <div className="flex items-center justify-center lg:justify-start gap-3 mb-6">
+                                <div className={`h-1.5 w-10 rounded-full bg-blue-600`} />
+                                <div className={`h-1.5 w-10 rounded-full ${step === 2 ? "bg-blue-600" : "bg-gray-200"}`} />
                                 <span className="ml-1 text-[11px] font-semibold text-gray-400">
                                     Step {step} of 2
                                 </span>
-
                             </div>
 
-
-                            {/* Small Heading */}
                             <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
-                                {step === 1
-                                    ? "Create Your Account"
-                                    : "Email Verification"}
+                                {step === 1 ? "Create Your Account" : "Email Verification"}
                             </p>
 
-
-                            {/* Main Heading */}
-                            <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-tight text-gray-900">
-                                {step === 1
-                                    ? "Get started."
-                                    : "Almost there."}
+                            <h1 className="text-[28px] sm:text-[32px] lg:text-[36px] font-extrabold tracking-tight text-gray-900">
+                                {step === 1 ? "Get started." : "Almost there."}
                             </h1>
 
-
-                            {/* Description */}
                             <p className="text-sm text-gray-500 mt-2 leading-6">
                                 {step === 1
                                     ? "Create your AuraStay account and start exploring amazing stays."
                                     : `We've sent a 6-digit verification code to ${formData.email}`}
                             </p>
-
                         </div>
 
-
-                        {/* =================================================
-                        SUCCESS MESSAGE
-                    ================================================= */}
+                        {/* ================= MESSAGES ================= */}
                         {successMessage && step === 2 && (
-
                             <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 flex items-start gap-3">
-
                                 <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-
-                                    <AlertCircle
-                                        size={14}
-                                        className="text-emerald-600"
-                                    />
-
+                                    <AlertCircle size={14} className="text-emerald-600" />
                                 </div>
-
                                 <p className="text-xs leading-5 text-emerald-800 font-medium">
                                     {successMessage}
                                 </p>
-
                             </div>
-
                         )}
 
-
-                        {/* =================================================
-                        ERROR MESSAGE
-                    ================================================= */}
                         {formError && (
-
                             <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 flex items-start gap-3">
-
                                 <div className="w-7 h-7 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-
-                                    <AlertCircle
-                                        size={14}
-                                        className="text-rose-600"
-                                    />
-
+                                    <AlertCircle size={14} className="text-rose-600" />
                                 </div>
-
                                 <p className="text-xs leading-5 text-rose-700 font-medium">
                                     {formError}
                                 </p>
-
                             </div>
-
                         )}
 
-
-                        {/* =================================================
-                        STEP 1 — SIGNUP
-                    ================================================= */}
+                        {/* ================= STEP 1 — SIGNUP ================= */}
                         {step === 1 && (
-
-                            <form
-                                onSubmit={handleSendOtp}
-                                noValidate
-                                className="space-y-4"
-                            >
-
-                                {/* Name */}
+                            <form onSubmit={handleSendOtp} noValidate className="space-y-4">
+                                <InputField icon={User} id="name" name="name" label="Full Name" type="text" placeholder="Enter your full name" value={formData.name} onChange={handleChange} error={errors.name} />
+                                <InputField icon={Mail} id="email" name="email" label="E-mail Address" type="email" placeholder="name@example.com" value={formData.email} onChange={handleChange} error={errors.email} />
                                 <InputField
-                                    icon={User}
-                                    id="name"
-                                    name="name"
-                                    label="Full Name"
-                                    type="text"
-                                    placeholder="Enter your full name"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    error={errors.name}
+                                    icon={Lock} id="password" name="password" label="Password" type={showPassword ? "text" : "password"} placeholder="Create a password" value={formData.password} onChange={handleChange} error={errors.password}
+                                    rightElement={<button type="button" onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-blue-600 transition-colors p-1"><EyeIcon open={showPassword} /></button>}
+                                />
+                                <InputField
+                                    icon={Lock} id="confirmPassword" name="confirmPassword" label="Confirm Password" type={showConfirm ? "text" : "password"} placeholder="Re-enter your password" value={formData.confirmPassword} onChange={handleChange} error={errors.confirmPassword}
+                                    rightElement={<button type="button" onClick={() => setShowConfirm(!showConfirm)} className="text-gray-400 hover:text-blue-600 transition-colors p-1"><EyeIcon open={showConfirm} /></button>}
                                 />
 
-
-                                {/* Email */}
-                                <InputField
-                                    icon={Mail}
-                                    id="email"
-                                    name="email"
-                                    label="E-mail Address"
-                                    type="email"
-                                    placeholder="name@example.com"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    error={errors.email}
-                                />
-
-
-                                {/* Password */}
-                                <InputField
-                                    icon={Lock}
-                                    id="password"
-                                    name="password"
-                                    label="Password"
-                                    type={
-                                        showPassword
-                                            ? "text"
-                                            : "password"
-                                    }
-                                    placeholder="Create a password"
-                                    value={formData.password}
-                                    onChange={handleChange}
-                                    error={errors.password}
-                                    rightElement={
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setShowPassword(
-                                                    !showPassword
-                                                )
-                                            }
-                                            className="text-gray-400 hover:text-blue-600 transition-colors p-1"
-                                        >
-
-                                            <EyeIcon
-                                                open={showPassword}
-                                            />
-
-                                        </button>
-
-                                    }
-                                />
-
-
-                                {/* Confirm Password */}
-                                <InputField
-                                    icon={Lock}
-                                    id="confirmPassword"
-                                    name="confirmPassword"
-                                    label="Confirm Password"
-                                    type={
-                                        showConfirm
-                                            ? "text"
-                                            : "password"
-                                    }
-                                    placeholder="Re-enter your password"
-                                    value={formData.confirmPassword}
-                                    onChange={handleChange}
-                                    error={errors.confirmPassword}
-                                    rightElement={
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setShowConfirm(
-                                                    !showConfirm
-                                                )
-                                            }
-                                            className="text-gray-400 hover:text-blue-600 transition-colors p-1"
-                                        >
-
-                                            <EyeIcon
-                                                open={showConfirm}
-                                            />
-
-                                        </button>
-
-                                    }
-                                />
-
-
-                                {/* Create Account */}
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full h-[52px] mt-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                                >
-
-                                    {loading && (
-                                        <Loader2
-                                            size={17}
-                                            className="animate-spin"
-                                        />
-                                    )}
-
-                                    {loading
-                                        ? "Sending OTP..."
-                                        : "Create Account"}
-
+                                <button type="submit" disabled={loading} className="w-full h-[52px] mt-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+                                    {loading && <Loader2 size={17} className="animate-spin" />}
+                                    {loading ? "Sending OTP..." : "Create Account"}
                                 </button>
-
                             </form>
-
                         )}
 
-
-                        {/* =================================================
-                        STEP 2 — OTP
-                    ================================================= */}
+                        {/* ================= STEP 2 — OTP ================= */}
                         {step === 2 && (
-
-                            <form
-                                onSubmit={handleVerifyOtp}
-                                className="space-y-5"
-                            >
-
+                            <form onSubmit={handleVerifyOtp} className="space-y-5">
                                 <div className="rounded-2xl bg-[#f7f8fc] border border-gray-100 p-5">
-
                                     <div className="flex items-center justify-center mb-4">
-
                                         <div className="w-14 h-14 rounded-full bg-blue-600/10 flex items-center justify-center">
-
-                                            <KeyRound
-                                                size={24}
-                                                className="text-blue-600"
-                                            />
-
+                                            <KeyRound size={24} className="text-blue-600" />
                                         </div>
-
                                     </div>
-
-
                                     <p className="text-center text-xs text-gray-500 mb-5">
                                         Enter the verification code sent to your email.
                                     </p>
-
-
-                                    <InputField
-                                        icon={KeyRound}
-                                        id="otp"
-                                        name="otp"
-                                        label="Verification Code"
-                                        type="text"
-                                        inputMode="numeric"
-                                        maxLength={6}
-                                        placeholder="000000"
-                                        value={otp}
-                                        onChange={(e) =>
-                                            setOtp(e.target.value)
-                                        }
-                                    />
-
+                                    <InputField icon={KeyRound} id="otp" name="otp" label="Verification Code" type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={otp} onChange={(e) => setOtp(e.target.value)} />
                                 </div>
 
-
-                                {/* Verify Button */}
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="w-full h-[52px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-
-                                    {loading && (
-                                        <Loader2
-                                            size={17}
-                                            className="animate-spin"
-                                        />
-                                    )}
-
-                                    {loading
-                                        ? "Verifying..."
-                                        : "Verify & Complete Signup"}
-
+                                <button type="submit" disabled={loading} className="w-full h-[52px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed">
+                                    {loading && <Loader2 size={17} className="animate-spin" />}
+                                    {loading ? "Verifying..." : "Verify & Complete Signup"}
                                 </button>
 
-
-                                {/* Back */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStep(1);
-                                        setOtp("");
-                                        setFormError("");
-                                    }}
-                                    className="w-full h-11 rounded-xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition-all"
-                                >
+                                <button type="button" onClick={() => { setStep(1); setOtp(""); setFormError(""); }} className="w-full h-11 rounded-xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition-all">
                                     ← Back to registration
                                 </button>
-
                             </form>
-
                         )}
 
-
-                        {/* =================================================
-                        FOOTER LINKS
-                    ================================================= */}
+                        {/* ================= FOOTER LINKS ================= */}
                         <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-
                             <p className="text-[13px] text-gray-500">
-
                                 Already have an account?{" "}
-
-                                <Link
-                                    to="/login"
-                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4"
-                                >
+                                <Link to="/login" className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4">
                                     Log in
                                 </Link>
-
                             </p>
-
-
                             <p className="text-[13px] text-gray-500 mt-3">
-
                                 Want to manage properties?{" "}
-
-                                <Link
-                                    to="/adminSignup"
-                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4"
-                                >
+                                <Link to="/adminSignup" className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4">
                                     Sign up as admin
                                 </Link>
-
                             </p>
-
                         </div>
 
                     </div>
-
                 </div>
-
             </div>
-
         </div>
     );
 };
