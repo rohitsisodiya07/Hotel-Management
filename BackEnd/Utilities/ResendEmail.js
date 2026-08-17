@@ -12,14 +12,24 @@ const sendEmail = async (to, subject, html) => {
         });
 
         if (error) {
-            console.log("Email Error:", error);
-            return;
+            console.log("❌ Resend Error:", error);
+            throw new Error(error.message);
         }
 
-        console.log("Email Sent Successfully");
-        console.log(data);
+        console.log("✅ Email Sent Successfully:", data);
+
+        return {
+            success: true,
+            data
+        };
+
     } catch (error) {
-        console.log("Email Error:", error);
+        console.log("❌ Email Error:", error);
+
+        return {
+            success: false,
+            error: error.message
+        };
     }
 };
 
