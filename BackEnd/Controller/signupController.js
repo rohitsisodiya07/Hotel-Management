@@ -287,18 +287,41 @@ const verifyOtp = async (req, res) => {
             return res.status(400).json({ success: false, message: "OTP Expired" });
         }
 
-        return res.status(200).json({ success: true, message: "OTP Verified" });
+        // Generate short-lived reset token
+        const resetToken = jwt.sign(
+            { id: existingUser._id, purpose: "password_reset" },
+            process.env.JWT_SECRET,
+            { expiresIn: "15m" }
+        );
+
+        return res.status(200).json({ success: true, message: "OTP Verified", resetToken });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
 
 // =========================================================================
-// 6. FORGOT PASSWORD (Set new password using verified email)
+// 6. FORGOT PASSWORD (Set new password using verified reset token)
 // =========================================================================
 const forgotPassword = async (req, res) => {
     try {
-        let { email, password, confirmPassword } = req.body;
+        let { email, password, confirmPassword, resetToken } = req.body;
+        const authHeader = req.headers.authorization;
+        const token = (authHeader && authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null) || resetToken;
+
+        if (!token) {
+            return res.status(401).json({ success: false, message: "Authorization reset token is required" });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+            if (decoded.purpose !== "password_reset") {
+                return res.status(401).json({ success: false, message: "Invalid reset token" });
+            }
+        } catch (tokenErr) {
+            return res.status(401).json({ success: false, message: "Reset session expired. Please verify OTP again." });
+        }
 
         if (!email?.trim() || !password?.trim() || !confirmPassword?.trim()) {
             return res.status(400).json({ success: false, message: "Email, Password and Confirm Password are required" });
@@ -317,6 +340,10 @@ const forgotPassword = async (req, res) => {
         const existingUser = await SignupModel.findOne({ email });
         if (!existingUser) {
             return res.status(404).json({ success: false, message: "Email not found" });
+        }
+
+        if (decoded.id.toString() !== existingUser._id.toString()) {
+            return res.status(403).json({ success: false, message: "Reset token does not match target account" });
         }
 
         const isSamePassword = await bcrypt.compare(password, existingUser.password);

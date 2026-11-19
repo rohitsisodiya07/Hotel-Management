@@ -5,10 +5,13 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import axios from "axios";
 import { signupApi } from "../api";
-import logo from '../assets/logo.png'
+import Logo from "../components/Logo";
+import Swal from "sweetalert2";
+import { toast } from "sonner";
 import {
   LayoutDashboard,
   Building2,
+  Hotel,
   Ticket,
   UserCircle,
   CalendarCheck,
@@ -127,15 +130,29 @@ const AdminLayout = () => {
 
   const menu = [
     { name: "Dashboard", path: "dashboard", icon: LayoutDashboard },
+    { name: "My Hotels", path: "myHotels", icon: Hotel },
     { name: "Add Hotel", path: "addHotel", icon: Building2 },
     { name: "My Coupon", path: "myCoupon", icon: Ticket },
     { name: "Profile", path: "profile", icon: UserCircle },
     { name: "Hotel Bookings", path: "adminBookings", icon: CalendarCheck },
   ];
 
-  const handleLogout = () => {
-    if (!window.confirm("Are you sure you want to securely end your session?")) return;
-    localStorage.clear();
+  const handleLogout = async () => {
+    const result = await Swal.fire({
+      title: "End Session?",
+      text: "Are you sure you want to securely log out of your Partner Portal?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#173D31",
+      cancelButtonColor: "#6B7280",
+      confirmButtonText: "Yes, Sign Out",
+      cancelButtonText: "Stay Logged In",
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    toast.success("Signed out successfully.");
     navigate("/login");
   };
 
@@ -164,21 +181,10 @@ const AdminLayout = () => {
 
       {/* ================= SIDEBAR (Desktop) ================= */}
       <aside className="w-64 bg-white border-r border-gray-200 flex-col shrink-0 hidden lg:flex shadow-2xs z-20 relative">
-        <div className="px-6 py-7 border-b border-gray-100 flex flex-col items-start gap-3">
-          <div className="flex items-center cursor-pointer group" onClick={() => navigate("/admin/dashboard")}>
-            <img
-              src={logo}
-              alt="AuraStays"
-              className="h-20 w-auto object-contain invert opacity-90 transition-transform duration-300 group-hover:scale-105"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.style.display = 'none';
-                e.target.insertAdjacentHTML('afterend', '<span class="font-bold text-lg tracking-tight text-gray-900 truncate font-[\'Space_Grotesk\']">AuraStays</span>');
-              }}
-            />
-          </div>
-          <span className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase bg-blue-50 border border-blue-100 px-2 py-1 rounded-md">
-            Admin Panel
+        <div className="px-6 py-6 border-b border-gray-100 flex flex-col items-start gap-2.5">
+          <Logo to="/admin/dashboard" imgHeight="h-10" />
+          <span className="font-mono text-[9px] font-bold tracking-[0.2em] text-[#315C48] uppercase bg-[#EDF2EB] border border-[#D7E3D4] px-2.5 py-0.5 rounded-full">
+            Partner Admin
           </span>
         </div>
 
@@ -226,21 +232,10 @@ const AdminLayout = () => {
         <div className="fixed inset-0 z-50 lg:hidden flex">
           <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-xs" onClick={() => setMobileMenuOpen(false)}></div>
           <aside className="w-64 bg-white h-full shadow-2xl relative z-10 flex flex-col animate-in slide-in-from-left-4 duration-200">
-            <div className="px-6 py-7 border-b border-gray-100 flex flex-col items-start gap-3 relative">
-              <div className="flex items-center cursor-pointer group" onClick={() => { setMobileMenuOpen(false); navigate("/admin/dashboard"); }}>
-                <img
-                  src={logo}
-                  alt="AuraStays"
-                  className="h-20 w-auto object-contain invert opacity-90 transition-transform duration-300 group-hover:scale-105"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.style.display = 'none';
-                    e.target.insertAdjacentHTML('afterend', '<span class="font-bold text-base tracking-tight text-gray-900 font-[\'Space_Grotesk\']">AuraStays</span>');
-                  }}
-                />
-              </div>
-              <span className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase bg-blue-50 border border-blue-100 px-2 py-1 rounded-md">
-                Admin Panel
+            <div className="px-6 py-6 border-b border-gray-100 flex flex-col items-start gap-2.5 relative">
+              <Logo to="/admin/dashboard" imgHeight="h-10" />
+              <span className="font-mono text-[9px] font-bold tracking-[0.2em] text-[#315C48] uppercase bg-[#EDF2EB] border border-[#D7E3D4] px-2.5 py-0.5 rounded-full">
+                Partner Admin
               </span>
               <button onClick={() => setMobileMenuOpen(false)} className="absolute top-6 right-6 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md cursor-pointer">
                 <X size={20} />

@@ -1,6 +1,6 @@
 const hotelModel = require("../Model/hotelModel");
 const { uploadImage } = require("../Utilities/Cloudinary");
-const sendEmail = require("../Utilities/ResendEmail");
+const { sendEmail } = require("../Utilities/ResendEmail");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
@@ -8,6 +8,7 @@ const signupModel = require('../Model/signupModel');
 const cityModel = require('../Model/cityModel');
 const roomModel = require("../Model/roomsModel");
 const XLSX = require("xlsx");
+const { invalidateDashboardCache } = require("../Utilities/redisClient");
 
 // =========================================================================
 // AUTOMATIC INDEX CLEANER (Fixes the E11000 email_1 background crash)
@@ -171,6 +172,8 @@ const createHotel = async (req, res) => {
             .populate({ path: "adminId", select: "name email" })
             .populate({ path: "city", populate: { path: "districtId", populate: { path: "stateId" } } });
 
+        invalidateDashboardCache();
+
         return res.status(201).json({
             success: true,
             message: req.user.role === "superAdmin" ? "Hotel created successfully" : "Hotel request submitted successfully",
@@ -268,6 +271,11 @@ const approveHotel = async (req, res) => {
                 name: hotel.hotelName, email: hotel.hotelEmail.toLowerCase(),
                 password: hashedPassword, role: "hotel", mobile: "N/A", status: "Approved"
             });
+        } else {
+            existingUserAccount.password = hashedPassword;
+            existingUserAccount.status = "Approved";
+            existingUserAccount.role = "hotel";
+            await existingUserAccount.save();
         }
 
         hotel.password = hashedPassword;
@@ -286,6 +294,8 @@ const approveHotel = async (req, res) => {
         `;
         const html = generateAuraStayEmail("Property Approved", "Welcome Aboard", emailContent);
         await sendEmail(hotel.hotelEmail, "🎉 Property Approved & Account Created — AuraStay", html);
+
+        invalidateDashboardCache();
 
         return res.status(200).json({ success: true, message: "Hotel approved and portal user credentials successfully synchronized." });
     } catch (error) {
@@ -329,6 +339,8 @@ const rejectHotel = async (req, res) => {
         `;
         const html = generateAuraStayEmail("Application Update", "Status: Rejected", emailContent);
         await sendEmail(hotel.hotelEmail, "Update regarding your AuraStay Application", html);
+
+        invalidateDashboardCache();
 
         return res.status(200).json({ success: true, message: "Hotel submission rejected successfully" });
     } catch (error) {
@@ -441,7 +453,11 @@ const getHotelById = async (req, res) => {
 // =========================================================================
 const getMyHotels = async (req, res) => {
     try {
-        const hotels = await hotelModel.find({ adminId: req.user._id, isActive: true })
+        if (!req.user || !req.user._id) {
+            return res.status(401).json({ success: false, message: "Unauthorized token context." });
+        }
+        const query = req.user.role === "superAdmin" ? {} : { adminId: req.user._id };
+        const hotels = await hotelModel.find(query)
             .populate({ path: "city", populate: { path: "districtId", populate: { path: "stateId" } } })
             .sort({ createdAt: -1 });
         return res.status(200).json({ success: true, totalHotels: hotels.length, hotels });
@@ -541,80 +557,367 @@ const getParticularHotelDashboard = async (req, res) => {
     }
 };
 
+const updateHotelProfile = async (req, res) => {
+    try {
+        if (!req.user || !req.user.email) {
+            return res.status(401).json({ success: false, message: "Unauthorized token context." });
+        }
+
+        const hotel = await hotelModel.findOne({ hotelEmail: req.user.email.toLowerCase().trim() });
+        if (!hotel) {
+            return res.status(404).json({ success: false, message: "Hotel profile not found for this account." });
+        }
+
+        const { hotelName, phone, address, zipCode, description } = req.body;
+
+        if (hotelName) hotel.hotelName = hotelName.trim();
+        if (phone) hotel.phone = phone.trim();
+        if (address) hotel.address = address.trim();
+        if (zipCode) hotel.zipCode = zipCode.trim();
+        if (description) hotel.description = description.trim();
+
+        await hotel.save();
+
+        const updatedHotel = await hotelModel.findById(hotel._id)
+            .populate({ path: "city", populate: { path: "districtId", populate: { path: "stateId" } } });
+
+        return res.status(200).json({
+            success: true,
+            message: "Hotel profile updated successfully",
+            hotel: updatedHotel
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // =========================================================================
 // PUBLIC DIRECTORY & FILTERS
 // =========================================================================
 const getAllPublicHotels = async (req, res) => {
     try {
-        let { search = "", state = "", city = "", propertyType = "", amenities = "", sortBy = "recommended", page = 1, limit = 6 } = req.query;
+        let {
+            search = "",
+            state = "",
+            city = "",
+            propertyType = "",
+            amenities = "",
+            sortBy = "recommended",
+            page = 1,
+            limit = 6,
+        } = req.query;
 
-        // --- VALIDATION LOGIC INSIDE FUNCTION ---
-        const pageNum = Math.max(1, Number(page) || 1);
-        const limitNum = Math.max(1, Math.min(Number(limit) || 6, 100)); // Cap limit
+        const pageNum = Math.max(1, parseInt(page, 10) || 1);
+        const limitNum = Math.max(
+            1,
+            Math.min(parseInt(limit, 10) || 6, 100)
+        );
+        const skip = (pageNum - 1) * limitNum;
 
-        let query = { status: "Approved" };
+        const escapeRegex = (value) =>
+            String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-        if (search.trim()) {
-            const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const searchRegex = new RegExp(safeSearch, "i");
-            const matchingCities = await cityModel.find({ cityName: searchRegex }, "_id");
-            const cityIds = matchingCities.map(c => c._id);
-            query.$or = [{ hotelName: searchRegex }, { address: searchRegex }, { city: { $in: cityIds } }];
+        const query = { status: "Approved" };
+        const andConditions = [];
+
+        const searchText = String(search || "").trim();
+        const stateText = String(state || "").trim();
+        const cityText = String(city || "").trim();
+        const propertyTypeText = String(propertyType || "").trim();
+
+        const amenitiesArray = String(amenities || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        // 1. Resolve state and city filters
+        let locationCityIds = null;
+
+        if (stateText || cityText) {
+            const cityQuery = {};
+
+            if (cityText) {
+                cityQuery.cityName = new RegExp(
+                    `^${escapeRegex(cityText)}$`,
+                    "i"
+                );
+            }
+
+            let cityDocs = await cityModel
+                .find(cityQuery)
+                .select("_id cityName districtId")
+                .populate({
+                    path: "districtId",
+                    select: "stateId",
+                    populate: {
+                        path: "stateId",
+                        select: "stateName",
+                    },
+                })
+                .lean();
+
+            if (stateText) {
+                cityDocs = cityDocs.filter(
+                    (item) =>
+                        item.districtId?.stateId?.stateName?.toLowerCase() ===
+                        stateText.toLowerCase()
+                );
+            }
+
+            locationCityIds = cityDocs.map((item) => item._id);
+
+            if (locationCityIds.length === 0) {
+                return res.status(200).json({
+                    success: true,
+                    totalHotels: 0,
+                    hotels: [],
+                    page: pageNum,
+                    totalPages: 0,
+                });
+            }
+
+            andConditions.push({
+                city: { $in: locationCityIds },
+            });
         }
 
-        if (propertyType && propertyType !== "all") {
-            const safeType = propertyType.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            query.hotelType = new RegExp(`^${safeType}$`, "i");
+        // 2. Search filter
+        if (searchText) {
+            const searchRegex = new RegExp(
+                escapeRegex(searchText),
+                "i"
+            );
+
+            const matchingCities = await cityModel
+                .find({ cityName: searchRegex })
+                .select("_id")
+                .lean();
+
+            let matchingCityIds = matchingCities.map(
+                (item) => item._id
+            );
+
+            if (locationCityIds) {
+                const allowedIds = new Set(
+                    locationCityIds.map((id) => id.toString())
+                );
+
+                matchingCityIds = matchingCityIds.filter((id) =>
+                    allowedIds.has(id.toString())
+                );
+            }
+
+            const searchConditions = [
+                { hotelName: searchRegex },
+                { address: searchRegex },
+            ];
+
+            if (matchingCityIds.length > 0) {
+                searchConditions.push({
+                    city: { $in: matchingCityIds },
+                });
+            }
+
+            andConditions.push({
+                $or: searchConditions,
+            });
         }
 
-        if (amenities) {
-            const amenitiesArray = amenities.split(",").map(item => item.trim()).filter(Boolean);
-            if (amenitiesArray.length > 0) query.amenities = { $all: amenitiesArray };
+        // 3. Property type filter
+        if (
+            propertyTypeText &&
+            propertyTypeText !== "all"
+        ) {
+            query.hotelType = new RegExp(
+                `^${escapeRegex(propertyTypeText)}$`,
+                "i"
+            );
         }
 
-        let hotels = await hotelModel.find(query).populate({
-            path: "city", populate: { path: "districtId", populate: { path: "stateId" } }
-        });
-
-        if (state) {
-            const safeState = state.trim().toLowerCase();
-            hotels = hotels.filter(h => (h.city?.districtId?.stateId?.stateName || "").toLowerCase() === safeState);
+        // 4. Amenities filter
+        if (amenitiesArray.length > 0) {
+            query.amenities = {
+                $all: amenitiesArray,
+            };
         }
 
-        if (city) {
-            const safeCity = city.trim().toLowerCase();
-            hotels = hotels.filter(h => (h.city?.cityName || "").toLowerCase() === safeCity);
+        if (andConditions.length > 0) {
+            query.$and = andConditions;
         }
 
-        const hotelsWithPrice = await Promise.all(hotels.map(async (hotel) => {
-            const cheapestRoom = await roomModel.findOne({ hotelId: hotel._id, isActive: true, bookingStatus: "Available" })
-                .sort({ pricePerNight: 1 }).select("pricePerNight");
-            return { ...hotel.toObject(), pricePerNight: cheapestRoom?.pricePerNight || null };
-        }));
+        // 5. Sorting
+        const validSorts = [
+            "recommended",
+            "price-low",
+            "price-high",
+            "name-asc",
+            "name-desc",
+        ];
 
-        hotelsWithPrice.sort((a, b) => {
-            const priceA = Number(a.pricePerNight || 0);
-            const priceB = Number(b.pricePerNight || 0);
-            const nameA = a.hotelName || "";
-            const nameB = b.hotelName || "";
+        if (!validSorts.includes(sortBy)) {
+            sortBy = "recommended";
+        }
 
-            if (sortBy === "price-low") return priceA - priceB;
-            if (sortBy === "price-high") return priceB - priceA;
-            if (sortBy === "name-asc") return nameA.localeCompare(nameB);
-            if (sortBy === "name-desc") return nameB.localeCompare(nameA);
-            return new Date(b.createdAt) - new Date(a.createdAt);
-        });
+        const sortQuery = {
+            recommended: { createdAt: -1 },
+            "name-asc": { hotelName: 1 },
+            "name-desc": { hotelName: -1 },
+        };
 
-        const totalHotels = hotelsWithPrice.length;
-        const startIndex = (pageNum - 1) * limitNum;
-        const paginatedHotels = hotelsWithPrice.slice(startIndex, startIndex + limitNum);
+        // 6. Count and fetch paginated hotel data
+        const [totalHotels, pagePriceRows] = await Promise.all([
+            hotelModel.countDocuments(query),
+
+            hotelModel.aggregate([
+                {
+                    $match: query,
+                },
+                {
+                    $lookup: {
+                        from: roomModel.collection.name,
+                        let: {
+                            currentHotelId: "$_id",
+                        },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $eq: [
+                                            "$hotelId",
+                                            "$$currentHotelId",
+                                        ],
+                                    },
+                                    isActive: true,
+                                    bookingStatus: "Available",
+                                },
+                            },
+                            {
+                                $group: {
+                                    _id: null,
+                                    pricePerNight: {
+                                        $min: "$pricePerNight",
+                                    },
+                                },
+                            },
+                        ],
+                        as: "roomPrice",
+                    },
+                },
+                {
+                    $addFields: {
+                        pricePerNight: {
+                            $ifNull: [
+                                {
+                                    $arrayElemAt: [
+                                        "$roomPrice.pricePerNight",
+                                        0,
+                                    ],
+                                },
+                                null,
+                            ],
+                        },
+                    },
+                },
+                {
+                    $sort:
+                        sortBy === "price-low"
+                            ? {
+                                pricePerNight: 1,
+                                createdAt: -1,
+                            }
+                            : sortBy === "price-high"
+                                ? {
+                                    pricePerNight: -1,
+                                    createdAt: -1,
+                                }
+                                : sortQuery[sortBy],
+                },
+                {
+                    $skip: skip,
+                },
+                {
+                    $limit: limitNum,
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        pricePerNight: 1,
+                    },
+                },
+            ]),
+        ]);
+
+        // 7. Get only current page hotels
+        const hotelIds = pagePriceRows.map(
+            (item) => item._id
+        );
+
+        if (hotelIds.length === 0) {
+            return res.status(200).json({
+                success: true,
+                totalHotels,
+                hotels: [],
+                page: pageNum,
+                totalPages: Math.ceil(totalHotels / limitNum) || 1,
+            });
+        }
+
+        const populatedHotels = await hotelModel
+            .find({
+                _id: { $in: hotelIds },
+            })
+            .populate({
+                path: "city",
+                populate: {
+                    path: "districtId",
+                    populate: {
+                        path: "stateId",
+                    },
+                },
+            })
+            .lean();
+
+        // 8. Preserve aggregation sorting order
+        const hotelsById = new Map(
+            populatedHotels.map((hotel) => [
+                hotel._id.toString(),
+                hotel,
+            ])
+        );
+
+        const hotels = pagePriceRows
+            .map((row) => {
+                const hotel = hotelsById.get(
+                    row._id.toString()
+                );
+
+                return hotel
+                    ? {
+                        ...hotel,
+                        pricePerNight: row.pricePerNight ?? null,
+                    }
+                    : null;
+            })
+            .filter(Boolean);
 
         return res.status(200).json({
-            success: true, totalHotels, hotels: paginatedHotels,
-            page: pageNum, totalPages: Math.ceil(totalHotels / limitNum) || 1
+            success: true,
+            totalHotels,
+            hotels,
+            page: pageNum,
+            totalPages: Math.ceil(totalHotels / limitNum) || 1,
         });
+
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        console.error(
+            "Get All Public Hotels Error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Unable to fetch hotels at the moment.",
+        });
     }
 };
 
@@ -807,7 +1110,7 @@ const bulkImportHotels = async (req, res) => {
                     hotelName: validation.hotelName, hotelEmail: validation.hotelEmail, city: validation.city._id,
                     address: validation.address, description: validation.description, hotelType: validation.hotelType,
                     totalRooms: validation.totalRooms, amenities, hotelImages: validation.images, trackingId,
-                    adminId: validation.assignedAdmin._id, status: hotelStatus,
+                    adminId: validation.assignedAdmin?._id || validation.assignedAdmin, status: hotelStatus,
                 });
 
                 imported.push({ rowNumber: i + 2, hotelId: hotel._id, hotelName: hotel.hotelName, trackingId: hotel.trackingId });
@@ -839,9 +1142,17 @@ const deleteHotel = async (req, res) => {
             }
         }
 
+        // Cascade clean up associated rooms and hotel portal credentials
+        await roomModel.deleteMany({ hotelId: id });
+        if (hotel.hotelEmail) {
+            await signupModel.deleteOne({ email: hotel.hotelEmail.toLowerCase(), role: "hotel" });
+        }
+
         await hotelModel.findByIdAndDelete(id);
 
-        return res.status(200).json({ success: true, message: "Hotel permanently deleted successfully." });
+        invalidateDashboardCache();
+
+        return res.status(200).json({ success: true, message: "Hotel and associated rooms permanently deleted successfully." });
     } catch (error) {
         return res.status(500).json({ success: false, message: "An error occurred while deleting the hotel.", error: error.message });
     }
@@ -850,6 +1161,6 @@ const deleteHotel = async (req, res) => {
 module.exports = {
     createHotel, getAllHotels, getPendingHotels, getApprovedHotels, getRejectedHotels,
     approveHotel, rejectHotel, updateHotel, getHotelById, getMyHotels, changeHotelStatus,
-    getActiveHotels, getInactiveHotels, checkHotelStatus, getParticularHotelDashboard,
+    getActiveHotels, getInactiveHotels, checkHotelStatus, getParticularHotelDashboard, updateHotelProfile,
     getAllPublicHotels, getPublicHotelById, bulkPreviewHotels, bulkImportHotels, deleteHotel
 };

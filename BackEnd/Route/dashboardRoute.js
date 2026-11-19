@@ -6,6 +6,7 @@ const dashboardController = require("../Controller/dashboardController");
 const auth = require("../Middleware/authMiddleware");
 const superAdmin = require("../Middleware/superAdmin");
 const admin = require('../Middleware/admin');
+const adminOrSuperAdmin = require('../Middleware/adminOrSuperAdmin');
 
 
 // ==========================
@@ -23,7 +24,7 @@ router.get(
 router.get(
     "/platform-analytics/export",
     auth,
-    admin,
+    adminOrSuperAdmin,
     dashboardController.exportPlatformAnalytics
 );
 

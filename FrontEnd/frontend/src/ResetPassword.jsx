@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -10,9 +11,85 @@ import {
     Loader2,
     KeyRound,
     AlertCircle,
-    Lock
+    Lock,
+    CheckCircle2,
 } from "lucide-react";
-import logo from './assets/logo.png'
+import logo from "./assets/logo.png";
+
+// ================= REUSABLE PASSWORD FIELD =================
+const PasswordField = ({
+    id,
+    name,
+    label,
+    placeholder,
+    value,
+    onChange,
+    error,
+    showPassword,
+    togglePassword,
+    autoComplete,
+    icon: Icon = Lock,
+}) => (
+    <div className="w-full">
+        <label
+            htmlFor={id}
+            className="block text-sm font-semibold text-[#37483C] mb-2"
+        >
+            {label}
+        </label>
+
+        <div className="relative group">
+            <Icon
+                size={18}
+                className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${error
+                        ? "text-rose-500"
+                        : "text-[#829084] group-focus-within:text-[#315C43]"
+                    }`}
+            />
+
+            <input
+                id={id}
+                type={showPassword ? "text" : "password"}
+                name={name}
+                autoComplete={autoComplete}
+                placeholder={placeholder}
+                value={value}
+                onChange={onChange}
+                aria-invalid={!!error}
+                aria-describedby={error ? `${id}-error` : undefined}
+                className={`w-full h-[52px] rounded-xl border pl-11 pr-12 text-sm text-[#26372C] outline-none transition-all ${error
+                        ? "border-rose-300 bg-rose-50 focus:border-rose-500"
+                        : "border-[#E2E8E2] bg-[#F8FAF7] focus:bg-white focus:border-[#315C43] focus:ring-4 focus:ring-[#315C43]/10"
+                    }`}
+            />
+
+            <button
+                type="button"
+                onClick={togglePassword}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#829084] hover:text-[#315C43] transition-colors"
+            >
+                {showPassword ? (
+                    <EyeOff size={18} />
+                ) : (
+                    <Eye size={18} />
+                )}
+            </button>
+        </div>
+
+        {error && (
+            <p
+                id={`${id}-error`}
+                role="alert"
+                className="text-xs text-rose-600 mt-1.5 flex items-center gap-1"
+            >
+                <AlertCircle size={13} />
+                {error}
+            </p>
+        )}
+    </div>
+);
 
 const ResetPassword = () => {
     const navigate = useNavigate();
@@ -25,22 +102,44 @@ const ResetPassword = () => {
 
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
-    const [showPasswords, setShowPasswords] = useState(false); // Toggle visibility
+    const [showPasswords, setShowPasswords] = useState({
+        oldPassword: false,
+        newPassword: false,
+        confirmPassword: false,
+    });
 
+    const [formError, setFormError] = useState("");
+    const [formSuccess, setFormSuccess] = useState("");
+
+    // ================= HANDLE CHANGE =================
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        });
+        const { name, value } = e.target;
 
-        setErrors({
-            ...errors,
-            [e.target.name]: "",
-        });
+        setFormData((prev) => ({
+            ...prev,
+            [name]: value,
+        }));
+
+        setErrors((prev) => ({
+            ...prev,
+            [name]: "",
+        }));
+
+        setFormError("");
+        setFormSuccess("");
     };
 
+    // ================= TOGGLE PASSWORD VISIBILITY =================
+    const togglePassword = (field) => {
+        setShowPasswords((prev) => ({
+            ...prev,
+            [field]: !prev[field],
+        }));
+    };
+
+    // ================= VALIDATION =================
     const validate = () => {
-        let newErrors = {};
+        const newErrors = {};
 
         if (!formData.oldPassword.trim()) {
             newErrors.oldPassword = "Current password is required";
@@ -49,26 +148,44 @@ const ResetPassword = () => {
         if (!formData.newPassword.trim()) {
             newErrors.newPassword = "New password is required";
         } else if (formData.newPassword.length < 6) {
-            newErrors.newPassword = "Password must be at least 6 characters";
+            newErrors.newPassword =
+                "Password must be at least 6 characters";
         }
 
         if (!formData.confirmPassword.trim()) {
             newErrors.confirmPassword = "Confirmation is required";
-        } else if (formData.newPassword !== formData.confirmPassword) {
+        } else if (
+            formData.newPassword !== formData.confirmPassword
+        ) {
             newErrors.confirmPassword = "Passwords do not match";
         }
 
+        if (
+            formData.oldPassword &&
+            formData.newPassword &&
+            formData.oldPassword === formData.newPassword
+        ) {
+            newErrors.newPassword =
+                "New password must be different from current password";
+        }
+
         setErrors(newErrors);
+
         return Object.keys(newErrors).length === 0;
     };
 
+    // ================= SUBMIT =================
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        setFormError("");
+        setFormSuccess("");
 
         if (!validate()) return;
 
         try {
             setLoading(true);
+
             const token = localStorage.getItem("token");
 
             const response = await axios.patch(
@@ -81,291 +198,320 @@ const ResetPassword = () => {
                 }
             );
 
-            alert(response.data.message || "Password updated successfully.");
+            setFormSuccess(
+                response.data.message ||
+                "Password updated successfully."
+            );
 
             // Logout after password change
             localStorage.clear();
-            navigate("/login");
+
+            setTimeout(() => {
+                navigate("/login");
+            }, 1200);
+
         } catch (error) {
-            alert(error.response?.data?.message || "Something went wrong. Please try again.");
+            setFormError(
+                error.response?.data?.message ||
+                "Something went wrong. Please try again."
+            );
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
+        <div className="min-h-screen bg-[#F7F8F4] flex items-center justify-center p-3 sm:p-6">
 
             {/* ================= MAIN CARD ================= */}
-            <div className="w-full max-w-[1100px] min-h-[550px] lg:min-h-[650px] bg-white rounded-[24px] lg:rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
+            <div className="w-full max-w-[1120px] min-h-[650px] bg-white rounded-[28px] overflow-hidden shadow-[0_20px_70px_rgba(35,55,40,0.10)] grid grid-cols-1 lg:grid-cols-2">
 
-                {/* =====================================================
-                LEFT BRAND SECTION (Desktop Only)
-            ===================================================== */}
-                <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 z-10 overflow-hidden">
+                {/* ================= LEFT BRAND SECTION ================= */}
+                <div className="hidden lg:flex relative min-h-full flex-col justify-between p-12 text-white overflow-hidden">
 
-                    {/* Decorative background */}
-                    <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
-                    <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
+                    <img
+                        src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1400&q=85"
+                        alt="Luxury hotel resort"
+                        className="absolute inset-0 w-full h-full object-cover"
+                    />
 
-                    {/* Decorative dots */}
-                    <div className="absolute top-24 right-20 w-3 h-3 rounded-full bg-white/30" />
-                    <div className="absolute top-36 right-32 w-2 h-2 rounded-full bg-white/20" />
-                    <div className="absolute bottom-28 left-20 w-2 h-2 rounded-full bg-white/20" />
+                    <div className="absolute inset-0 bg-[#17291E]/70" />
 
-                    {/* ================= BRAND CONTENT ================= */}
-                    <div className="relative z-20 flex flex-col items-center justify-center text-center">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#14251A]/80 via-transparent to-black/20" />
 
-                        <h2 className="text-xl font-medium tracking-wide mb-8">
-                            Welcome to
-                        </h2>
-
-                        {/* LOGO */}
-                        <div className="w-[250px] mb-10 flex items-center justify-center">
+                    {/* DESKTOP LOGO */}
+                    <div className="relative z-10">
+                        <button
+                            type="button"
+                            onClick={() => navigate("/")}
+                            aria-label="Go to AuraStays home"
+                            className="inline-flex items-center justify-center bg-[#244B36] rounded-xl px-3 py-2 shadow-sm"
+                        >
                             <img
                                 src={logo}
-                                alt="AuraStay Logo"
-                                className="w-full h-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.18)]"
+                                alt="AuraStays Logo"
+                                className="w-36 h-auto max-h-12 object-contain"
                             />
-                        </div>
-
-                        {/* Tagline */}
-                        <p className="text-[15px] leading-7 max-w-[250px] text-center font-medium text-white/90">
-                            Discover and Find Your
-                            <br />
-                            Perfect Healing Place
-                        </p>
-
-                        {/* Bottom tagline */}
-                        <div className="flex items-center gap-3 mt-12 text-[10px] tracking-[0.25em] uppercase text-white/50">
-                            <span className="w-8 h-px bg-white/30" />
-                            Stay • Explore • Relax
-                            <span className="w-8 h-px bg-white/30" />
-                        </div>
-
+                        </button>
                     </div>
 
-                    {/* ================= CURVED RIGHT EDGE ================= */}
-                    <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[61%] -right-12 w-28 h-40 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[82%] -right-5 w-16 h-24 bg-blue-600 rounded-full" />
-                    <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-blue-600 rounded-full" />
+                    {/* BRAND CONTENT */}
+                    <div className="relative z-10 max-w-md mb-10">
+                        <span className="text-xs uppercase tracking-[0.3em] text-white/70">
+                            Your security matters
+                        </span>
 
+                        <h2 className="text-5xl font-serif leading-[1.15] mt-5 mb-6">
+                            Your account,
+                            <br />
+                            your peace of mind.
+                        </h2>
+
+                        <p className="text-white/80 leading-7 text-sm max-w-sm">
+                            Keep your AuraStays account protected with a
+                            strong password and enjoy a secure booking
+                            experience every time.
+                        </p>
+
+                        <div className="flex items-center gap-3 mt-10 text-xs tracking-wider text-white/70">
+                            <span className="w-8 h-px bg-white/60" />
+                            STAY · EXPLORE · RELAX
+                        </div>
+                    </div>
+
+                    <div className="relative z-10 text-xs text-white/60">
+                        © {new Date().getFullYear()} AuraStays. All rights reserved.
+                    </div>
                 </div>
 
+                {/* ================= RIGHT FORM SECTION ================= */}
+                <div className="flex items-center justify-center px-5 py-9 sm:px-10 lg:px-14">
 
-                {/* =====================================================
-                RIGHT RESET PASSWORD SECTION
-            ===================================================== */}
-                <div className="w-full lg:w-[57%] flex items-center justify-center bg-white relative z-0">
+                    <div className="w-full max-w-[430px]">
 
-                    <div className="w-full max-w-[440px] px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
-
-                        {/* ================= MOBILE BRANDING (Mobile Only) ================= */}
-                        <div className="lg:hidden flex flex-col items-center justify-center mb-8">
-                            <div className="bg-blue-600 p-4 rounded-2xl shadow-[0_8px_20px_rgba(37,99,235,0.2)] flex items-center justify-center w-[180px]">
+                        {/* MOBILE LOGO */}
+                        <div className="lg:hidden flex justify-center mb-8">
+                            <button
+                                type="button"
+                                onClick={() => navigate("/")}
+                                aria-label="Go to AuraStays home"
+                                className="bg-[#244B36] rounded-xl px-3 py-2 shadow-sm"
+                            >
                                 <img
                                     src={logo}
-                                    alt="AuraStay Logo"
-                                    className="w-full h-auto object-contain"
+                                    alt="AuraStays Logo"
+                                    className="w-36 h-auto max-h-12 object-contain"
                                 />
-                            </div>
+                            </button>
                         </div>
 
-
-                        {/* ================= HEADER ================= */}
-                        <div className="mb-8 text-center lg:text-left">
-                            <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
+                        {/* HEADER */}
+                        <div className="mb-7">
+                            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#54775E] mb-3">
                                 Security Settings
                             </p>
-                            <h1 className="text-[28px] sm:text-[34px] lg:text-[38px] font-extrabold tracking-tight text-gray-900">
+
+                            <h1 className="text-3xl sm:text-4xl font-serif text-[#26372C]">
                                 Change password.
                             </h1>
-                            <p className="text-sm text-gray-500 mt-2 leading-6">
-                                Update your password to keep your AuraStay account secure.
+
+                            <p className="text-sm text-[#7B877D] mt-3 leading-6">
+                                Update your password to keep your AuraStays
+                                account secure.
                             </p>
                         </div>
 
-
-                        {/* ================= SECURITY INFO ================= */}
-                        <div className="mb-6 rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3.5 flex flex-col sm:flex-row items-center sm:items-start gap-3 text-center sm:text-left">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                                <ShieldCheck size={17} className="text-blue-600" />
+                        {/* SECURITY INFORMATION */}
+                        <div className="mb-6 rounded-xl bg-[#F0F7F0] border border-[#D6E5D8] p-4 flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-full bg-[#E0EDE1] flex items-center justify-center shrink-0">
+                                <ShieldCheck
+                                    size={19}
+                                    className="text-[#315C43]"
+                                />
                             </div>
+
                             <div>
-                                <p className="text-xs font-bold text-blue-800">
+                                <p className="text-sm font-semibold text-[#315C43]">
                                     Secure password update
                                 </p>
-                                <p className="text-[11px] text-blue-600 mt-0.5 leading-5">
-                                    Use a password of at least 6 characters and keep it private.
+
+                                <p className="text-xs text-[#66806B] mt-1 leading-5">
+                                    Use a password of at least 6 characters
+                                    and keep it private.
                                 </p>
                             </div>
                         </div>
 
+                        {/* SUCCESS MESSAGE */}
+                        {formSuccess && (
+                            <div
+                                role="status"
+                                className="mb-5 rounded-xl border border-[#D6E5D8] bg-[#F0F7F0] p-4 flex items-start gap-3"
+                            >
+                                <CheckCircle2
+                                    size={19}
+                                    className="text-[#315C43] shrink-0"
+                                />
+
+                                <p className="text-sm text-[#315C43] leading-5">
+                                    {formSuccess} Redirecting to login...
+                                </p>
+                            </div>
+                        )}
+
+                        {/* ERROR MESSAGE */}
+                        {formError && (
+                            <div
+                                role="alert"
+                                className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-start gap-3"
+                            >
+                                <AlertCircle
+                                    size={18}
+                                    className="text-rose-600 shrink-0"
+                                />
+
+                                <p className="text-xs text-rose-700 leading-5">
+                                    {formError}
+                                </p>
+                            </div>
+                        )}
 
                         {/* ================= FORM ================= */}
-                        <form onSubmit={handleSubmit} className="space-y-5">
+                        <form
+                            onSubmit={handleSubmit}
+                            className="space-y-5"
+                        >
 
-                            {/* ================= CURRENT PASSWORD ================= */}
-                            <div>
-                                <label className="block text-[11px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
-                                    Current Password
-                                </label>
-                                <div className="relative group">
-                                    <KeyRound className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.oldPassword ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={18} />
-                                    <input
-                                        type={showPasswords ? "text" : "password"}
-                                        name="oldPassword"
-                                        autoComplete="current-password"
-                                        placeholder="Enter your current password"
-                                        value={formData.oldPassword}
-                                        onChange={handleChange}
-                                        className={`w-full h-[52px] rounded-xl border pl-11 pr-12 text-sm font-medium outline-none transition-all duration-300 bg-gray-50/50 ${errors.oldPassword
-                                            ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
-                                            : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                                            }`}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPasswords(!showPasswords)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                                    >
-                                        {showPasswords ? <EyeOff size={17} /> : <Eye size={17} />}
-                                    </button>
-                                </div>
-                                {errors.oldPassword && (
-                                    <p className="text-rose-600 font-medium text-[11px] mt-1.5 flex items-center gap-1">
-                                        <AlertCircle size={12} />
-                                        {errors.oldPassword}
-                                    </p>
-                                )}
-                            </div>
+                            {/* CURRENT PASSWORD */}
+                            <PasswordField
+                                id="oldPassword"
+                                name="oldPassword"
+                                label="Current Password"
+                                placeholder="Enter your current password"
+                                value={formData.oldPassword}
+                                onChange={handleChange}
+                                error={errors.oldPassword}
+                                autoComplete="current-password"
+                                icon={KeyRound}
+                                showPassword={showPasswords.oldPassword}
+                                togglePassword={() =>
+                                    togglePassword("oldPassword")
+                                }
+                            />
 
-
-                            {/* ================= DIVIDER ================= */}
+                            {/* DIVIDER */}
                             <div className="flex items-center gap-3 py-1">
-                                <div className="flex-1 h-px bg-gray-100" />
-                                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-300">
-                                    New credentials
+                                <div className="flex-1 h-px bg-[#E9EDE7]" />
+
+                                <span className="text-[10px] uppercase tracking-[0.15em] font-bold text-[#A0AAA1]">
+                                    New Credentials
                                 </span>
-                                <div className="flex-1 h-px bg-gray-100" />
+
+                                <div className="flex-1 h-px bg-[#E9EDE7]" />
                             </div>
 
+                            {/* NEW PASSWORD */}
+                            <PasswordField
+                                id="newPassword"
+                                name="newPassword"
+                                label="New Password"
+                                placeholder="Enter new password"
+                                value={formData.newPassword}
+                                onChange={handleChange}
+                                error={errors.newPassword}
+                                autoComplete="new-password"
+                                icon={Lock}
+                                showPassword={showPasswords.newPassword}
+                                togglePassword={() =>
+                                    togglePassword("newPassword")
+                                }
+                            />
 
-                            {/* ================= NEW PASSWORD ================= */}
-                            <div>
-                                <label className="block text-[11px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
-                                    New Password
-                                </label>
-                                <div className="relative group">
-                                    <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.newPassword ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={18} />
-                                    <input
-                                        type={showPasswords ? "text" : "password"}
-                                        name="newPassword"
-                                        autoComplete="new-password"
-                                        placeholder="Enter new password"
-                                        value={formData.newPassword}
-                                        onChange={handleChange}
-                                        className={`w-full h-[52px] rounded-xl border pl-11 pr-12 text-sm font-medium outline-none transition-all duration-300 bg-gray-50/50 ${errors.newPassword
-                                            ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
-                                            : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                                            }`}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPasswords(!showPasswords)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                                    >
-                                        {showPasswords ? <EyeOff size={17} /> : <Eye size={17} />}
-                                    </button>
-                                </div>
-                                {errors.newPassword && (
-                                    <p className="text-rose-600 font-medium text-[11px] mt-1.5 flex items-center gap-1">
-                                        <AlertCircle size={12} />
-                                        {errors.newPassword}
-                                    </p>
-                                )}
-                            </div>
+                            {/* CONFIRM PASSWORD */}
+                            <PasswordField
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                label="Confirm New Password"
+                                placeholder="Re-enter your new password"
+                                value={formData.confirmPassword}
+                                onChange={handleChange}
+                                error={errors.confirmPassword}
+                                autoComplete="new-password"
+                                icon={Lock}
+                                showPassword={showPasswords.confirmPassword}
+                                togglePassword={() =>
+                                    togglePassword("confirmPassword")
+                                }
+                            />
 
-
-                            {/* ================= CONFIRM PASSWORD ================= */}
-                            <div>
-                                <label className="block text-[11px] uppercase tracking-wider font-bold text-gray-500 mb-1.5 ml-1">
-                                    Confirm New Password
-                                </label>
-                                <div className="relative group">
-                                    <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.confirmPassword ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={18} />
-                                    <input
-                                        type={showPasswords ? "text" : "password"}
-                                        name="confirmPassword"
-                                        autoComplete="new-password"
-                                        placeholder="Re-enter your new password"
-                                        value={formData.confirmPassword}
-                                        onChange={handleChange}
-                                        className={`w-full h-[52px] rounded-xl border pl-11 pr-12 text-sm font-medium outline-none transition-all duration-300 bg-gray-50/50 ${errors.confirmPassword
-                                            ? "border-rose-300 bg-rose-50/30 focus:border-rose-500"
-                                            : "border-gray-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                                            }`}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPasswords(!showPasswords)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                                    >
-                                        {showPasswords ? <EyeOff size={17} /> : <Eye size={17} />}
-                                    </button>
-                                </div>
-                                {errors.confirmPassword && (
-                                    <p className="text-rose-600 font-medium text-[11px] mt-1.5 flex items-center gap-1">
-                                        <AlertCircle size={12} />
-                                        {errors.confirmPassword}
-                                    </p>
-                                )}
-                            </div>
-
-
-                            {/* ================= PASSWORD VISIBILITY TOGGLE (Optional helper) ================= */}
+                            {/* PASSWORD VISIBILITY */}
                             <div className="flex items-center justify-between pt-1">
                                 <button
                                     type="button"
-                                    onClick={() => setShowPasswords(!showPasswords)}
-                                    className="text-[11px] font-semibold text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+                                    onClick={() => {
+                                        const shouldShow = !Object.values(
+                                            showPasswords
+                                        ).every(Boolean);
+
+                                        setShowPasswords({
+                                            oldPassword: shouldShow,
+                                            newPassword: shouldShow,
+                                            confirmPassword: shouldShow,
+                                        });
+                                    }}
+                                    className="text-xs font-semibold text-[#6F7D72] hover:text-[#315C43] transition-colors flex items-center gap-2"
                                 >
-                                    {showPasswords ? <EyeOff size={14} /> : <Eye size={14} />}
-                                    {showPasswords ? "Hide passwords" : "Show passwords"}
+                                    {Object.values(showPasswords).every(Boolean) ? (
+                                        <EyeOff size={15} />
+                                    ) : (
+                                        <Eye size={15} />
+                                    )}
+
+                                    {Object.values(showPasswords).every(Boolean)
+                                        ? "Hide all passwords"
+                                        : "Show all passwords"}
                                 </button>
-                                <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">
+
+                                <span className="text-[10px] text-[#A0AAA1] uppercase tracking-wider font-bold">
                                     Min 6 characters
                                 </span>
                             </div>
 
-
-                            {/* ================= SUBMIT BUTTON ================= */}
+                            {/* SUBMIT BUTTON */}
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full h-[52px] mt-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                                className="w-full h-[52px] mt-2 rounded-xl bg-[#315C43] hover:bg-[#264B35] text-white text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(49,92,67,0.18)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                             >
-                                {loading && <Loader2 size={17} className="animate-spin" />}
-                                {loading ? "Updating Password..." : "Update Password"}
-                            </button>
+                                {loading && (
+                                    <Loader2
+                                        size={17}
+                                        className="animate-spin"
+                                    />
+                                )}
 
+                                {loading
+                                    ? "Updating Password..."
+                                    : "Update Password"}
+                            </button>
                         </form>
 
-
-                        {/* ================= BACK TO PROFILE/HOME ================= */}
-                        <div className="mt-7 pt-6 border-t border-gray-100 text-center">
+                        {/* BACK BUTTON */}
+                        <div className="mt-7 pt-6 border-t border-[#E9EDE7] text-center">
                             <button
                                 type="button"
                                 onClick={() => navigate(-1)}
-                                className="text-[13px] font-semibold text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-2 mx-auto"
+                                className="text-sm font-semibold text-[#6F7D72] hover:text-[#315C43] transition-colors flex items-center gap-2 mx-auto"
                             >
-                                <ArrowLeft size={14} />
+                                <ArrowLeft size={15} />
                                 Go Back
                             </button>
                         </div>
+
+                        {/* MOBILE COPYRIGHT */}
+                        <p className="lg:hidden text-center text-[11px] text-[#A0AAA1] mt-8">
+                            © {new Date().getFullYear()} AuraStays
+                        </p>
 
                     </div>
                 </div>

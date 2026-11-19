@@ -10,10 +10,12 @@ const scheduleNoShowCancellations = () => {
             console.log("🚀 Running Auto Cancellation Cron...");
 
             try {
-                const currentTime = new Date();
+                // Hospitality industry standard: Allow guest the entire check-in day + evening.
+                // Mark No-Show only if 24 hours have passed since check-in start and status is still Pending/Confirmed.
+                const pastCheckInCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
                 const filter = {
-                    checkIn: { $lt: currentTime },
+                    checkIn: { $lt: pastCheckInCutoff },
                     bookingStatus: {
                         $in: ["Pending", "Confirmed"],
                     },
@@ -22,7 +24,7 @@ const scheduleNoShowCancellations = () => {
                 const result = await Booking.updateMany(filter, {
                     $set: {
                         bookingStatus: "Cancelled",
-                        cancellationReason: "Auto Cancelled (Guest did not check in)",
+                        cancelReason: "Auto Cancelled (Guest did not check in within 24 hours of scheduled check-in)",
                         cancelledAt: new Date(),
                     },
                 });

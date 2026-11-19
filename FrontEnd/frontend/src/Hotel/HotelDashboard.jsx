@@ -74,8 +74,12 @@ const HotelDashboard = () => {
             }
         } catch (err) {
             console.error("Dashboard API Fetch Error:", err);
-            setErrorMsg(err.response?.data?.message || "Could not synchronize with backend clusters.");
-            toast.error("Data sync failed");
+            const isNetworkError = !err.response && (err.message === "Network Error" || err.code === "ERR_NETWORK");
+            const message = isNetworkError
+                ? "Backend server is not reachable on port 5000. Please make sure your backend is running."
+                : (err.response?.data?.message || "Could not synchronize with backend clusters.");
+            setErrorMsg(message);
+            toast.error(isNetworkError ? "Backend offline: Check port 5000" : "Data sync failed");
         } finally {
             setLoading(false);
         }

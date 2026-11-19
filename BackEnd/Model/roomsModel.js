@@ -16,6 +16,13 @@ const roomSchema = new mongoose.Schema(
             trim: true,
         },
 
+        // Room Name / Title (e.g., Royal Heritage Suite)
+        roomName: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+
         // Room Type
         roomType: {
             type: String,
@@ -25,6 +32,8 @@ const roomSchema = new mongoose.Schema(
                 "Super Deluxe",
                 "Suite",
                 "Family Room",
+                "Family",
+                "Premium",
             ],
             required: true,
         },
@@ -41,6 +50,18 @@ const roomSchema = new mongoose.Schema(
             type: Number,
             required: true,
             default: 2,
+        },
+
+        // Adult Capacity
+        adultCapacity: {
+            type: Number,
+            default: 2,
+        },
+
+        // Child Capacity
+        childCapacity: {
+            type: Number,
+            default: 0,
         },
 
         // Total Beds

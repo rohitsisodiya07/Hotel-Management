@@ -13,7 +13,7 @@ import {
     Copy,
     Check
 } from "lucide-react";
-import logo from '../assets/logo.png'
+import Logo from "../components/Logo";
 
 const STATUS_STYLES = {
     Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -91,7 +91,7 @@ const CheckStatus = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
+        <div className="min-h-screen bg-[#F6F5F1] flex items-center justify-center p-4 sm:p-6">
 
             {/* ================= MAIN CARD ================= */}
             <div className="w-full max-w-[1100px] min-h-[550px] lg:min-h-[650px] bg-white rounded-[24px] lg:rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
@@ -99,11 +99,11 @@ const CheckStatus = () => {
                 {/* =====================================================
                 LEFT BRAND SECTION (Desktop Only)
             ===================================================== */}
-                <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 overflow-hidden z-10">
+                <div className="hidden lg:flex w-[43%] relative bg-[#254D3C] text-white flex-col items-center justify-center px-12 overflow-hidden z-10">
 
                     {/* Background glow */}
                     <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
-                    <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
+                    <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-[#183629]/25 blur-3xl" />
 
                     {/* Decorative dots */}
                     <div className="absolute top-24 right-20 w-3 h-3 rounded-full bg-white/30" />
@@ -119,12 +119,8 @@ const CheckStatus = () => {
                         </p>
 
                         {/* LOGO */}
-                        <div className="w-[250px] mb-9 flex justify-center">
-                            <img
-                                src={logo}
-                                alt="AuraStay Logo"
-                                className="w-full h-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.18)]"
-                            />
+                        <div className="mb-8 flex justify-center">
+                            <Logo variant="light" to="/" imgHeight="h-16" />
                         </div>
 
                         <h2 className="text-2xl font-bold mb-3">
@@ -163,12 +159,12 @@ const CheckStatus = () => {
                     </div>
 
                     {/* ================= CURVED EDGE ================= */}
-                    <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[61%] -right-12 w-28 h-40 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[82%] -right-5 w-16 h-24 bg-blue-600 rounded-full" />
-                    <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-blue-600 rounded-full" />
+                    <div className="absolute top-[3%] -right-5 w-14 h-24 bg-[#254D3C] rounded-full" />
+                    <div className="absolute top-[18%] -right-9 w-24 h-36 bg-[#254D3C] rounded-full" />
+                    <div className="absolute top-[40%] -right-7 w-20 h-32 bg-[#254D3C] rounded-full" />
+                    <div className="absolute top-[61%] -right-12 w-28 h-40 bg-[#254D3C] rounded-full" />
+                    <div className="absolute top-[82%] -right-5 w-16 h-24 bg-[#254D3C] rounded-full" />
+                    <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-[#254D3C] rounded-full" />
 
                 </div>
 
@@ -181,21 +177,15 @@ const CheckStatus = () => {
                     <div className="w-full max-w-[470px] px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
 
                         {/* ================= MOBILE BRANDING (Mobile Only) ================= */}
-                        <div className="lg:hidden flex flex-col items-center justify-center mb-8">
-                            <div className="bg-blue-600 p-4 rounded-2xl shadow-[0_8px_20px_rgba(37,99,235,0.2)] flex items-center justify-center w-[180px]">
-                                <img
-                                    src={logo}
-                                    alt="AuraStay Logo"
-                                    className="w-full h-auto object-contain"
-                                />
-                            </div>
+                        <div className="lg:hidden flex flex-col items-center justify-center mb-6">
+                            <Logo to="/" imgHeight="h-12" />
                         </div>
 
                         {/* ================= BACK ================= */}
                         {!admin && (
                             <button
                                 onClick={() => navigate(-1)}
-                                className="flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-blue-600 transition mb-6 cursor-pointer w-fit"
+                                className="flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-[#315C49] transition mb-6 cursor-pointer w-fit"
                             >
                                 <ArrowLeft size={15} />
                                 Back
@@ -206,7 +196,7 @@ const CheckStatus = () => {
                         {/* ================= HEADER ================= */}
                         <div className="mb-7 text-center lg:text-left">
 
-                            <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
+                            <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-[#315C49] mb-2">
                                 Application Tracker
                             </p>
 
@@ -232,28 +222,28 @@ const CheckStatus = () => {
                                 {/* Step 1 */}
                                 <div className="flex items-center gap-2">
                                     <div
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${!showOtp ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-600"}`}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${!showOtp ? "bg-[#254D3C] text-white" : "bg-[#E3ECE5] text-[#315C49]"}`}
                                     >
                                         {showOtp ? "✓" : "1"}
                                     </div>
-                                    <span className={`text-[11px] font-bold ${!showOtp ? "text-blue-600" : "text-gray-400"}`}>
+                                    <span className={`text-[11px] font-bold ${!showOtp ? "text-[#315C49]" : "text-gray-400"}`}>
                                         Tracking ID
                                     </span>
                                 </div>
 
                                 {/* Connector */}
                                 <div className="mx-3 h-1 w-12 sm:w-16 rounded-full bg-gray-100 relative overflow-hidden">
-                                    <div className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${showOtp ? "w-full bg-blue-600" : "w-0"}`} />
+                                    <div className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${showOtp ? "w-full bg-[#254D3C]" : "w-0"}`} />
                                 </div>
 
                                 {/* Step 2 */}
                                 <div className="flex items-center gap-2">
                                     <div
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${showOtp ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-400"}`}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${showOtp ? "bg-[#254D3C] text-white" : "bg-gray-100 text-gray-400"}`}
                                     >
                                         2
                                     </div>
-                                    <span className={`text-[11px] font-bold ${showOtp ? "text-blue-600" : "text-gray-400"}`}>
+                                    <span className={`text-[11px] font-bold ${showOtp ? "text-[#315C49]" : "text-gray-400"}`}>
                                         Verify
                                     </span>
                                 </div>
@@ -318,20 +308,20 @@ const CheckStatus = () => {
                                         Tracking ID
                                     </label>
                                     <div className="relative group">
-                                        <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors" size={18} />
+                                        <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#315C49] transition-colors" size={18} />
                                         <input
                                             id="tracking-id"
                                             type="text"
                                             placeholder="Enter your tracking ID"
                                             value={trackingId}
                                             onChange={(e) => setTrackingId(e.target.value)}
-                                            className="w-full h-[52px] rounded-xl border border-gray-200 pl-11 pr-4 text-sm font-medium outline-none bg-gray-50/50 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/15 transition-all"
+                                            className="w-full h-[52px] rounded-xl border border-gray-200 pl-11 pr-4 text-sm font-medium outline-none bg-gray-50/50 focus:border-[#6F927D] focus:bg-white focus:ring-4 focus:ring-[#6F927D]/15 transition-all"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3">
-                                    <p className="text-xs leading-5 text-blue-700">
+                                <div className="rounded-2xl bg-[#EEF3EF] border border-[#DCE7DF] px-4 py-3">
+                                    <p className="text-xs leading-5 text-[#315C49]">
                                         Enter the tracking ID you received
                                         after submitting your administrator
                                         application.
@@ -341,7 +331,7 @@ const CheckStatus = () => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full h-[52px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                                    className="w-full h-[52px] rounded-xl bg-[#254D3C] hover:bg-[#1D3D30] text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,77,60,0.18)] hover:shadow-[0_10px_25px_rgba(37,77,60,0.24)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                                 >
                                     {loading && <Loader2 className="animate-spin" size={17} />}
                                     {loading ? "Sending OTP..." : "Send Verification OTP"}
@@ -357,8 +347,8 @@ const CheckStatus = () => {
                             <form onSubmit={handleVerifyOtp} className="space-y-5">
                                 <div className="rounded-2xl bg-[#f7f8fc] border border-gray-100 p-6">
                                     <div className="flex justify-center mb-5">
-                                        <div className="w-16 h-16 rounded-full bg-blue-600/10 flex items-center justify-center">
-                                            <KeyRound size={26} className="text-blue-600" />
+                                        <div className="w-16 h-16 rounded-full bg-[#254D3C]/10 flex items-center justify-center">
+                                            <KeyRound size={26} className="text-[#315C49]" />
                                         </div>
                                     </div>
 
@@ -373,7 +363,7 @@ const CheckStatus = () => {
                                         Verification Code
                                     </label>
                                     <div className="relative group">
-                                        <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors" size={18} />
+                                        <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#315C49] transition-colors" size={18} />
                                         <input
                                             id="otp"
                                             type="text"
@@ -382,7 +372,7 @@ const CheckStatus = () => {
                                             placeholder="000000"
                                             value={otp}
                                             onChange={(e) => setOtp(e.target.value)}
-                                            className="w-full h-[54px] rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 transition-all"
+                                            className="w-full h-[54px] rounded-xl border border-gray-200 bg-white pl-11 pr-4 text-center text-xl font-bold tracking-[0.5em] outline-none focus:border-[#6F927D] focus:ring-4 focus:ring-[#6F927D]/15 transition-all"
                                         />
                                     </div>
                                 </div>
@@ -390,7 +380,7 @@ const CheckStatus = () => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full h-[52px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                                    className="w-full h-[52px] rounded-xl bg-[#254D3C] hover:bg-[#1D3D30] text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,77,60,0.18)] hover:shadow-[0_10px_25px_rgba(37,77,60,0.24)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                                 >
                                     {loading && <Loader2 className="animate-spin" size={17} />}
                                     {loading ? "Verifying..." : "Verify & View Status"}
@@ -404,7 +394,7 @@ const CheckStatus = () => {
                                         setError("");
                                         setOtpSentMessage("");
                                     }}
-                                    className="w-full h-11 rounded-xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition-all"
+                                    className="w-full h-11 rounded-xl text-sm font-semibold text-gray-500 hover:text-[#315C49] hover:bg-gray-50 transition-all"
                                 >
                                     ← Change Tracking ID
                                 </button>
@@ -444,8 +434,8 @@ const CheckStatus = () => {
                                                 className="w-16 h-16 rounded-2xl object-cover border border-gray-200 shadow-sm"
                                             />
                                         ) : (
-                                            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
-                                                <ShieldCheck size={24} className="text-blue-600" />
+                                            <div className="w-16 h-16 rounded-2xl bg-[#EEF3EF] flex items-center justify-center">
+                                                <ShieldCheck size={24} className="text-[#315C49]" />
                                             </div>
                                         )}
                                         <div>
@@ -481,13 +471,13 @@ const CheckStatus = () => {
                                                 Tracking ID
                                             </span>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold text-blue-600 font-mono truncate max-w-[150px] sm:max-w-none">
+                                                <span className="text-xs font-bold text-[#315C49] font-mono truncate max-w-[150px] sm:max-w-none">
                                                     {admin.trackingId}
                                                 </span>
                                                 <button
                                                     type="button"
                                                     onClick={() => handleCopyTrackingId(admin.trackingId)}
-                                                    className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-blue-600 transition shrink-0"
+                                                    className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#315C49] transition shrink-0"
                                                     title="Copy Tracking ID"
                                                 >
                                                     {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
@@ -523,7 +513,7 @@ const CheckStatus = () => {
                         <div className="mt-8 pt-6 border-t border-gray-100 text-center">
                             <p className="text-[13px] text-gray-500">
                                 Already verified or have credentials?{" "}
-                                <Link to="/login" className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4">
+                                <Link to="/login" className="font-bold text-[#315C49] hover:text-[#254D3C] hover:underline underline-offset-4">
                                     Log in
                                 </Link>
                             </p>

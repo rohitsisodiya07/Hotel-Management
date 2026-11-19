@@ -5,7 +5,9 @@ const Hotel = require('../Model/hotelModel'); // Hotel model require kiya gaya h
 const dayjs = require("dayjs");
 const mongoose = require('mongoose');
 const temporaryModel = require('../Model/temporaryModel');
-const signupModel = require('../Model/signupModel')
+const signupModel = require('../Model/signupModel');
+const { sendEmail } = require('../Utilities/ResendEmail');
+const { invalidateDashboardCache } = require('../Utilities/redisClient');
 
 const getAccessibleHotelIds = async (user) => {
     if (user.role === "hotel") {
@@ -41,6 +43,7 @@ const createBooking = async (req, res) => {
             totalGuests,
             couponCode,
             specialRequest,
+            holdId,
         } = req.body;
 
         // Required Fields
@@ -118,18 +121,20 @@ const createBooking = async (req, res) => {
         console.log("CheckIn:", checkInDate);
         console.log("CheckOut:", checkOutDate);
 
-        // Check Temporary Hold
-        const hold = await temporaryModel.find();
+        // Check Temporary Hold for this user and room
+        let holdQuery = { userId, roomId };
+        if (holdId && mongoose.Types.ObjectId.isValid(holdId)) {
+            holdQuery = { _id: holdId, userId, roomId };
+        }
+        const hold = await temporaryModel.findOne(holdQuery).session(session);
 
-        console.log("All Holds:", hold);
-
-        if (!hold || hold.length === 0) { // Added check for empty array
+        if (!hold) {
             await session.abortTransaction();
             session.endSession();
 
             return res.status(400).json({
                 success: false,
-                message: "Reservation expired. Please reserve again.",
+                message: "Reservation hold expired or not found. Please reserve again.",
             });
         }
 
@@ -264,7 +269,7 @@ const createBooking = async (req, res) => {
         // Delete Temporary Hold
         await temporaryModel.deleteOne(
             {
-                _id: hold[0]._id, // Fixed: passing the ID of the hold
+                _id: hold._id,
             },
             { session }
         );
@@ -281,6 +286,37 @@ const createBooking = async (req, res) => {
                 "hotelName hotelEmail address city"
             )
             .populate("roomId");
+
+        // Send confirmation email asynchronously
+        try {
+            if (result?.userId?.email) {
+                const emailHtml = `
+                    <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px;background:#ffffff;">
+                        <div style="background:#173D31;color:#ffffff;padding:20px;text-align:center;border-radius:8px;">
+                            <h2 style="margin:0;font-size:24px;">AuraStay Reservation Received</h2>
+                            <p style="margin:5px 0 0 0;color:#c5d2c1;font-size:14px;">Booking ID: ${bookingId}</p>
+                        </div>
+                        <div style="padding:20px 0;">
+                            <p>Dear <strong>${result.userId.name || "Guest"}</strong>,</p>
+                            <p>Thank you for choosing AuraStay. Your reservation request has been submitted to <strong>${result.hotelId?.hotelName || "Hotel"}</strong> and is pending confirmation.</p>
+                            <div style="background:#f9fafb;padding:16px;border-radius:8px;margin:16px 0;">
+                                <p style="margin:4px 0;"><strong>Check-In:</strong> ${dayjs(checkInDate).format("MMM D, YYYY")}</p>
+                                <p style="margin:4px 0;"><strong>Check-Out:</strong> ${dayjs(checkOutDate).format("MMM D, YYYY")}</p>
+                                <p style="margin:4px 0;"><strong>Guests:</strong> ${totalGuests}</p>
+                                <p style="margin:4px 0;"><strong>Total Amount:</strong> ₹${finalAmount}</p>
+                            </div>
+                        </div>
+                        <p style="font-size:12px;color:#6b7280;text-align:center;">&copy; ${new Date().getFullYear()} AuraStay. All rights reserved.</p>
+                    </div>
+                `;
+                sendEmail(result.userId.email, `✨ Reservation Request Received [${bookingId}] — AuraStay`, emailHtml).catch(err => console.error("Booking email send error:", err.message));
+            }
+        } catch (e) {
+            console.error("Booking email notify failed:", e.message);
+        }
+
+        // Invalidate cached dashboard metrics so dashboards refresh immediately
+        invalidateDashboardCache();
 
         return res.status(201).json({
             success: true,
@@ -519,6 +555,9 @@ const confirmBooking = async (req, res) => {
             .populate("hotelId", "hotelName hotelEmail")
             .populate("roomId", "roomNumber roomType pricePerNight");
 
+        // Invalidate cached dashboard metrics
+        invalidateDashboardCache();
+
         return res.status(200).json({
             success: true,
             message: "Booking confirmed successfully.",
@@ -605,6 +644,9 @@ const checkInBooking = async (req, res) => {
             .populate("hotelId", "hotelName hotelEmail")
             .populate("roomId", "roomNumber roomType pricePerNight");
 
+        // Invalidate cached dashboard metrics
+        invalidateDashboardCache();
+
         return res.status(200).json({
             success: true,
             message: "Guest checked in successfully.",
@@ -690,6 +732,9 @@ const completeBooking = async (req, res) => {
             .populate("userId", "name email mobile")
             .populate("hotelId", "hotelName hotelEmail")
             .populate("roomId", "roomNumber roomType pricePerNight");
+
+        // Invalidate cached dashboard metrics
+        invalidateDashboardCache();
 
         return res.status(200).json({
             success: true,
@@ -806,6 +851,9 @@ const cancelBooking = async (req, res) => {
         booking.cancelReason = userRole === "user" ? "Cancelled by customer" : "Cancelled by hotel management";
 
         await booking.save();
+
+        // Invalidate cached dashboard metrics
+        invalidateDashboardCache();
 
         return res.status(200).json({
             success: true,

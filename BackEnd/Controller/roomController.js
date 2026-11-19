@@ -1,7 +1,46 @@
 const roomModel = require("../Model/roomsModel");
 const hotelModel = require("../Model/hotelModel");
 const { uploadImage } = require("../Utilities/Cloudinary");
-const XLSX = require('xlsx')
+const XLSX = require('xlsx');
+const { invalidateDashboardCache } = require("../Utilities/redisClient");
+
+// Helper to find the active hotel for the current logged in user
+const findActiveHotelForUser = async (user) => {
+    if (!user) return null;
+    const emailLower = (user.email || "").toLowerCase();
+
+    if (user.role === "hotel") {
+        const hotel = await hotelModel.findOne({
+            $or: [
+                { hotelEmail: emailLower },
+                { hotelEmail: user.email },
+                { email: emailLower },
+                { email: user.email }
+            ]
+        });
+        if (hotel) return hotel;
+    }
+
+    if (user.role === "admin") {
+        const hotel = await hotelModel.findOne({
+            $or: [{ adminId: user._id }, { admin: user._id }]
+        });
+        if (hotel) return hotel;
+    }
+
+    if (user.role === "superAdmin") {
+        return await hotelModel.findOne({ status: "Approved" });
+    }
+
+    return await hotelModel.findOne({
+        $or: [
+            { hotelEmail: emailLower },
+            { hotelEmail: user.email },
+            { adminId: user._id },
+            { admin: user._id }
+        ]
+    });
+};
 
 // =========================================================================
 // CREATE ROOM (With Complete Enterprise-Grade Validations)
@@ -10,9 +49,9 @@ const createRoom = async (req, res) => {
     try {
         let { roomNumber, roomType, pricePerNight, maxOccupancy, totalBeds, bedType, roomSize, description, roomAmenities, isFeatured } = req.body;
 
-        const hotel = await hotelModel.findOne({ hotelEmail: req.user.email });
+        const hotel = await findActiveHotelForUser(req.user);
         if (!hotel || hotel.status !== "Approved") {
-            return res.status(400).json({ success: false, message: "Hotel not found or not approved." });
+            return res.status(400).json({ success: false, message: "Approved hotel not found for your account." });
         }
 
         if (!roomNumber || !roomType || !pricePerNight || !maxOccupancy || !totalBeds || !bedType) {
@@ -168,6 +207,8 @@ const createRoom = async (req, res) => {
             isFeatured: isFeatured === true || isFeatured === "true",
         });
 
+        invalidateDashboardCache();
+
         return res.status(201).json({ success: true, message: "Room created successfully.", room });
     } catch (error) {
         console.error("Create Room Error:", error);
@@ -303,6 +344,7 @@ const updateRoom = async (req, res) => {
         }
 
         const updatedRoom = await roomModel.findByIdAndUpdate(roomId, updateData, { new: true });
+        invalidateDashboardCache();
         return res.status(200).json({ success: true, message: "Room updated.", room: updatedRoom });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -323,6 +365,7 @@ const deleteRoom = async (req, res) => {
         }
 
         await roomModel.findByIdAndDelete(roomId);
+        invalidateDashboardCache();
         return res.status(200).json({ success: true, message: "Room deleted." });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -344,6 +387,7 @@ const toggleRoomStatus = async (req, res) => {
 
         room.isActive = !room.isActive;
         await room.save();
+        invalidateDashboardCache();
         return res.status(200).json({ success: true, message: `Room is now ${room.isActive ? 'Active' : 'Inactive'}` });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -385,170 +429,172 @@ const getPublicRoomsByHotel = async (req, res) => {
     }
 };
 
+// Helper to normalize room type
+const normalizeRoomType = (typeRaw) => {
+    const raw = String(typeRaw || "").trim().toLowerCase();
+    if (raw === "family" || raw === "family room" || raw === "family-room") return "Family Room";
+    if (raw === "premium") return "Premium";
+    if (raw === "deluxe") return "Deluxe";
+    if (raw === "super deluxe" || raw === "superdeluxe") return "Super Deluxe";
+    if (raw === "suite") return "Suite";
+    if (raw === "standard") return "Standard";
+    const valid = ["Standard", "Deluxe", "Super Deluxe", "Suite", "Family Room", "Family", "Premium"];
+    const found = valid.find(v => v.toLowerCase() === raw);
+    return found || String(typeRaw || "").trim();
+};
+
+// Helper to normalize bed type
+const normalizeBedType = (typeRaw) => {
+    const raw = String(typeRaw || "").trim().toLowerCase();
+    if (raw === "king") return "King";
+    if (raw === "queen") return "Queen";
+    if (raw === "double") return "Double";
+    if (raw === "single") return "Single";
+    const valid = ["Single", "Double", "Queen", "King"];
+    const found = valid.find(v => v.toLowerCase() === raw);
+    return found || String(typeRaw || "").trim();
+};
+
+// Helper to extract amenities from any header / delimiter
+const parseAmenities = (row) => {
+    const raw = row.roomAmenities || row.amenities || row.Amenities || row.RoomAmenities || "";
+    if (Array.isArray(raw)) {
+        return raw.map(a => String(a).trim()).filter(Boolean);
+    }
+    if (typeof raw === "string" && raw.trim()) {
+        return raw.split(/[;,|]+/).map(a => a.trim()).filter(Boolean);
+    }
+    return [];
+};
+
+// Helper to extract room images
+const parseRoomImages = (row) => {
+    const images = [];
+    for (let k = 1; k <= 10; k++) {
+        const val = row[`image${k}`] || row[`Image${k}`];
+        if (val && String(val).trim()) {
+            images.push(String(val).trim());
+        }
+    }
+    if (images.length === 0 && (row.roomImages || row.images || row.Images)) {
+        const raw = row.roomImages || row.images || row.Images;
+        if (Array.isArray(raw)) images.push(...raw.map(i => String(i).trim()).filter(Boolean));
+        else if (typeof raw === "string") images.push(...raw.split(/[;,|]+/).map(i => i.trim()).filter(Boolean));
+    }
+    return images;
+};
+
 const bulkPreviewRooms = async (req, res) => {
     try {
         if (!req.files || !req.files.file) {
             return res.status(400).json({
                 success: false,
-                message: "Excel file is required",
+                message: "Excel or CSV file is required.",
             });
         }
 
-        const hotel = await hotelModel.findOne({
-            hotelEmail: req.user.email,
-            status: "Approved",
-        });
-
+        const hotel = await findActiveHotelForUser(req.user);
         if (!hotel) {
             return res.status(404).json({
                 success: false,
-                message: "Approved hotel not found.",
+                message: "Approved hotel not found for your account.",
             });
         }
 
         const file = req.files.file;
-
-        const workbook = XLSX.read(file.data, {
-            type: "buffer",
-        });
-
+        const workbook = XLSX.read(file.data, { type: "buffer" });
         const sheetName = workbook.SheetNames[0];
-
         const worksheet = workbook.Sheets[sheetName];
-
-        const rows = XLSX.utils.sheet_to_json(
-            worksheet,
-            { defval: "" }
-        );
+        const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
         if (!rows.length) {
             return res.status(400).json({
                 success: false,
-                message: "Excel file is empty.",
+                message: "File is empty or has no data rows.",
             });
         }
 
         const preview = [];
+        const allowedRoomTypes = ["Standard", "Deluxe", "Super Deluxe", "Suite", "Family Room", "Family", "Premium"];
+        const allowedBedTypes = ["Single", "Double", "Queen", "King"];
 
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-
             const errors = [];
 
-            const roomNumber =
-                String(row.roomNumber || "").trim();
-
+            const roomNumber = String(row.roomNumber || row.RoomNumber || row["Room No"] || row.room_no || "").trim();
             if (!roomNumber) {
                 errors.push("Room number is required.");
             }
 
-            const allowedRoomTypes = [
-                "Standard",
-                "Deluxe",
-                "Super Deluxe",
-                "Suite",
-                "Family Room",
-            ];
-
-            if (!allowedRoomTypes.includes(row.roomType)) {
-                errors.push("Invalid room type.");
+            const rawRoomType = String(row.roomType || row.RoomType || row["Room Type"] || row.type || "").trim();
+            const roomType = normalizeRoomType(rawRoomType);
+            if (!allowedRoomTypes.includes(roomType)) {
+                errors.push(`Invalid room type: '${rawRoomType}'. Allowed: Standard, Deluxe, Super Deluxe, Suite, Family Room, Premium.`);
             }
 
-            const price = Number(row.pricePerNight);
+            const rawBedType = String(row.bedType || row.BedType || row["Bed Type"] || row.bed || "King").trim();
+            const bedType = normalizeBedType(rawBedType);
+            if (!allowedBedTypes.includes(bedType)) {
+                errors.push(`Invalid bed type: '${rawBedType}'. Allowed: Single, Double, Queen, King.`);
+            }
 
+            const price = Number(row.pricePerNight || row.price || row.Price || 0);
             if (!Number.isFinite(price) || price <= 0) {
-                errors.push(
-                    "Price per night must be greater than zero."
-                );
+                errors.push("Price per night must be greater than zero.");
             }
 
-            const maxOccupancy =
-                Number(row.maxOccupancy);
-
-            if (
-                !Number.isInteger(maxOccupancy) ||
-                maxOccupancy <= 0
-            ) {
+            const maxOccupancy = Number(row.maxOccupancy || row.occupancy || row.MaxOccupancy || 2);
+            if (!Number.isInteger(maxOccupancy) || maxOccupancy <= 0) {
                 errors.push("Invalid maximum occupancy.");
             }
 
-            const totalBeds =
-                Number(row.totalBeds);
-
-            if (
-                !Number.isInteger(totalBeds) ||
-                totalBeds <= 0
-            ) {
+            const totalBeds = Number(row.totalBeds || row.beds || row.TotalBeds || 1);
+            if (!Number.isInteger(totalBeds) || totalBeds <= 0) {
                 errors.push("Invalid total beds.");
             }
 
-            const allowedBedTypes = [
-                "Single",
-                "Double",
-                "Queen",
-                "King",
-            ];
-
-            if (!allowedBedTypes.includes(row.bedType)) {
-                errors.push("Invalid bed type.");
-            }
-
-            // Minimum 5 images
-            const images = [
-                row.image1,
-                row.image2,
-                row.image3,
-                row.image4,
-                row.image5,
-            ].filter(
-                (image) =>
-                    String(image || "").trim()
-            );
-
+            const images = parseRoomImages(row);
             if (images.length < 5) {
-                errors.push(
-                    "Minimum 5 room images are required."
-                );
+                errors.push(`Minimum 5 room images are required (found ${images.length}).`);
             }
 
-            // Duplicate check
-            if (roomNumber) {
-                const existingRoom =
-                    await roomModel.findOne({
-                        hotelId: hotel._id,
-                        roomNumber,
-                    });
-
-                if (existingRoom) {
-                    errors.push(
-                        "Room number already exists."
-                    );
-                }
+            const amenities = parseAmenities(row);
+            if (amenities.length === 0) {
+                errors.push("At least one room amenity is required.");
             }
+
+            const description = String(row.description || row.Description || "").trim();
 
             preview.push({
                 rowNumber: i + 2,
                 roomNumber,
-                roomType: row.roomType,
+                roomName: String(row.roomName || row.name || "").trim(),
+                roomType,
                 pricePerNight: price,
-                status:
-                    errors.length === 0
-                        ? "Valid"
-                        : "Invalid",
+                status: errors.length === 0 ? "Valid" : "Invalid",
                 errors,
-                originalData: row,
+                originalData: {
+                    ...row,
+                    roomNumber,
+                    roomName: String(row.roomName || row.name || "").trim(),
+                    roomType,
+                    bedType,
+                    pricePerNight: price,
+                    maxOccupancy,
+                    adultCapacity: Number(row.adultCapacity) || maxOccupancy || 2,
+                    childCapacity: Number(row.childCapacity) || 0,
+                    totalBeds,
+                    description,
+                    roomAmenities: amenities.length > 0 ? amenities : ["Air Conditioning", "Wi-Fi", "Ensuite Bathroom"],
+                    roomImages: images,
+                    isFeatured: String(row.isFeatured || "").toLowerCase() === "true",
+                },
             });
         }
 
-        const validRows =
-            preview.filter(
-                (row) => row.status === "Valid"
-            ).length;
-
-        const invalidRows =
-            preview.filter(
-                (row) => row.status === "Invalid"
-            ).length;
+        const validRows = preview.filter((row) => row.status === "Valid").length;
+        const invalidRows = preview.filter((row) => row.status === "Invalid").length;
 
         return res.status(200).json({
             success: true,
@@ -559,30 +605,18 @@ const bulkPreviewRooms = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(
-            "Bulk Room Preview Error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+        console.error("Bulk Room Preview Error:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
 const bulkImportRooms = async (req, res) => {
     try {
-        // 1. Logged-in hotel find
-        const hotel = await hotelModel.findOne({
-            hotelEmail: req.user.email,
-            status: "Approved",
-        });
-
+        const hotel = await findActiveHotelForUser(req.user);
         if (!hotel) {
             return res.status(404).json({
                 success: false,
-                message: "Approved hotel not found.",
+                message: "Approved hotel not found for your account.",
             });
         }
 
@@ -593,10 +627,10 @@ const bulkImportRooms = async (req, res) => {
             try {
                 rows = typeof req.body.rooms === "string" ? JSON.parse(req.body.rooms) : req.body.rooms;
             } catch (error) {
-                return res.status(400).json({ success: false, message: "Invalid room data format" });
+                return res.status(400).json({ success: false, message: "Invalid room data format." });
             }
             if (!Array.isArray(rows)) {
-                return res.status(400).json({ success: false, message: "Rooms must be an array" });
+                return res.status(400).json({ success: false, message: "Rooms must be an array." });
             }
         }
         // FALLBACK DIRECT EXCEL
@@ -609,7 +643,7 @@ const bulkImportRooms = async (req, res) => {
         } else {
             return res.status(400).json({
                 success: false,
-                message: "Excel file or JSON data is required.",
+                message: "Excel/CSV file or JSON room data is required.",
             });
         }
 
@@ -622,35 +656,42 @@ const bulkImportRooms = async (req, res) => {
 
         const importedRooms = [];
         const errors = [];
+        const allowedRoomTypes = ["Standard", "Deluxe", "Super Deluxe", "Suite", "Family Room", "Family", "Premium"];
+        const allowedBedTypes = ["Single", "Double", "Queen", "King"];
 
-        // Process every row
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            const rowNumber = i + 2;
+            const rowNumber = row.rowNumber || (i + 2);
 
             try {
-                const roomNumber = String(row.roomNumber || "").trim();
-                const roomType = String(row.roomType || "").trim();
-                const bedType = String(row.bedType || "").trim();
-                const pricePerNight = Number(row.pricePerNight);
-                const maxOccupancy = Number(row.maxOccupancy);
-                const totalBeds = Number(row.totalBeds);
+                const roomNumber = String(row.roomNumber || row.RoomNumber || row["Room No"] || row.room_no || "").trim();
+                const roomName = String(row.roomName || row.name || row.RoomName || "").trim();
+                const rawRoomType = String(row.roomType || row.RoomType || row["Room Type"] || "").trim();
+                const roomType = normalizeRoomType(rawRoomType);
+
+                const rawBedType = String(row.bedType || row.BedType || row["Bed Type"] || "King").trim();
+                const bedType = normalizeBedType(rawBedType);
+
+                const pricePerNight = Number(row.pricePerNight || row.price || row.Price || 0);
+                const maxOccupancy = Number(row.maxOccupancy || row.occupancy || 2);
+                const adultCapacity = Number(row.adultCapacity || maxOccupancy || 2);
+                const childCapacity = Number(row.childCapacity || 0);
+                const totalBeds = Number(row.totalBeds || row.beds || 1);
                 const roomSize = Number(row.roomSize || 0);
+                const description = String(row.description || "").trim();
 
-                if (!roomNumber || !roomType || !bedType || !row.pricePerNight || !row.maxOccupancy || !row.totalBeds) {
-                    errors.push({ rowNumber, message: "Required fields are missing." });
+                if (!roomNumber) {
+                    errors.push({ rowNumber, message: "Room number is required." });
                     continue;
                 }
 
-                const allowedRoomTypes = ["Standard", "Deluxe", "Super Deluxe", "Suite", "Family Room"];
                 if (!allowedRoomTypes.includes(roomType)) {
-                    errors.push({ rowNumber, message: "Invalid room type." });
+                    errors.push({ rowNumber, message: `Invalid room type '${rawRoomType}'.` });
                     continue;
                 }
 
-                const allowedBedTypes = ["Single", "Double", "Queen", "King"];
                 if (!allowedBedTypes.includes(bedType)) {
-                    errors.push({ rowNumber, message: "Invalid bed type." });
+                    errors.push({ rowNumber, message: `Invalid bed type '${rawBedType}'.` });
                     continue;
                 }
 
@@ -659,86 +700,77 @@ const bulkImportRooms = async (req, res) => {
                     continue;
                 }
 
-                if (!Number.isInteger(maxOccupancy) || maxOccupancy <= 0) {
-                    errors.push({ rowNumber, message: "Invalid maximum occupancy." });
-                    continue;
-                }
-
-                if (!Number.isInteger(totalBeds) || totalBeds <= 0) {
-                    errors.push({ rowNumber, message: "Invalid total beds." });
-                    continue;
-                }
-
-                if (!Number.isFinite(roomSize) || roomSize < 0) {
-                    errors.push({ rowNumber, message: "Invalid room size." });
-                    continue;
-                }
-
-                const roomImages = [row.image1, row.image2, row.image3, row.image4, row.image5]
-                    .map((image) => String(image || "").trim())
-                    .filter(Boolean);
-
-                if (roomImages.length < 5) {
-                    errors.push({ rowNumber, message: "Minimum 5 room images are required." });
-                    continue;
-                }
-
-                const allImages = [row.image1, row.image2, row.image3, row.image4, row.image5, row.image6, row.image7, row.image8, row.image9, row.image10]
-                    .map((image) => String(image || "").trim())
-                    .filter(Boolean);
-
-                if (allImages.length > 10) {
-                    errors.push({ rowNumber, message: "Maximum 10 room images are allowed." });
-                    continue;
-                }
-
-                const existingRoom = await roomModel.findOne({ hotelId: hotel._id, roomNumber });
-                if (existingRoom) {
-                    errors.push({ rowNumber, message: `Room ${roomNumber} already exists.` });
-                    continue;
-                }
-
-                let roomAmenities = [];
-                if (typeof row.roomAmenities === "string") {
-                    roomAmenities = row.roomAmenities.split(",").map((item) => item.trim()).filter(Boolean);
-                }
+                // Parse Amenities
+                let roomAmenities = Array.isArray(row.roomAmenities) && row.roomAmenities.length > 0 
+                    ? row.roomAmenities 
+                    : parseAmenities(row);
 
                 if (!roomAmenities.length) {
-                    errors.push({ rowNumber, message: "At least one room amenity is required." });
+                    roomAmenities = ["Air Conditioning", "Wi-Fi", "Ensuite Bathroom", "Housekeeping"];
+                }
+
+                // Parse Images
+                let roomImages = Array.isArray(row.roomImages) && row.roomImages.length > 0
+                    ? row.roomImages
+                    : parseRoomImages(row);
+
+                if (roomImages.length < 5) {
+                    errors.push({ rowNumber, message: `Minimum 5 room images required (found ${roomImages.length}).` });
                     continue;
                 }
 
-                const description = String(row.description || "").trim();
-                if (description && description.length < 20) {
-                    errors.push({ rowNumber, message: "Description should contain at least 20 characters." });
-                    continue;
+                // Upsert: check if room already exists for this hotel
+                const existingRoom = await roomModel.findOne({ hotelId: hotel._id, roomNumber });
+                if (existingRoom) {
+                    existingRoom.roomName = roomName || existingRoom.roomName;
+                    existingRoom.roomType = roomType;
+                    existingRoom.pricePerNight = pricePerNight;
+                    existingRoom.maxOccupancy = maxOccupancy;
+                    existingRoom.adultCapacity = adultCapacity;
+                    existingRoom.childCapacity = childCapacity;
+                    existingRoom.totalBeds = totalBeds;
+                    existingRoom.bedType = bedType;
+                    existingRoom.roomSize = roomSize;
+                    if (description) existingRoom.description = description;
+                    existingRoom.roomAmenities = roomAmenities;
+                    existingRoom.roomImages = roomImages;
+                    existingRoom.isFeatured = String(row.isFeatured || "").toLowerCase() === "true";
+                    await existingRoom.save();
+                    importedRooms.push(existingRoom);
+                } else {
+                    const room = await roomModel.create({
+                        hotelId: hotel._id,
+                        roomNumber,
+                        roomName,
+                        roomType,
+                        pricePerNight,
+                        maxOccupancy,
+                        adultCapacity,
+                        childCapacity,
+                        totalBeds,
+                        bedType,
+                        roomSize,
+                        description,
+                        roomAmenities,
+                        roomImages,
+                        isFeatured: String(row.isFeatured || "").toLowerCase() === "true",
+                    });
+                    importedRooms.push(room);
                 }
-
-                const room = await roomModel.create({
-                    hotelId: hotel._id,
-                    roomNumber,
-                    roomType,
-                    pricePerNight,
-                    maxOccupancy,
-                    totalBeds,
-                    bedType,
-                    roomSize,
-                    description,
-                    roomAmenities,
-                    roomImages: allImages,
-                    isFeatured: String(row.isFeatured || "").toLowerCase() === "true",
-                });
-
-                importedRooms.push(room);
 
             } catch (rowError) {
+                console.error(`Row ${rowNumber} import error:`, rowError);
                 errors.push({ rowNumber, message: rowError.message });
             }
         }
 
+        invalidateDashboardCache();
+
         return res.status(201).json({
             success: true,
-            message: "Room bulk import completed.",
+            message: importedRooms.length > 0
+                ? `Successfully imported/updated ${importedRooms.length} room(s).`
+                : "No rooms could be imported. Please review row requirements.",
             totalRows: rows.length,
             importedRows: importedRooms.length,
             failedRows: errors.length,
@@ -754,14 +786,12 @@ const bulkImportRooms = async (req, res) => {
 
 const bulkExportRooms = async (req, res) => {
     try {
-        const hotel = await hotelModel.findOne({
-            hotelEmail: req.user.email,
-        });
+        const hotel = await findActiveHotelForUser(req.user);
 
         if (!hotel) {
             return res.status(404).json({
                 success: false,
-                message: "Hotel not found.",
+                message: "Approved hotel not found.",
             });
         }
 

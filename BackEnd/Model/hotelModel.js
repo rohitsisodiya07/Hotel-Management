@@ -98,6 +98,23 @@ const hotelSchema = new mongoose.Schema(
             default: "",
             trim: true,
         },
+
+        rating: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 5,
+        },
+
+        totalReviews: {
+            type: Number,
+            default: 0,
+        },
+
+        isActive: {
+            type: Boolean,
+            default: true,
+        },
     },
     {
         timestamps: true,

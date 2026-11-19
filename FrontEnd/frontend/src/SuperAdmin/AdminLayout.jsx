@@ -2,7 +2,9 @@ import React, { useEffect, useState, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { signupApi } from "../api";
-import logo from '../assets/logo.png' // Fix: Removed curly braces
+import Logo from "../components/Logo";
+import Swal from "sweetalert2";
+import { toast } from "sonner";
 import {
     LayoutDashboard,
     Map,
@@ -135,9 +137,22 @@ const AdminLayout = () => {
 
     const unreadNotifications = notifications.filter(n => !readIds.includes(n.id));
 
-    const handleLogout = () => {
-        if (!window.confirm("Are you sure you want to end your session?")) return;
-        localStorage.clear();
+    const handleLogout = async () => {
+        const result = await Swal.fire({
+            title: "End Session?",
+            text: "Are you sure you want to securely log out of the Super Administration Console?",
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonColor: "#173D31",
+            cancelButtonColor: "#6B7280",
+            confirmButtonText: "Yes, Sign Out",
+            cancelButtonText: "Stay Logged In",
+            reverseButtons: true,
+        });
+        if (!result.isConfirmed) return;
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        toast.success("Signed out successfully.");
         navigate("/login");
     };
 
@@ -178,21 +193,10 @@ const AdminLayout = () => {
             <aside className="w-64 bg-white border-r border-gray-200 flex flex-col justify-between flex-shrink-0 z-10 sticky top-0 h-screen shadow-2xs">
                 <div>
                     {/* Brand Section with Logo */}
-                    <div className="px-6 py-7 border-b border-gray-100 flex flex-col items-start gap-3">
-                        <Link to="/" className="block cursor-pointer group">
-                            <img
-                                src={logo}
-                                alt="AuraStays"
-                                className="h-20 w-auto object-contain invert opacity-90 transition-transform duration-300 group-hover:scale-105"
-                                onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.style.display = 'none';
-                                    e.target.insertAdjacentHTML('afterend', '<h1 class="font-[\'Space_Grotesk\'] text-xl font-bold text-gray-900 tracking-tight m-0">AuraStays</h1>');
-                                }}
-                            />
-                        </Link>
-                        <span className="font-['IBM_Plex_Mono'] text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase bg-blue-50 border border-blue-100 px-2 py-1 rounded-md">
-                            Super Admin Panel
+                    <div className="px-6 py-6 border-b border-gray-100 flex flex-col items-start gap-2.5">
+                        <Logo to="/superAdmin/dashboard" imgHeight="h-10" />
+                        <span className="font-mono text-[9px] font-bold tracking-[0.2em] text-[#315C48] uppercase bg-[#EDF2EB] border border-[#D7E3D4] px-2.5 py-0.5 rounded-full">
+                            Super Administration
                         </span>
                     </div>
 

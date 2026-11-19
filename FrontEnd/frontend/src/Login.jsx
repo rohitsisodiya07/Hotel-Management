@@ -1,30 +1,82 @@
+
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { signupApi } from "./api";
-import { Hotel, Mail, Lock, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import logo from './assets/logo.png'
+import {
+    Mail,
+    Lock,
+    AlertCircle,
+    CheckCircle2,
+    Loader2,
+    Eye,
+    EyeOff,
+} from "lucide-react";
+import Logo from "./components/Logo";
 
-const EyeIcon = ({ open }) =>
-    open ? (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M3 3l18 18" />
-            <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-            <path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6 0 10 6 10 6a13.3 13.3 0 0 1-3.06 3.66M6.1 6.1C3.4 7.9 2 10 2 10s4 6 10 6a9 9 0 0 0 3.9-.9" />
-        </svg>
-    ) : (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-            <circle cx="12" cy="12" r="3" />
-        </svg>
-    );
-
+// ================= ROLE ROUTES =================
 const ROLE_ROUTES = {
-    user: "/signup",
+    user: "/",
     admin: "/admin/dashboard",
     superAdmin: "/superAdmin/state",
     hotel: "/hotel/hotelDashboard",
 };
+
+// ================= REUSABLE INPUT =================
+const InputField = ({
+    icon: Icon,
+    id,
+    label,
+    error,
+    rightElement,
+    ...props
+}) => (
+    <div className="w-full">
+        <label
+            htmlFor={id}
+            className="block text-sm font-semibold text-[#37483C] mb-2"
+        >
+            {label}
+        </label>
+
+        <div className="relative group">
+            <Icon
+                size={18}
+                className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${error
+                        ? "text-rose-500"
+                        : "text-[#829084] group-focus-within:text-[#315C43]"
+                    }`}
+            />
+
+            <input
+                id={id}
+                {...props}
+                className={`w-full h-12 rounded-xl border pl-11 ${rightElement ? "pr-12" : "pr-4"
+                    } text-sm text-[#26372C] outline-none transition-all ${error
+                        ? "border-rose-300 bg-rose-50 focus:border-rose-500"
+                        : "border-[#E2E8E2] bg-[#F8FAF7] focus:bg-white focus:border-[#315C43] focus:ring-4 focus:ring-[#315C43]/10 hover:border-[#C7D2C8]"
+                    }`}
+            />
+
+            {rightElement && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {rightElement}
+                </div>
+            )}
+        </div>
+
+        {error && (
+            <p
+                id={`${id}-error`}
+                role="alert"
+                className="text-xs text-rose-600 mt-1.5 ml-1 flex items-center gap-1"
+            >
+                <AlertCircle size={13} />
+                {error}
+            </p>
+        )}
+    </div>
+);
 
 const Login = () => {
     const navigate = useNavigate();
@@ -41,9 +93,11 @@ const Login = () => {
     const [formError, setFormError] = useState("");
     const [infoMessage, setInfoMessage] = useState("");
 
+    // ================= SIGNUP SUCCESS MESSAGE =================
     useEffect(() => {
         if (location.state?.signupMessage) {
             setInfoMessage(location.state.signupMessage);
+
             navigate(location.pathname, {
                 replace: true,
                 state: {},
@@ -51,25 +105,32 @@ const Login = () => {
         }
     }, [location.state, location.pathname, navigate]);
 
+    // ================= HANDLE CHANGE =================
     const handleChange = (e) => {
         const { name, value } = e.target;
+
         setFormData((prev) => ({
             ...prev,
             [name]: value,
         }));
+
         setErrors((prev) => ({
             ...prev,
             [name]: "",
         }));
+
         setFormError("");
     };
 
+    // ================= VALIDATION =================
     const validate = () => {
         const newErrors = {};
 
         if (!formData.email.trim()) {
             newErrors.email = "Email is required";
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        } else if (
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
+        ) {
             newErrors.email = "Enter a valid email address";
         }
 
@@ -78,9 +139,11 @@ const Login = () => {
         }
 
         setErrors(newErrors);
+
         return Object.keys(newErrors).length === 0;
     };
 
+    // ================= LOGIN SUBMIT =================
     const handleSubmit = async (e) => {
         e.preventDefault();
         setFormError("");
@@ -89,7 +152,12 @@ const Login = () => {
 
         try {
             setLoading(true);
-            const response = await axios.post(`${signupApi}userSignup/login`, formData);
+
+            const response = await axios.post(
+                `${signupApi}userSignup/login`,
+                formData
+            );
+
             const { token, user } = response.data;
 
             localStorage.setItem("token", token);
@@ -103,109 +171,105 @@ const Login = () => {
             navigate(ROLE_ROUTES[user.role] || "/user");
         } catch (error) {
             setFormError(
-                error.response?.data?.message || "Login failed. Please check your credentials."
+                error.response?.data?.message ||
+                "Login failed. Please check your credentials."
             );
         } finally {
             setLoading(false);
         }
     };
 
-    const FieldError = ({ name }) =>
-        errors[name] ? (
-            <p id={`${name}-error`} role="alert" className="text-[11px] text-rose-600 mt-1.5 ml-1 flex items-center gap-1 font-medium">
-                <AlertCircle size={12} />
-                {errors[name]}
-            </p>
-        ) : null;
-
     return (
-        <div className="min-h-screen bg-[#f5f6fa] flex items-center justify-center p-4 sm:p-6">
+        <div className="min-h-screen bg-[#F7F8F4] flex items-center justify-center p-3 sm:p-6">
 
             {/* ================= MAIN CARD ================= */}
-            <div className="w-full max-w-[1100px] min-h-[550px] lg:min-h-[650px] bg-white rounded-[24px] lg:rounded-[30px] overflow-hidden shadow-[0_25px_70px_rgba(15,23,42,0.12)] flex relative">
+            <div className="w-full max-w-[1120px] min-h-[650px] bg-white rounded-[28px] overflow-hidden shadow-[0_20px_70px_rgba(35,55,40,0.10)] grid grid-cols-1 lg:grid-cols-2">
 
-                {/* =====================================================
-                LEFT BRAND SECTION (Desktop Only)
-            ===================================================== */}
-                <div className="hidden lg:flex w-[43%] relative bg-blue-600 text-white flex-col items-center justify-center px-12 z-10 overflow-hidden">
-                    <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
-                    <div className="absolute -bottom-32 -left-10 w-96 h-96 rounded-full bg-blue-900/20 blur-3xl" />
-                    <div className="absolute top-24 right-20 w-3 h-3 rounded-full bg-white/30" />
-                    <div className="absolute top-36 right-32 w-2 h-2 rounded-full bg-white/20" />
-                    <div className="absolute bottom-28 left-20 w-2 h-2 rounded-full bg-white/20" />
+                {/* ================= LEFT BRAND SECTION ================= */}
+                <div className="hidden lg:flex relative min-h-full flex-col justify-between p-12 text-white overflow-hidden">
 
-                    <div className="relative z-20 flex flex-col items-center justify-center text-center">
-                        <h2 className="text-xl font-medium tracking-wide mb-8">
-                            Welcome to
+                    <img
+                        src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1400&q=85"
+                        alt="Luxury hotel resort"
+                        className="absolute inset-0 w-full h-full object-cover"
+                    />
+
+                    <div className="absolute inset-0 bg-[#17291E]/70" />
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#14251A]/80 via-transparent to-black/20" />
+
+                    {/* DESKTOP LOGO */}
+                    <div className="relative z-10">
+                        <Logo variant="light" to="/" imgHeight="h-12" />
+                    </div>
+
+                    {/* BRAND CONTENT */}
+                    <div className="relative z-10 max-w-md mb-10">
+                        <span className="text-xs uppercase tracking-[0.3em] text-white/70">
+                            Welcome to AuraStays
+                        </span>
+
+                        <h2 className="text-5xl font-serif leading-[1.15] mt-5 mb-6">
+                            Every journey
+                            <br />
+                            deserves a beautiful stay.
                         </h2>
 
-                        {/* LOGO */}
-                        <div className="w-[250px] mb-10 flex items-center justify-center">
-                            <img
-                                src={logo}
-                                alt="AuraStay Logo"
-                                className="w-full h-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.18)]"
-                            />
-                        </div>
-
-                        <p className="text-[15px] leading-7 max-w-[250px] text-center font-medium text-white/90">
-                            Discover and Find Your
-                            <br />
-                            Perfect Healing Place
+                        <p className="text-white/80 leading-7 text-sm max-w-sm">
+                            Sign in to explore thoughtfully selected stays,
+                            manage your bookings and continue discovering
+                            beautiful destinations.
                         </p>
 
-                        <div className="flex items-center gap-3 mt-12 text-[10px] tracking-[0.25em] uppercase text-white/50">
-                            <span className="w-8 h-px bg-white/30" />
-                            Stay • Explore • Relax
-                            <span className="w-8 h-px bg-white/30" />
+                        <div className="flex items-center gap-3 mt-10 text-xs tracking-wider text-white/70">
+                            <span className="w-8 h-px bg-white/60" />
+                            STAY · EXPLORE · RELAX
                         </div>
                     </div>
 
-                    <div className="absolute top-[3%] -right-5 w-14 h-24 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[18%] -right-9 w-24 h-36 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[40%] -right-7 w-20 h-32 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[61%] -right-12 w-28 h-40 bg-blue-600 rounded-full" />
-                    <div className="absolute top-[82%] -right-5 w-16 h-24 bg-blue-600 rounded-full" />
-                    <div className="absolute -bottom-5 -right-4 w-20 h-28 bg-blue-600 rounded-full" />
+                    <div className="relative z-10 text-xs text-white/60">
+                        © {new Date().getFullYear()} AuraStays. All rights reserved.
+                    </div>
                 </div>
 
-                {/* =====================================================
-                RIGHT LOGIN SECTION
-            ===================================================== */}
-                <div className="w-full lg:w-[57%] flex items-center justify-center bg-white relative z-0">
-                    <div className="w-full max-w-[440px] px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
+                {/* ================= RIGHT LOGIN SECTION ================= */}
+                <div className="flex items-center justify-center px-5 py-9 sm:px-10 lg:px-14">
 
-                        {/* ================= MOBILE BRANDING (Mobile Only) ================= */}
-                        <div className="lg:hidden flex flex-col items-center justify-center mb-8">
-                            <div className="bg-blue-600 p-4 rounded-2xl shadow-[0_8px_20px_rgba(37,99,235,0.2)] flex items-center justify-center w-[180px]">
-                                <img
-                                    src={logo}
-                                    alt="AuraStay Logo"
-                                    className="w-full h-auto object-contain"
-                                />
-                            </div>
+                    <div className="w-full max-w-[430px]">
+
+                        {/* MOBILE LOGO */}
+                        <div className="lg:hidden flex justify-center mb-8">
+                            <Logo to="/" imgHeight="h-10" />
                         </div>
 
-                        {/* ================= HEADER ================= */}
-                        <div className="mb-8 text-center lg:text-left">
-                            <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-blue-600 mb-2">
+                        {/* HEADER */}
+                        <div className="mb-8">
+                            <p className="text-xs uppercase tracking-[0.2em] font-bold text-[#54775E] mb-3">
                                 Secure Authentication
                             </p>
-                            <h1 className="text-[28px] sm:text-[32px] lg:text-[38px] font-extrabold tracking-tight text-gray-900">
+
+                            <h1 className="text-3xl sm:text-4xl font-serif text-[#26372C]">
                                 Welcome back.
                             </h1>
-                            <p className="text-sm text-gray-500 mt-2 leading-6">
-                                Log in to your AuraStay account and continue your journey.
+
+                            <p className="text-sm text-[#7B877D] mt-3 leading-6">
+                                Log in to your AuraStays account and
+                                continue your journey.
                             </p>
                         </div>
 
-                        {/* ================= INFO MESSAGE ================= */}
+                        {/* ================= SUCCESS MESSAGE ================= */}
                         {infoMessage && (
-                            <div role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 flex items-start gap-3">
-                                <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                                    <CheckCircle2 size={15} className="text-emerald-600" />
-                                </div>
-                                <p className="text-xs leading-5 text-emerald-800 font-medium">
+                            <div
+                                role="status"
+                                className="mb-5 rounded-xl border border-[#D6E5D8] bg-[#F0F7F0] p-4 flex items-start gap-3"
+                            >
+                                <CheckCircle2
+                                    size={19}
+                                    className="text-[#315C43] shrink-0"
+                                />
+
+                                <p className="text-xs leading-5 text-[#315C43] font-medium">
                                     {infoMessage}
                                 </p>
                             </div>
@@ -213,10 +277,15 @@ const Login = () => {
 
                         {/* ================= ERROR MESSAGE ================= */}
                         {formError && (
-                            <div role="alert" className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 flex items-start gap-3">
-                                <div className="w-7 h-7 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-                                    <AlertCircle size={15} className="text-rose-600" />
-                                </div>
+                            <div
+                                role="alert"
+                                className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-start gap-3"
+                            >
+                                <AlertCircle
+                                    size={18}
+                                    className="text-rose-600 shrink-0"
+                                />
+
                                 <p className="text-xs leading-5 text-rose-700 font-medium">
                                     {formError}
                                 </p>
@@ -224,101 +293,134 @@ const Login = () => {
                         )}
 
                         {/* ================= LOGIN FORM ================= */}
-                        <form onSubmit={handleSubmit} noValidate className="space-y-5">
+                        <form
+                            onSubmit={handleSubmit}
+                            noValidate
+                            className="space-y-5"
+                        >
 
-                            {/* ================= EMAIL ================= */}
-                            <div>
-                                <label htmlFor="login-email" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5 ml-1">
-                                    Email Address
-                                </label>
-                                <div className="relative group">
-                                    <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.email ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={18} />
-                                    <input
-                                        id="login-email"
-                                        type="email"
-                                        name="email"
-                                        autoComplete="email"
-                                        placeholder="name@example.com"
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                        aria-invalid={!!errors.email}
-                                        aria-describedby={errors.email ? "email-error" : undefined}
-                                        className={`w-full h-12 rounded-xl border pl-11 pr-4 text-sm outline-none transition-all duration-300 ${errors.email
-                                            ? "border-rose-300 bg-rose-50 text-rose-900 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10"
-                                            : "border-gray-200 bg-gray-50 text-gray-900 focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 hover:border-gray-300"
-                                            }`}
-                                    />
-                                </div>
-                                <FieldError name="email" />
-                            </div>
+                            {/* EMAIL */}
+                            <InputField
+                                icon={Mail}
+                                id="login-email"
+                                name="email"
+                                label="Email Address"
+                                type="email"
+                                autoComplete="email"
+                                placeholder="name@example.com"
+                                value={formData.email}
+                                onChange={handleChange}
+                                error={errors.email}
+                                aria-invalid={!!errors.email}
+                                aria-describedby={
+                                    errors.email ? "login-email-error" : undefined
+                                }
+                            />
 
-                            {/* ================= PASSWORD ================= */}
+                            {/* PASSWORD */}
                             <div>
-                                <div className="flex justify-between items-center mb-1.5 ml-1">
-                                    <label htmlFor="login-password" className="block text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                                <div className="flex justify-between items-center mb-2">
+                                    <label
+                                        htmlFor="login-password"
+                                        className="text-sm font-semibold text-[#37483C]"
+                                    >
                                         Password
                                     </label>
-                                    <Link to="/forgot" className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline underline-offset-4 mr-1">
+
+                                    <Link
+                                        to="/forgot"
+                                        className="text-xs font-semibold text-[#315C43] hover:text-[#244B36] hover:underline underline-offset-4"
+                                    >
                                         Forgot password?
                                     </Link>
                                 </div>
-                                <div className="relative group">
-                                    <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 ${errors.password ? 'text-rose-500' : 'text-gray-400 group-focus-within:text-blue-600'}`} size={18} />
-                                    <input
-                                        id="login-password"
-                                        type={showPassword ? "text" : "password"}
-                                        name="password"
-                                        autoComplete="current-password"
-                                        placeholder="Enter your password"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                        aria-invalid={!!errors.password}
-                                        aria-describedby={errors.password ? "password-error" : undefined}
-                                        className={`w-full h-12 rounded-xl border pl-11 pr-12 text-sm outline-none transition-all duration-300 ${errors.password
-                                            ? "border-rose-300 bg-rose-50 text-rose-900 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10"
-                                            : "border-gray-200 bg-gray-50 text-gray-900 focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-600/15 hover:border-gray-300"
-                                            }`}
-                                    />
-                                    <button
-                                        type="button"
-                                        aria-label={showPassword ? "Hide password" : "Show password"}
-                                        aria-pressed={showPassword}
-                                        onClick={() => setShowPassword((v) => !v)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors p-1"
-                                    >
-                                        <EyeIcon open={showPassword} />
-                                    </button>
-                                </div>
-                                <FieldError name="password" />
+
+                                <InputField
+                                    icon={Lock}
+                                    id="login-password"
+                                    name="password"
+                                    label=""
+                                    type={showPassword ? "text" : "password"}
+                                    autoComplete="current-password"
+                                    placeholder="Enter your password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    error={errors.password}
+                                    aria-invalid={!!errors.password}
+                                    aria-describedby={
+                                        errors.password
+                                            ? "login-password-error"
+                                            : undefined
+                                    }
+                                    rightElement={
+                                        <button
+                                            type="button"
+                                            aria-label={
+                                                showPassword
+                                                    ? "Hide password"
+                                                    : "Show password"
+                                            }
+                                            aria-pressed={showPassword}
+                                            onClick={() =>
+                                                setShowPassword((prev) => !prev)
+                                            }
+                                            className="text-[#829084] hover:text-[#315C43] transition-colors p-1"
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff size={18} />
+                                            ) : (
+                                                <Eye size={18} />
+                                            )}
+                                        </button>
+                                    }
+                                />
                             </div>
 
-                            {/* ================= LOGIN BUTTON ================= */}
+                            {/* LOGIN BUTTON */}
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full h-[52px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(37,99,235,0.25)] hover:shadow-[0_10px_25px_rgba(37,99,235,0.35)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 mt-6"
+                                className="w-full h-[52px] rounded-xl bg-[#315C43] hover:bg-[#264B35] text-white text-sm font-semibold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(49,92,67,0.18)] hover:-translate-y-[1px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 mt-6"
                             >
-                                {loading && <Loader2 className="animate-spin" size={17} />}
+                                {loading && (
+                                    <Loader2
+                                        className="animate-spin"
+                                        size={17}
+                                    />
+                                )}
+
                                 {loading ? "Authenticating..." : "Log In"}
                             </button>
-
                         </form>
 
                         {/* ================= FOOTER LINKS ================= */}
-                        <div className="mt-9 pt-6 border-t border-gray-100 text-center">
-                            <p className="text-[13px] text-gray-500">
+                        <div className="mt-9 pt-6 border-t border-[#E9EDE7] text-center">
+
+                            <p className="text-sm text-[#7B877D]">
                                 Don't have an account?{" "}
-                                <Link to="/signup" className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4">
+                                <Link
+                                    to="/signup"
+                                    className="font-bold text-[#315C43] hover:text-[#244B36] hover:underline underline-offset-4"
+                                >
                                     Sign up as user
                                 </Link>
                             </p>
-                            <p className="text-[13px] text-gray-500 mt-3">
+
+                            <p className="text-sm text-[#7B877D] mt-3">
                                 Want to manage properties?{" "}
-                                <Link to="/adminSignup" className="font-bold text-blue-600 hover:text-blue-800 hover:underline underline-offset-4">
+                                <Link
+                                    to="/adminSignup"
+                                    className="font-bold text-[#315C43] hover:text-[#244B36] hover:underline underline-offset-4"
+                                >
                                     Sign up as admin
                                 </Link>
                             </p>
                         </div>
+
+                        {/* MOBILE COPYRIGHT */}
+                        <p className="lg:hidden text-center text-[11px] text-[#A0AAA1] mt-8">
+                            © {new Date().getFullYear()} AuraStays
+                        </p>
 
                     </div>
                 </div>

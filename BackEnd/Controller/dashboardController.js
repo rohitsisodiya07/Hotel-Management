@@ -11,6 +11,7 @@ const dayjs = require("dayjs");
 const XLSX = require("xlsx");
 const relativeTime = require("dayjs/plugin/relativeTime");
 dayjs.extend(relativeTime);
+const { getCache, setCache } = require("../Utilities/redisClient");
 
 /* ===========================================================
    COMMON HELPERS
@@ -66,6 +67,12 @@ const getAccessibleHotelIds = async (user) => {
 =========================================================== */
 exports.getDropdownOptions = async (req, res) => {
     try {
+        const cacheKey = "dashboard:superAdmin:options";
+        const cached = await getCache(cacheKey);
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
         const [
             admins,
             cities,
@@ -78,13 +85,17 @@ exports.getDropdownOptions = async (req, res) => {
             Hotel.find({ status: "Approved" }).select("hotelName")
         ]);
 
-        return res.status(200).json({
+        const responseData = {
             success: true,
             admins,
             cities,
             states,
             hotels
-        });
+        };
+
+        await setCache(cacheKey, responseData, 300); // 5 minutes TTL
+
+        return res.status(200).json(responseData);
     } catch (error) {
         console.log(error);
         return res.status(500).json({
@@ -103,6 +114,13 @@ exports.getAccessibleHotelIds = getAccessibleHotelIds;
 exports.getSuperAdminDashboardAnalytics = async (req, res) => {
     try {
         const { filter = "all", id = "all", status = "all", search = "", sortBy = "newest", page = 1, limit = 10 } = req.query;
+
+        // Redis Cache Lookup (1 minute TTL)
+        const cacheKey = `dashboard:superadmin:${filter}:${id}:${status}:${search.trim()}:${sortBy}:${page}:${limit}`;
+        const cachedData = await getCache(cacheKey);
+        if (cachedData) {
+            return res.status(200).json({ ...cachedData, fromCache: true });
+        }
 
         let hotelQuery = {};
 
@@ -315,7 +333,7 @@ exports.getSuperAdminDashboardAnalytics = async (req, res) => {
         const approvalRate = totalEvaluated > 0 ? Math.round((approvedHotelsCount / totalEvaluated) * 100) : 0;
         const avgHotelsPerAdmin = totalAdminsCount > 0 ? (totalHotelsCount / totalAdminsCount).toFixed(1) : 0;
 
-        return res.status(200).json({
+        const resultData = {
             success: true,
             cards: {
                 totalHotels: totalHotelsCount || 0,
@@ -354,7 +372,12 @@ exports.getSuperAdminDashboardAnalytics = async (req, res) => {
             total: enhancedHotels.length || 0,
             page: pageNum,
             totalPages: Math.ceil(enhancedHotels.length / limitNum) || 1
-        });
+        };
+
+        // Cache response in Redis (TTL: 60s)
+        await setCache(cacheKey, resultData, 60);
+
+        return res.status(200).json(resultData);
 
     } catch (error) {
         console.error("Super Admin Dashboard Error:", error);
@@ -649,6 +672,17 @@ exports.exportSuperAdminDashboard = async (req, res) => {
 // ==========================================
 exports.getDashboardSummary = async (req, res) => {
     try {
+        const range = req.query.range || "today";
+        const userId = req.user?._id || "anon";
+        const userRole = req.user?.role || "user";
+
+        // Redis Cache Lookup (1 minute TTL)
+        const cacheKey = `dashboard:summary:${userRole}:${userId}:${range}`;
+        const cachedSummary = await getCache(cacheKey);
+        if (cachedSummary) {
+            return res.status(200).json({ ...cachedSummary, fromCache: true });
+        }
+
         const baseHotelIds = await getAccessibleHotelIds(req.user);
 
         if (baseHotelIds.length === 0 && req.user?.role !== "superAdmin") {
@@ -665,7 +699,6 @@ exports.getDashboardSummary = async (req, res) => {
             });
         }
 
-        const range = req.query.range || "today";
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
 
@@ -856,7 +889,7 @@ exports.getDashboardSummary = async (req, res) => {
             type: "booking"
         }));
 
-        return res.status(200).json({
+        const responseData = {
             success: true,
             summary: { totalRooms, availableRooms: availableRoomsCount, occupiedRooms: occupiedRoomsCount, todayBookings, todayRevenue, todayCheckIns, todayCheckOuts },
             monthlyRevenue,
@@ -866,7 +899,12 @@ exports.getDashboardSummary = async (req, res) => {
             ratingSummary,
             recentReviews,
             notifications: dynamicNotifications
-        });
+        };
+
+        // Cache response in Redis (TTL: 60s)
+        await setCache(cacheKey, responseData, 60);
+
+        return res.status(200).json(responseData);
 
     } catch (error) {
         console.error("Dashboard API Error:", error);
@@ -882,7 +920,6 @@ exports.exportDashboardSummary = async (req, res) => {
             return res.status(400).json({ success: false, message: "No accessible hotels found." });
         }
 
-        const range = req.query.range || "today";
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
         let endDate = new Date();
@@ -958,7 +995,15 @@ exports.exportDashboardSummary = async (req, res) => {
 // ==========================================
 exports.getPlatformAnalytics = async (req, res) => {
     try {
-        const { range = "all", hotelId, search = "", status = "All", city = "", sortBy = "city", page = 1, limit = 10 } = req.query;
+        const { range = "all", hotelId = "all", search = "", status = "All", city = "", sortBy = "city", page = 1, limit = 10 } = req.query;
+        const userId = req.user?._id || "admin";
+
+        // Redis Cache Lookup (1 minute TTL)
+        const cacheKey = `dashboard:platform-analytics:${userId}:${range}:${hotelId}:${search.trim()}:${status}:${city}:${sortBy}:${page}:${limit}`;
+        const cachedAnalytics = await getCache(cacheKey);
+        if (cachedAnalytics) {
+            return res.status(200).json({ ...cachedAnalytics, fromCache: true });
+        }
 
         let startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
@@ -1195,7 +1240,7 @@ exports.getPlatformAnalytics = async (req, res) => {
         else if (sortBy === "occupancy") hotelsWithDetails.sort((a, b) => b.occupancyRate - a.occupancyRate);
         else hotelsWithDetails.sort((a, b) => (a.city?.cityName || "").localeCompare(b.city?.cityName || ""));
 
-        return res.status(200).json({
+        const responseData = {
             success: true,
             analytics: {
                 kpis: {
@@ -1206,7 +1251,12 @@ exports.getPlatformAnalytics = async (req, res) => {
                 topPerformingHotels, occupancyComparison,
                 tableData: { hotels: hotelsWithDetails, total: totalTableHotels, page: pageNum, totalPages: Math.ceil(totalTableHotels / limitNum) }
             }
-        });
+        };
+
+        // Cache response in Redis (TTL: 60s)
+        await setCache(cacheKey, responseData, 60);
+
+        return res.status(200).json(responseData);
 
     } catch (error) {
         console.error("Platform Analytics Error:", error);

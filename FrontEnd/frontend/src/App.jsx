@@ -45,6 +45,10 @@ import HotelBookings from "./Hotel/HotelBookings";
 import HotelDetails from "./User/HotelDetails";
 import MyBooking from "./User/MyBooking";
 import UserLayout from "./User/UserLayout";
+import Contact from "./User/Contact";
+import FAQ from "./User/FAQ";
+import About from "./User/About";
+import SavedStays from "./User/SavedStays";
 
 function App() {
   return (
@@ -54,6 +58,11 @@ function App() {
         {/* User Layout */}
         <Route element={<UserLayout />}>
           <Route path="/" element={<HomeRedirect />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/popularcity" element={<PopularCity />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/saved-stays" element={<SavedStays />} />
 
           <Route
             path="/hotel-details/:id"
@@ -83,7 +92,11 @@ function App() {
 
         <Route
           path="/login"
-          element={<Login />}
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
         />
 
         <Route
@@ -94,14 +107,7 @@ function App() {
             </PublicRoute>
           }
         />
-        <Route
-          path="/popularcity"
-          element={
-            <PublicRoute>
-              <PopularCity />
-            </PublicRoute>
-          }
-        />
+
 
         {/* Change 3: Wrapped Admin and Status pages in PublicRoute */}
         <Route

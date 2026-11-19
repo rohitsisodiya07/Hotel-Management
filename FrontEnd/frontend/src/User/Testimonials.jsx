@@ -33,134 +33,109 @@ const customerReviews = [
 
 const Testimonials = () => {
     return (
-        <section className="max-w-[1600px] mx-auto px-6 sm:px-12 py-16">
+        <section className="w-full overflow-hidden bg-[#faf9f6] px-4 py-14 sm:px-8 sm:py-16 lg:px-12">
+            <div className="mx-auto max-w-[1440px]">
+                {/* Section heading */}
+                <div className="mx-auto mb-9 max-w-2xl text-center sm:mb-11">
+                    <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#dce4d9] bg-[#eaf0e8] px-3.5 py-2 text-[9px] font-semibold uppercase tracking-[0.19em] text-[#58745e] sm:text-[10px]">
+                        <Quote size={12} strokeWidth={1.8} />
+                        Guest experiences
+                    </span>
 
-            {/* ================= HEADER ================= */}
-            <div className="text-center max-w-2xl mx-auto mb-10">
+                    <h2 className="font-['Cormorant_Garamond'] text-[36px] font-semibold leading-[1.05] tracking-tight text-[#252b26] sm:text-4xl lg:text-[46px]">
+                        Stories from our <span className="italic text-[#64806a]">guests</span>
+                    </h2>
 
-                <span className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-100 text-blue-600 px-3.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest font-['IBM_Plex_Mono'] mb-3">
-                    <Quote size={12} />
-                    Guest Experiences
-                </span>
+                    <p className="mx-auto mt-3 max-w-xl text-[13px] leading-6 text-[#777b73] sm:text-sm">
+                        Hear from travelers who found their perfect place to
+                        pause, unwind and make lasting memories with AuraStays.
+                    </p>
+                </div>
 
-                <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 font-['Space_Grotesk'] tracking-tight">
-                    What Our Customers Say
-                </h2>
-
-                <p className="text-sm text-gray-500 mt-3 leading-relaxed">
-                    Real experiences from travelers who discovered their
-                    perfect stay with AuraStays.
-                </p>
-
-            </div>
-
-
-            {/* ================= REVIEW CARDS ================= */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-
-                {customerReviews.map((rev, idx) => (
-
-                    <div
-                        key={idx}
-                        className="relative bg-white border border-gray-200 p-7 sm:p-8 rounded-3xl flex flex-col min-h-[300px] shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
-                    >
-
-                        {/* Quote Icon */}
-                        <div className="absolute top-6 right-6 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                            <Quote
-                                size={20}
-                                className="text-blue-200"
-                            />
-                        </div>
-
-
-                        {/* Review */}
-                        <div className="flex-1">
-
-                            {/* Rating */}
-                            <div className="flex items-center gap-2 mb-5">
-
-                                <div className="flex items-center gap-0.5">
-                                    {[...Array(rev.rating)].map((_, i) => (
-                                        <Star
-                                            key={i}
-                                            size={14}
-                                            fill="currentColor"
-                                            className="text-yellow-400"
-                                        />
-                                    ))}
-                                </div>
-
-                                <span className="text-[11px] font-bold text-gray-700">
-                                    {rev.rating}.0
-                                </span>
-
+                {/* Review cards */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+                    {customerReviews.map((rev, idx) => (
+                        <article
+                            key={idx}
+                            className="group relative flex min-h-[300px] flex-col rounded-[20px] border border-[#e9e7e1] bg-white p-5 shadow-[0_4px_18px_rgba(35,45,37,0.04)] transition duration-300 hover:-translate-y-1 hover:border-[#d8e0d5] hover:shadow-[0_14px_30px_rgba(35,45,37,0.09)] sm:min-h-[320px] sm:rounded-[22px] sm:p-7"
+                        >
+                            {/* Decorative quote */}
+                            <div className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2eb] text-[#8da18a] transition-colors group-hover:bg-[#e4ebe1] sm:right-6 sm:top-6 sm:h-10 sm:w-10">
+                                <Quote size={18} strokeWidth={1.7} />
                             </div>
 
-
-                            {/* Comment */}
-                            <p className="text-sm text-gray-700 leading-7 font-medium pr-5">
-                                "{rev.comment}"
-                            </p>
-
-                        </div>
-
-
-                        {/* Customer */}
-                        <div className="flex items-center justify-between gap-3 pt-5 mt-6 border-t border-gray-100">
-
-                            <div className="flex items-center gap-3">
-
-                                <img
-                                    src={rev.image}
-                                    alt={`${rev.name} profile`}
-                                    className="w-11 h-11 rounded-full object-cover shadow-sm border border-gray-100"
-                                    loading="lazy"
-                                    onError={(e) => {
-                                        e.currentTarget.onerror = null;
-                                        e.currentTarget.src =
-                                            "https://ui-avatars.com/api/?name=" +
-                                            encodeURIComponent(rev.name) +
-                                            "&background=eef2ff&color=2563eb";
-                                    }}
-                                />
-
-                                <div>
-                                    <div className="flex items-center gap-1">
-
-                                        <h4 className="text-xs font-bold text-gray-900 font-['Space_Grotesk']">
-                                            {rev.name}
-                                        </h4>
-
-                                        <BadgeCheck
-                                            size={13}
-                                            className="text-blue-500"
-                                        />
-
+                            <div className="flex-1">
+                                {/* Rating */}
+                                <div
+                                    className="mb-5 flex items-center gap-2 pr-12"
+                                    aria-label={`${rev.rating} out of 5 stars`}
+                                >
+                                    <div className="flex items-center gap-0.5 text-[#b18b4b]">
+                                        {[...Array(rev.rating)].map((_, i) => (
+                                            <Star
+                                                key={i}
+                                                size={13}
+                                                fill="currentColor"
+                                                strokeWidth={1.4}
+                                            />
+                                        ))}
                                     </div>
-
-                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                                        {rev.location}
-                                    </p>
+                                    <span className="text-[11px] font-semibold tabular-nums text-[#62685f]">
+                                        {rev.rating.toFixed(1)}
+                                    </span>
                                 </div>
 
+                                {/* Review text */}
+                                <p className="max-w-[38rem] text-[13px] font-medium leading-7 text-[#555d54] sm:text-sm sm:leading-[1.9]">
+                                    “{rev.comment}”
+                                </p>
                             </div>
 
-                            <span className="hidden sm:block text-[9px] text-gray-400 font-['IBM_Plex_Mono'] uppercase tracking-wider">
-                                Guest
-                            </span>
+                            {/* Guest details */}
+                            <div className="mt-7 flex items-center justify-between gap-3 border-t border-[#eeede8] pt-5 sm:mt-8">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <img
+                                        src={rev.image}
+                                        alt={`${rev.name} profile`}
+                                        loading="lazy"
+                                        className="h-11 w-11 shrink-0 rounded-full border border-[#e9e7e1] object-cover shadow-sm sm:h-12 sm:w-12"
+                                        onError={(e) => {
+                                            e.currentTarget.onerror = null;
+                                            e.currentTarget.src =
+                                                "https://ui-avatars.com/api/?name=" +
+                                                encodeURIComponent(rev.name) +
+                                                "&background=eaf0e8&color=58745e";
+                                        }}
+                                    />
 
-                        </div>
+                                    <div className="min-w-0">
+                                        <div className="flex min-w-0 items-center gap-1.5">
+                                            <h4 className="truncate text-xs font-semibold text-[#29332b] sm:text-[13px]">
+                                                {rev.name}
+                                            </h4>
+                                            <BadgeCheck
+                                                size={14}
+                                                className="shrink-0 text-[#6d8b70]"
+                                                aria-label="Verified guest"
+                                            />
+                                        </div>
 
-                    </div>
+                                        <p className="mt-1 truncate text-[10px] font-medium text-[#92968e] sm:text-[11px]">
+                                            {rev.location}
+                                        </p>
+                                    </div>
+                                </div>
 
-                ))}
-
+                                <span className="hidden shrink-0 text-[9px] font-medium uppercase tracking-[0.16em] text-[#a0a49b] min-[380px]:block">
+                                    Guest
+                                </span>
+                            </div>
+                        </article>
+                    ))}
+                </div>
             </div>
-
         </section>
     );
 };
 
 export default Testimonials;
-

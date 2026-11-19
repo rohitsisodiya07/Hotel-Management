@@ -10,10 +10,12 @@ const adminOrHotel = require('../Middleware/adminOrHotel');
 // ==========================
 router.post("/create", authMiddleware, bookingController.createBooking);
 router.get("/myBookings", authMiddleware, bookingController.getMyBookings);
+router.get("/my-bookings", authMiddleware, bookingController.getMyBookings);
 router.get("/details/:bookingId", authMiddleware, bookingController.getBookingDetails);
 
-// Cancel Booking - Accessible by both Customer and Hotel/Admin
+// Cancel Booking - Accessible by both Customer and Hotel/Admin (supports PUT & PATCH)
 router.put("/cancel/:bookingId", authMiddleware, bookingController.cancelBooking);
+router.patch("/cancel/:bookingId", authMiddleware, bookingController.cancelBooking);
 
 // ==========================
 // Hotel / Admin Routes
@@ -24,8 +26,20 @@ router.get(
     adminOrHotel,
     bookingController.getHotelBookings
 );
+router.get(
+    "/hotel-bookings",
+    authMiddleware,
+    adminOrHotel,
+    bookingController.getHotelBookings
+);
 
 router.patch(
+    "/confirm/:bookingId",
+    authMiddleware,
+    adminOrHotel,
+    bookingController.confirmBooking
+);
+router.put(
     "/confirm/:bookingId",
     authMiddleware,
     adminOrHotel,
@@ -38,8 +52,20 @@ router.patch(
     adminOrHotel,
     bookingController.checkInBooking
 );
+router.put(
+    "/checkin/:bookingId",
+    authMiddleware,
+    adminOrHotel,
+    bookingController.checkInBooking
+);
 
 router.patch(
+    "/complete/:bookingId",
+    authMiddleware,
+    adminOrHotel,
+    bookingController.completeBooking
+);
+router.put(
     "/complete/:bookingId",
     authMiddleware,
     adminOrHotel,

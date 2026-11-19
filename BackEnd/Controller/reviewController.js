@@ -1,5 +1,7 @@
 const Booking = require("../Model/bookingModel");
 const Review = require("../Model/reviewModel");
+const Hotel = require("../Model/hotelModel");
+const mongoose = require("mongoose");
 
 exports.createReview = async (req, res) => {
     try {
@@ -79,6 +81,22 @@ exports.createReview = async (req, res) => {
         booking.review = newReview._id;
         await booking.save();
 
+        // 8. Update Hotel aggregate rating
+        try {
+            const allHotelReviews = await Review.find({ hotelId: booking.hotelId });
+            const totalCount = allHotelReviews.length;
+            const avgRating = totalCount > 0
+                ? Number((allHotelReviews.reduce((sum, r) => sum + (r.overallRating || 0), 0) / totalCount).toFixed(1))
+                : 0;
+
+            await Hotel.findByIdAndUpdate(booking.hotelId, {
+                rating: avgRating,
+                totalReviews: totalCount,
+            });
+        } catch (ratingErr) {
+            console.error("Failed to update hotel rating cache:", ratingErr.message);
+        }
+
         return res.status(201).json({
             success: true,
             message: "Review submitted successfully.",
@@ -91,6 +109,79 @@ exports.createReview = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Failed to submit review due to server error.",
+            error: error.message,
+        });
+    }
+};
+
+exports.getHotelReviews = async (req, res) => {
+    try {
+        const { hotelId } = req.params;
+        const { page = 1, limit = 10 } = req.query;
+
+        if (!hotelId || !mongoose.Types.ObjectId.isValid(hotelId)) {
+            return res.status(400).json({ success: false, message: "Valid Hotel ID is required." });
+        }
+
+        const pageNum = Math.max(1, Number(page) || 1);
+        const limitNum = Math.max(1, Math.min(Number(limit) || 10, 50));
+        const skip = (pageNum - 1) * limitNum;
+
+        const totalReviews = await Review.countDocuments({ hotelId });
+        const reviews = await Review.find({ hotelId })
+            .populate("userId", "name email")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum);
+
+        // Calculate Category Breakdown
+        const allReviews = await Review.find({ hotelId }).select("cleanliness staff location valueForMoney overallRating");
+        const count = allReviews.length;
+
+        let breakdown = {
+            cleanliness: 0,
+            staff: 0,
+            location: 0,
+            valueForMoney: 0,
+            overall: 0,
+            total: count,
+        };
+
+        if (count > 0) {
+            const sum = allReviews.reduce(
+                (acc, r) => ({
+                    cleanliness: acc.cleanliness + (r.cleanliness || 0),
+                    staff: acc.staff + (r.staff || 0),
+                    location: acc.location + (r.location || 0),
+                    valueForMoney: acc.valueForMoney + (r.valueForMoney || 0),
+                    overall: acc.overall + (r.overallRating || 0),
+                }),
+                { cleanliness: 0, staff: 0, location: 0, valueForMoney: 0, overall: 0 }
+            );
+
+            breakdown = {
+                cleanliness: Number((sum.cleanliness / count).toFixed(1)),
+                staff: Number((sum.staff / count).toFixed(1)),
+                location: Number((sum.location / count).toFixed(1)),
+                valueForMoney: Number((sum.valueForMoney / count).toFixed(1)),
+                overall: Number((sum.overall / count).toFixed(1)),
+                total: count,
+            };
+        }
+
+        return res.status(200).json({
+            success: true,
+            totalReviews,
+            page: pageNum,
+            totalPages: Math.ceil(totalReviews / limitNum) || 1,
+            breakdown,
+            reviews,
+        });
+    } catch (error) {
+        console.error("Get Hotel Reviews Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve hotel reviews.",
             error: error.message,
         });
     }

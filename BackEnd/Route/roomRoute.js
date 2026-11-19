@@ -16,6 +16,11 @@ router.get(
     auth,
     roomController.getMyRooms
 );
+router.get(
+    "/my-rooms",
+    auth,
+    roomController.getMyRooms
+);
 
 
 // Create Room
@@ -69,6 +74,11 @@ router.get(
 
 // Update
 router.put(
+    "/update/:roomId",
+    auth,
+    roomController.updateRoom
+);
+router.patch(
     "/update/:roomId",
     auth,
     roomController.updateRoom

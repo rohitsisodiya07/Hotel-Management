@@ -10,6 +10,7 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip
 } from "recharts";
 import { Toaster, toast } from "sonner";
+import Swal from "sweetalert2";
 import CountUpModule from "react-countup";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -181,7 +182,18 @@ const SuperAdminDashboard = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this hotel?")) return;
+        const result = await Swal.fire({
+            title: "Delete Hotel Record?",
+            text: "Are you sure you want to permanently delete this hotel and all its associated room records from the platform?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#DC2626",
+            cancelButtonColor: "#4B5563",
+            confirmButtonText: "Yes, delete permanently",
+            cancelButtonText: "Cancel",
+            reverseButtons: true,
+        });
+        if (!result.isConfirmed) return;
         try {
             await axios.delete(`${signupApi}hotel/delete/${id}`, {
                 headers: { Authorization: `Bearer ${token}` },

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { Toaster, toast } from "sonner";
+import Swal from "sweetalert2";
 import {
   useReactTable,
   getCoreRowModel,
@@ -209,7 +210,18 @@ const AdminDashboard = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this property? This action cannot be undone.")) return;
+    const result = await Swal.fire({
+      title: "Delete Property?",
+      text: "Are you sure you want to delete this property? All associated rooms and records will be deleted.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#DC2626",
+      cancelButtonColor: "#6B7280",
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
     try {
       setTableDataLoading(true);
       await axios.delete(`${signupApi}hotel/delete/${id}`, { headers });

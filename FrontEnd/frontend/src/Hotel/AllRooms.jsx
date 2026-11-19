@@ -143,7 +143,7 @@ const AllRooms = () => {
     const handleFinalImport = async () => {
         const validRows = previewRows.filter((row) => row.status === "Valid");
         if (validRows.length === 0) {
-            toast.error("No valid rooms available for import");
+            toast.error("No valid rooms available for import.");
             return;
         }
 
@@ -153,13 +153,28 @@ const AllRooms = () => {
 
             const response = await axios.post(`${signupApi}room/bulk-import`, { rooms: roomsData }, { headers });
 
-            toast.success(response.data.message || "Bulk import completed");
-            setShowPreview(false);
-            setPreviewRows([]);
-            setPreviewSummary(null);
-            setImportFile(null);
-            roomSearch.fetchData();
+            const imported = response.data.importedRows ?? (response.data.rooms?.length || 0);
+            const failed = response.data.failedRows ?? (response.data.errors?.length || 0);
+
+            if (imported === 0) {
+                toast.error(response.data.errors?.[0]?.message || "Could not import rooms. Please check row format.");
+            } else if (failed > 0) {
+                toast.warning(`Imported/Updated ${imported} room(s). ${failed} row(s) failed.`);
+                setShowPreview(false);
+                setPreviewRows([]);
+                setPreviewSummary(null);
+                setImportFile(null);
+                roomSearch.fetchData();
+            } else {
+                toast.success(response.data.message || `Successfully imported/updated ${imported} room(s)!`);
+                setShowPreview(false);
+                setPreviewRows([]);
+                setPreviewSummary(null);
+                setImportFile(null);
+                roomSearch.fetchData();
+            }
         } catch (error) {
+            console.error("Bulk Import Error:", error);
             toast.error(error.response?.data?.message || "Bulk import failed");
         } finally {
             setImporting(false);
@@ -628,8 +643,8 @@ const AllRooms = () => {
                                 <button onClick={() => { setShowPreview(false); setPreviewRows([]); setPreviewSummary(null); setImportFile(null); }} className="px-5 py-2.5 rounded-xl text-xs font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition cursor-pointer">
                                     Cancel
                                 </button>
-                                <button type="button" onClick={handleFinalImport} disabled={importing || !previewSummary || previewSummary.invalid > 0 || previewRows.length === 0} className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer">
-                                    {importing ? "Importing..." : `Import ${previewSummary?.valid || 0} Rooms`}
+                                <button type="button" onClick={handleFinalImport} disabled={importing || !previewSummary || (previewSummary.valid || 0) === 0 || previewRows.length === 0} className="px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer">
+                                    {importing ? "Importing..." : `Import ${previewSummary?.valid || 0} Valid Room${(previewSummary?.valid || 0) > 1 ? 's' : ''}`}
                                 </button>
                             </div>
                         </div>

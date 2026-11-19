@@ -43,7 +43,14 @@ router.post(
 router.get(
     "/my-hotels",
     auth,
-    admin,
+    adminOrSuperAdmin,
+    hotelController.getMyHotels
+);
+
+router.get(
+    "/myHotels",
+    auth,
+    adminOrSuperAdmin,
     hotelController.getMyHotels
 );
 
@@ -56,6 +63,13 @@ router.patch(
 
 router.patch(
     "/change-status/:id",
+    auth,
+    admin,
+    hotelController.changeHotelStatus
+);
+
+router.patch(
+    "/changeStatus/:id",
     auth,
     admin,
     hotelController.changeHotelStatus
@@ -150,6 +164,24 @@ router.get(
     "/particular-dashboard",
     auth,
     hotelController.getParticularHotelDashboard
+);
+
+router.get(
+    "/particularDashboard",
+    auth,
+    hotelController.getParticularHotelDashboard
+);
+
+router.put(
+    "/update-profile",
+    auth,
+    hotelController.updateHotelProfile
+);
+
+router.patch(
+    "/update-profile",
+    auth,
+    hotelController.updateHotelProfile
 );
 
 router.get(

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { signupApi } from "../api";
 import { Search, Plus, Eye, Edit, Trash2, Power, PowerOff, X, TicketPercent, Loader2, Copy, Check, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Toaster, toast } from "sonner";
+import Swal from "sweetalert2";
 
 const MyCoupon = () => {
     const navigate = useNavigate();
@@ -60,8 +61,18 @@ const MyCoupon = () => {
     };
 
     const handleDelete = async (id) => {
-        const confirmDelete = window.confirm("Are you absolutely sure you want to delete this coupon permanently?");
-        if (!confirmDelete) return;
+        const result = await Swal.fire({
+            title: "Delete Coupon?",
+            text: "Are you sure you want to permanently delete this discount coupon?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#DC2626",
+            cancelButtonColor: "#4B5563",
+            confirmButtonText: "Yes, delete",
+            cancelButtonText: "Cancel",
+            reverseButtons: true,
+        });
+        if (!result.isConfirmed) return;
 
         try {
             const headers = { Authorization: `Bearer ${token}` };

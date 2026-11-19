@@ -4,9 +4,10 @@ const ALLOWED_TYPES = [
     "image/jpeg",
     "image/jpg",
     "image/png",
+    "image/webp",
 ];
 
-const MAX_SIZE = 1 * 1024 * 1024; // 1 MB
+const MAX_SIZE = 15 * 1024 * 1024; // 15 MB allowed for high-res camera photos before compression
 
 const compressImage = async (file) => {
     if (!file) {
@@ -16,14 +17,14 @@ const compressImage = async (file) => {
     // Validate file type
     if (!ALLOWED_TYPES.includes(file.mimetype)) {
         throw new Error(
-            "Only JPG, JPEG and PNG images are allowed."
+            "Only JPG, JPEG, PNG, and WebP images are allowed."
         );
     }
 
     // Validate file size
     if (file.size > MAX_SIZE) {
         throw new Error(
-            "Image size should be less than 1 MB."
+            "Image size should be less than 15 MB."
         );
     }
 

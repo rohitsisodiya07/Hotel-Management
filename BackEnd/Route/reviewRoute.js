@@ -5,5 +5,6 @@ const reviewController = require("../Controller/reviewController");
 const auth = require("../Middleware/authMiddleware");
 
 router.post("/create", auth, reviewController.createReview);
+router.get("/hotel/:hotelId", reviewController.getHotelReviews);
 
 module.exports = router;

@@ -3,6 +3,7 @@ import axios from "axios";
 import { signupApi } from "../api";
 import { useNavigate } from "react-router-dom";
 import { toast, Toaster } from "sonner";
+import Swal from "sweetalert2";
 
 import {
     Calendar,
@@ -23,7 +24,14 @@ import {
     LogOut,
     Lock,
     Star,
-    MessageSquare
+    MessageSquare,
+    Printer,
+    FileText,
+    Download,
+    Building2,
+    Sparkles,
+    Phone,
+    Mail
 } from "lucide-react";
 
 // 🖼️ Room Image Slider Component (Compact)
@@ -96,6 +104,7 @@ const MyBookings = () => {
 
     // Modal State
     const [selectedBooking, setSelectedBooking] = useState(null);
+    const [voucherBooking, setVoucherBooking] = useState(null);
 
     // ⭐ REVIEW SYSTEM STATES
     const [reviewModal, setReviewModal] = useState(false);
@@ -143,7 +152,19 @@ const MyBookings = () => {
     };
 
     const handleCancel = async (bookingId) => {
-        if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+        const result = await Swal.fire({
+            title: "Cancel Reservation?",
+            text: "Are you sure you wish to cancel this reservation? This action cannot be reversed.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#DC2626",
+            cancelButtonColor: "#4B5563",
+            confirmButtonText: "Yes, cancel booking",
+            cancelButtonText: "Keep reservation",
+            reverseButtons: true,
+        });
+
+        if (!result.isConfirmed) return;
 
         try {
             setCancelLoading(bookingId);
@@ -256,7 +277,7 @@ const MyBookings = () => {
             case "Confirmed":
                 return <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-2xs"><CheckCircle2 size={12} /> Confirmed</span>;
             case "Pending":
-                return <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-2xs"><Clock size={12} /> Pending</span>;
+                return <span className="bg-blue-50 text-emerald-800 border border-blue-200 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-2xs"><Clock size={12} /> Pending</span>;
             case "Cancelled":
                 return <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-2xs"><XCircle size={12} /> Cancelled</span>;
             case "Checked In":
@@ -278,14 +299,14 @@ const MyBookings = () => {
     if (loading) {
         return (
             <div className="h-screen flex flex-col justify-center items-center bg-gray-50 space-y-3">
-                <Loader2 className="animate-spin text-blue-600" size={28} />
+                <Loader2 className="animate-spin text-emerald-800" size={28} />
                 <p className="text-gray-400 text-[11px] font-['IBM_Plex_Mono',monospace] uppercase tracking-widest font-semibold">Loading Itinerary...</p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50/50 text-gray-800 font-['Inter',sans-serif] flex flex-col justify-between">
+        <div className="min-h-screen bg-[#f8f8f5] text-gray-800 font-['Inter',sans-serif] flex flex-col justify-between">
             <Toaster position="top-right" richColors />
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
@@ -294,122 +315,20 @@ const MyBookings = () => {
             `}</style>
 
             <div>
-                {/* 🌐 NAVBAR */}
-                <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-2xs py-4 border-b border-gray-200">
-                    <div className="max-w-[1600px] mx-auto px-6 sm:px-8 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5 cursor-pointer group" onClick={() => navigate("/")}>
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-600 text-white shadow-2xs">
-                                <Hotel size={18} />
-                            </div>
-                            <span className="font-bold text-lg tracking-tight text-gray-900 font-['Space_Grotesk']">
-                                AuraStays
-                            </span>
-                        </div>
-
-                        <div className="hidden md:flex items-center gap-4">
-                            {!token ? (
-                                <>
-                                    <button onClick={() => navigate("/login")} className="px-4 py-2 rounded-xl font-semibold text-xs uppercase tracking-wider text-gray-600 hover:bg-gray-100 transition cursor-pointer">
-                                        Sign In
-                                    </button>
-                                    <button onClick={() => navigate("/signup")} className="bg-blue-600 hover:bg-blue-700 transition text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider shadow-2xs cursor-pointer">
-                                        Get Started
-                                    </button>
-                                </>
-                            ) : (
-                                <div className="relative ml-2 pl-4 border-l border-gray-200" ref={dropdownRef}>
-                                    <button onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition border border-gray-200 hover:bg-gray-50 text-gray-800 bg-white cursor-pointer shadow-2xs">
-                                        <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
-                                            {user?.name?.charAt(0).toUpperCase() || "U"}
-                                        </div>
-                                        <span className="font-bold text-xs">{user?.name}</span>
-                                    </button>
-
-                                    {profileDropdownOpen && (
-                                        <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-200 py-2 z-50">
-                                            <div className="px-4 py-2.5 border-b border-gray-100">
-                                                <p className="text-[10px] text-gray-400 font-['IBM_Plex_Mono',monospace] uppercase font-bold">Signed in as</p>
-                                                <p className="text-xs font-bold text-gray-900 truncate mt-0.5">{user?.email}</p>
-                                            </div>
-                                            <button onClick={() => { setProfileDropdownOpen(false); navigate("/myBookings"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
-                                                <Calendar size={14} className="text-blue-600" /> My Reservations
-                                            </button>
-                                            {(user?.role === "admin" || user?.role === "hotel") && (
-                                                <button onClick={() => { setProfileDropdownOpen(false); navigate("/dashboard"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
-                                                    <LayoutDashboard size={14} className="text-blue-600" /> Management Console
-                                                </button>
-                                            )}
-                                            <button onClick={() => { setProfileDropdownOpen(false); navigate("/reset-password"); }} className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50/60 hover:text-blue-600 flex items-center gap-2.5 font-semibold transition cursor-pointer">
-                                                <Lock size={14} className="text-blue-600" /> Reset Password
-                                            </button>
-                                            <div className="border-t border-gray-100 my-1"></div>
-                                            <button onClick={() => { setProfileDropdownOpen(false); handleLogout(); }} className="w-full text-left bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 mt-1">
-                                                <LogOut size={14} /> Secure Logout
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 rounded-xl border border-gray-200 text-gray-800 bg-white">
-                            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-                        </button>
-                    </div>
-                </nav>
-
-                {/* Mobile Menu */}
-                {mobileMenuOpen && (
-                    <div className="md:hidden fixed top-20 left-4 right-4 z-50 bg-white shadow-2xl rounded-2xl p-4 flex flex-col gap-2 border border-gray-200 animate-in fade-in duration-150">
-                        {!token ? (
-                            <>
-                                <button onClick={() => { navigate("/login"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wider text-gray-700 hover:bg-gray-50">
-                                    Sign In
-                                </button>
-                                <button onClick={() => { navigate("/signup"); setMobileMenuOpen(false); }} className="w-full bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-center shadow-2xs">
-                                    Get Started
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <div className="px-4 py-2.5 border-b border-gray-100 mb-1">
-                                    <p className="font-bold text-gray-900 text-xs">{user?.name}</p>
-                                    <p className="text-[11px] text-gray-400">{user?.email}</p>
-                                </div>
-                                <button onClick={() => { navigate("/myBookings"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2.5 text-gray-700">
-                                    <Calendar size={15} className="text-blue-600" /> My Reservations
-                                </button>
-                                {(user?.role === "admin" || user?.role === "hotel") && (
-                                    <button onClick={() => { navigate("/dashboard"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2.5 text-gray-700">
-                                        <LayoutDashboard size={15} className="text-blue-600" /> Management Console
-                                    </button>
-                                )}
-                                <button onClick={() => { navigate("/reset-password"); setMobileMenuOpen(false); }} className="w-full text-left px-4 py-2.5 rounded-xl font-semibold text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2.5 text-gray-700">
-                                    <Lock size={15} className="text-blue-600" /> Reset Password
-                                </button>
-                                <div className="border-t border-gray-100 my-1"></div>
-                                <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full text-left bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 mt-1">
-                                    <LogOut size={15} /> Secure Logout
-                                </button>
-                            </>
-                        )}
-                    </div>
-                )}
-
                 {/* COMPACT HEADER */}
-                <div className="bg-white border-b border-gray-200 pt-28 pb-8 px-6 sm:px-8 relative overflow-hidden shadow-2xs">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent pointer-events-none"></div>
+                <div className="bg-white border-b border-gray-200 pt-8 pb-7 sm:pb-8 px-4 sm:px-8 relative overflow-hidden shadow-2xs">
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-700/5 via-transparent to-transparent pointer-events-none"></div>
                     <div className="max-w-4xl mx-auto relative z-10">
-                        <button onClick={() => navigate("/")} className="flex items-center gap-1.5 text-blue-600 text-xs font-bold uppercase tracking-wider mb-3 hover:underline font-['IBM_Plex_Mono'] cursor-pointer">
+                        <button onClick={() => navigate("/")} className="flex items-center gap-1.5 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-3 hover:underline font-['IBM_Plex_Mono'] cursor-pointer">
                             <ArrowLeft size={14} /> Back to Home
                         </button>
-                        <h1 className="text-2xl sm:text-3xl font-bold font-['Space_Grotesk'] tracking-tight text-gray-900">My Reservations</h1>
-                        <p className="text-gray-500 mt-1 text-xs max-w-md leading-relaxed font-medium">Manage your upcoming stays, completed trips and booking history.</p>
+                        <h1 className="text-2xl sm:text-3xl font-bold font-['Space_Grotesk'] tracking-tight text-gray-900">My Bookings</h1>
+                        <p className="text-gray-500 mt-1 text-xs max-w-md leading-relaxed font-medium">View and manage your upcoming stays, completed trips and booking history.</p>
                     </div>
                 </div>
 
                 {/* COMPACT BOOKINGS LIST */}
-                <div className="max-w-4xl mx-auto px-6 sm:px-8 py-8">
+                <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
 
                     {/* 3 TABS LAYOUT WITH DYNAMIC COUNTS */}
                     <div className="bg-white rounded-2xl p-1.5 shadow-2xs border border-gray-200 flex overflow-x-auto scrollbar-hide mb-6 sticky top-24 z-40">
@@ -422,7 +341,7 @@ const MyBookings = () => {
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key)}
                                 className={`flex-1 min-w-[110px] text-xs font-bold uppercase tracking-wider py-2.5 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-2 ${activeTab === tab.key
-                                    ? "bg-blue-600 text-white shadow-2xs font-semibold"
+                                    ? "bg-emerald-800 text-white shadow-2xs font-semibold"
                                     : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
                                     }`}
                             >
@@ -451,7 +370,7 @@ const MyBookings = () => {
                             </p>
                             <button
                                 onClick={() => navigate("/")}
-                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                                className="bg-emerald-950 hover:bg-emerald-900 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
                             >
                                 Explore Hotels
                             </button>
@@ -474,10 +393,10 @@ const MyBookings = () => {
                                 }
 
                                 return (
-                                    <div key={b._id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col md:flex-row gap-5 shadow-2xs hover:shadow-md transition-all duration-300">
+                                    <div key={b._id} className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row gap-4 sm:gap-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-300">
 
                                         {/* Thumbnail Image */}
-                                        <div className="w-full md:w-44 h-32 relative rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-100">
+                                        <div className="w-full md:w-44 h-40 sm:h-36 md:h-32 relative rounded-xl overflow-hidden shrink-0 border border-gray-200 bg-gray-100">
                                             <img src={b.hotelId?.hotelImages?.[0] || b.roomId?.roomImages?.[0] || "https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=800"} alt="Room" className="w-full h-full object-cover" />
                                             <div className="absolute top-2 left-2">
                                                 {getStatusBadge(b.bookingStatus)}
@@ -489,7 +408,7 @@ const MyBookings = () => {
                                             <div>
                                                 <div className="flex justify-between items-start flex-wrap gap-2">
                                                     <div>
-                                                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest font-['IBM_Plex_Mono'] mb-0.5">ID: {b.bookingId}</p>
+                                                        <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest font-['IBM_Plex_Mono'] mb-0.5">ID: {b.bookingId}</p>
                                                         <h3 className="text-lg font-bold text-gray-900 font-['Space_Grotesk'] leading-tight">{b.hotelId?.hotelName || "Hotel Details"}</h3>
                                                         <p className="text-gray-500 text-xs mt-0.5 font-medium">{b.roomId?.roomType || "Standard Room"}</p>
 
@@ -509,7 +428,7 @@ const MyBookings = () => {
                                                 </div>
 
                                                 {/* Compact Info Grid */}
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3.5 bg-gray-50 p-3.5 rounded-xl border border-gray-200 text-xs">
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3.5 bg-[#f8f8f5] p-3 sm:p-3.5 rounded-xl border border-gray-100 text-xs">
                                                     <div>
                                                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Check-In</p>
                                                         <p className="font-bold text-gray-900 mt-0.5">{new Date(b.checkIn).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}</p>
@@ -524,7 +443,7 @@ const MyBookings = () => {
                                                     </div>
                                                     <div>
                                                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Location</p>
-                                                        <p className="font-bold text-gray-900 mt-0.5 flex items-center gap-1"><MapPin size={11} className="text-blue-600" /> {b.hotelId?.city?.cityName || "City"}</p>
+                                                        <p className="font-bold text-gray-900 mt-0.5 flex items-center gap-1"><MapPin size={11} className="text-emerald-800" /> {b.hotelId?.city?.cityName || "City"}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -568,13 +487,22 @@ const MyBookings = () => {
                                                     )}
                                                 </div>
 
-                                                <div className="flex items-center gap-2.5 w-full md:w-auto">
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
                                                     <button
                                                         onClick={() => handleViewDetails(b._id)}
-                                                        className="w-full md:w-auto flex items-center justify-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                                                        className="w-full md:w-auto flex items-center justify-center gap-1.5 bg-emerald-950 hover:bg-emerald-900 text-white px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-sm cursor-pointer"
                                                     >
                                                         <Eye size={14} /> View Details
                                                     </button>
+
+                                                    {["Pending", "Confirmed", "Completed"].includes(b.bookingStatus) && (
+                                                        <button
+                                                            onClick={() => setVoucherBooking(b)}
+                                                            className="w-full md:w-auto flex items-center justify-center gap-1.5 bg-[#f4f8f3] hover:bg-[#e7f0e5] text-[#244633] border border-[#d0ded0] px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-2xs"
+                                                        >
+                                                            <Printer size={13} /> Voucher
+                                                        </button>
+                                                    )}
 
                                                     {["Pending", "Confirmed"].includes(b.bookingStatus) && (
                                                         <button
@@ -613,7 +541,7 @@ const MyBookings = () => {
                         </button>
 
                         <div className="mb-6 border-b border-gray-100 pb-4">
-                            <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
+                            <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-emerald-800 font-bold uppercase block mb-1">
                                 Share Your Experience
                             </span>
                             <h2 className="text-lg font-bold font-['Space_Grotesk'] text-gray-900 pr-6">
@@ -657,7 +585,7 @@ const MyBookings = () => {
                                         placeholder="Tell us what you loved (or what could be better)..."
                                         value={reviewText}
                                         onChange={(e) => setReviewText(e.target.value)}
-                                        className="w-full border border-gray-200 bg-gray-50/50 focus:bg-white rounded-xl pl-10 pr-4 py-3 outline-none focus:border-blue-500 text-xs resize-none transition shadow-2xs"
+                                        className="w-full border border-gray-200 bg-gray-50/50 focus:bg-white rounded-xl pl-10 pr-4 py-3 outline-none focus:border-emerald-700 text-xs resize-none transition shadow-2xs"
                                     />
                                 </div>
                             </div>
@@ -665,7 +593,7 @@ const MyBookings = () => {
                             <button
                                 type="submit"
                                 disabled={reviewSubmitLoading || !ratings.cleanliness || !ratings.staff || !ratings.location || !ratings.valueForMoney}
-                                className="w-full bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 rounded-xl font-bold uppercase tracking-wider text-xs transition shadow-2xs flex items-center justify-center gap-2 cursor-pointer mt-2"
+                                className="w-full bg-emerald-950 hover:bg-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 rounded-xl font-bold uppercase tracking-wider text-xs transition shadow-2xs flex items-center justify-center gap-2 cursor-pointer mt-2"
                             >
                                 {reviewSubmitLoading && <Loader2 size={15} className="animate-spin" />}
                                 {reviewSubmitLoading ? "Submitting..." : "Submit Verified Review"}
@@ -690,7 +618,7 @@ const MyBookings = () => {
                             <X size={16} />
                         </button>
 
-                        <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-blue-600 font-bold uppercase block mb-1">
+                        <span className="text-[10px] font-['IBM_Plex_Mono',monospace] tracking-[0.15em] text-emerald-800 font-bold uppercase block mb-1">
                             Reservation Summary
                         </span>
                         <h2 className="text-xl font-bold font-['Space_Grotesk'] text-gray-900 mb-4 pr-6">
@@ -718,11 +646,11 @@ const MyBookings = () => {
                                 </div>
                                 <div>
                                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Status</p>
-                                    <p className="font-bold text-blue-600 mt-0.5">{selectedBooking.bookingStatus}</p>
+                                    <p className="font-bold text-emerald-800 mt-0.5">{selectedBooking.bookingStatus}</p>
                                 </div>
                                 <div>
                                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Room Assignment</p>
-                                    <p className="font-bold text-gray-900 mt-0.5">{selectedBooking.roomId?.roomType} <span className="text-blue-600">(#{selectedBooking.roomId?.roomNumber})</span></p>
+                                    <p className="font-bold text-gray-900 mt-0.5">{selectedBooking.roomId?.roomType} <span className="text-emerald-800">(#{selectedBooking.roomId?.roomNumber})</span></p>
                                 </div>
                                 <div>
                                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider font-['IBM_Plex_Mono']">Guests & Nights</p>
@@ -802,15 +730,217 @@ const MyBookings = () => {
 
                         </div>
 
-                        <div className="mt-6 flex justify-end pt-4 border-t border-gray-100">
+                        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-100">
+                            {["Pending", "Confirmed", "Completed"].includes(selectedBooking.bookingStatus) && (
+                                <button
+                                    onClick={() => {
+                                        const b = selectedBooking;
+                                        setSelectedBooking(null);
+                                        setVoucherBooking(b);
+                                    }}
+                                    className="bg-amber-50 hover:bg-amber-100 text-[#7a5518] border border-amber-300 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Printer size={14} /> Print Voucher
+                                </button>
+                            )}
                             <button
                                 onClick={() => setSelectedBooking(null)}
-                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
+                                className="bg-emerald-950 hover:bg-emerald-900 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition shadow-2xs cursor-pointer"
                             >
                                 Close Details
                             </button>
                         </div>
 
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================== */}
+            {/* 🖨️ LUXURY PRINTABLE BOOKING VOUCHER MODAL */}
+            {/* ========================================== */}
+            {voucherBooking && (
+                <div
+                    className="fixed inset-0 z-[130] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+                    onClick={() => setVoucherBooking(null)}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-[#d6ded2] p-6 sm:p-10 relative text-[#1f2821]"
+                    >
+                        {/* Close button (Hidden during print) */}
+                        <div className="print:hidden flex justify-between items-center mb-6 border-b border-[#e6ebe3] pb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="bg-[#173D31] text-white p-1.5 rounded-lg">
+                                    <FileText size={16} />
+                                </span>
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-[#173D31]">
+                                    Booking Voucher & Invoice
+                                </h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="inline-flex items-center gap-1.5 bg-[#173D31] hover:bg-[#235343] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shadow-sm"
+                                >
+                                    <Printer size={14} /> Print / Save PDF
+                                </button>
+                                <button
+                                    onClick={() => setVoucherBooking(null)}
+                                    className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition cursor-pointer"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ================= VOUCHER PRINT CONTENT ================= */}
+                        <div id="printable-voucher" className="space-y-6 text-xs bg-white">
+                            {/* Brand Voucher Header */}
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-[#173D31] pb-5">
+                                <div>
+                                    <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#0A2218]">
+                                        Aura<span className="text-[#785114] italic font-medium ml-0.5">Stay</span>
+                                    </h1>
+                                    <p className="text-[10px] uppercase tracking-[0.25em] font-semibold text-[#47574B] mt-0.5">
+                                        Official Reservation Voucher & Tax Receipt
+                                    </p>
+                                </div>
+                                <div className="sm:text-right">
+                                    <span className="inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
+                                        Status: {voucherBooking.bookingStatus}
+                                    </span>
+                                    <p className="font-['IBM_Plex_Mono'] text-xs font-bold text-gray-900 mt-1">
+                                        Ref: #{voucherBooking.bookingId}
+                                    </p>
+                                    <p className="text-[10px] text-gray-500">
+                                        Issued: {new Date(voucherBooking.createdAt || Date.now()).toLocaleDateString("en-IN")}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Hotel Details */}
+                            <div className="p-4 rounded-2xl bg-[#f7f9f6] border border-[#e4ebe1]">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-[#405D4B] block mb-1">
+                                    Confirmed Property
+                                </span>
+                                <h2 className="text-lg font-bold font-['Cormorant_Garamond'] text-[#19241d]">
+                                    {voucherBooking.hotelId?.hotelName || "Luxury Stay"}
+                                </h2>
+                                <p className="text-xs text-[#526354] mt-0.5 flex items-center gap-1.5">
+                                    <MapPin size={13} className="shrink-0 text-[#405D4B]" />
+                                    {voucherBooking.hotelId?.address || "Address on record"}, {voucherBooking.hotelId?.city?.cityName || voucherBooking.hotelId?.city || ""}
+                                </p>
+                            </div>
+
+                            {/* Guest & Reservation Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white border border-[#e5ebe2] p-4 rounded-2xl">
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400">Guest Name</p>
+                                    <p className="font-bold text-gray-900 mt-0.5">{voucherBooking.userId?.name || user?.name || "Valued Guest"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400">Contact</p>
+                                    <p className="font-bold text-gray-900 mt-0.5 truncate">{voucherBooking.userId?.email || user?.email || "Email on file"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400">Total Guests</p>
+                                    <p className="font-bold text-gray-900 mt-0.5">{voucherBooking.totalGuests || 1} Guests</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-400">Duration</p>
+                                    <p className="font-bold text-gray-900 mt-0.5">{voucherBooking.totalNights || 1} Night(s)</p>
+                                </div>
+                            </div>
+
+                            {/* Dates Box */}
+                            <div className="grid grid-cols-2 gap-4 border border-[#e4ebe1] rounded-2xl p-4 bg-[#fafbf9]">
+                                <div className="border-r border-[#e4ebe1] pr-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#405D4B]">Check-In</span>
+                                    <p className="text-sm font-bold text-gray-900 mt-1">
+                                        {new Date(voucherBooking.checkIn).toLocaleDateString("en-IN", {
+                                            weekday: "short",
+                                            day: "numeric",
+                                            month: "short",
+                                            year: "numeric",
+                                        })}
+                                    </p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">From 02:00 PM onwards</p>
+                                </div>
+                                <div className="pl-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#405D4B]">Check-Out</span>
+                                    <p className="text-sm font-bold text-gray-900 mt-1">
+                                        {new Date(voucherBooking.checkOut).toLocaleDateString("en-IN", {
+                                            weekday: "short",
+                                            day: "numeric",
+                                            month: "short",
+                                            year: "numeric",
+                                        })}
+                                    </p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">Until 11:00 AM</p>
+                                </div>
+                            </div>
+
+                            {/* Room Info */}
+                            <div className="p-4 rounded-2xl border border-[#e5ebe2] flex justify-between items-center">
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold text-gray-400">Room Details</span>
+                                    <p className="text-sm font-bold text-gray-900 mt-0.5">
+                                        {voucherBooking.roomId?.roomType || "Standard Room"}
+                                    </p>
+                                    {voucherBooking.roomId?.roomNumber && (
+                                        <p className="text-[11px] text-[#405D4B] font-semibold">
+                                            Room Allotment: #{voucherBooking.roomId.roomNumber}
+                                        </p>
+                                    )}
+                                </div>
+                                <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-xl text-xs font-bold">
+                                    Confirmed
+                                </span>
+                            </div>
+
+                            {/* Financial Summary */}
+                            <div className="bg-[#173D31] text-white p-5 rounded-2xl space-y-2">
+                                <div className="flex justify-between items-center text-xs text-emerald-200">
+                                    <span>Room Charges & Taxes</span>
+                                    <span>Included</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-emerald-200">
+                                    <span>Payment Mode</span>
+                                    <span className="capitalize">{voucherBooking.paymentStatus || "Paid Online"}</span>
+                                </div>
+                                <div className="border-t border-emerald-800/80 pt-2 flex justify-between items-center">
+                                    <div>
+                                        <span className="text-[10px] uppercase font-bold text-emerald-300">Total Paid Amount</span>
+                                        <h3 className="text-2xl font-bold font-['Space_Grotesk'] text-amber-300 leading-none mt-0.5">
+                                            ₹{Number(voucherBooking.finalAmount || voucherBooking.totalPrice || 0).toLocaleString("en-IN")}
+                                        </h3>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-200 bg-white/10 px-3 py-1 rounded-full">
+                                            <ShieldCheck size={13} className="text-emerald-300" />
+                                            Payment Verified
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Guidelines */}
+                            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-1.5 text-[11px] text-amber-900">
+                                <p className="font-bold uppercase tracking-wider text-amber-800 text-[10px]">
+                                    Important Check-In Instructions:
+                                </p>
+                                <ul className="list-disc list-inside space-y-1 text-amber-900/90">
+                                    <li>Please present this digital or printed voucher along with a valid government photo ID for each adult guest at check-in.</li>
+                                    <li>Early check-in or late check-out is subject to room availability upon arrival.</li>
+                                    <li>For 24/7 assistance or special requests, please contact our Concierge Desk at support@aurastays.com.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        {/* Print Footer Notice */}
+                        <div className="mt-6 pt-4 border-t border-[#e8ece5] text-center text-[10px] text-gray-400">
+                            AuraStay Hospitality Technologies Pvt Ltd • Verified Luxury Sanctuary Network • All Rights Reserved
+                        </div>
                     </div>
                 </div>
             )}
